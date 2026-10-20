@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Nav from "@/components/Nav";
+import CurtainShell from "@/components/CurtainShell";
+import MotionProvider from "@/components/MotionProvider";
+import NoScriptStyles from "@/components/NoScriptStyles";
 import Footer from "@/components/sections/Footer";
 import StructuredData from "@/components/StructuredData";
 import { SITE } from "@/lib/site";
@@ -15,9 +18,14 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${inter.variable} ${mono.variable}`}><body id="top">
-    <a className="skip-link" href="#main">Skip to content</a><Nav />
-    <div className="page-curtain">{children}</div><Footer />
+  return <html lang="en" className={`${inter.variable} ${mono.variable} antialiased`}><body id="top">
+    <NoScriptStyles />
+    <a className="skip-link" href="#main">Skip to content</a>
+    <MotionProvider>
+      <Nav />
+      {/* Original curtain: page content lifts away to reveal the pinned footer (desktop). */}
+      <CurtainShell footer={<Footer />}>{children}</CurtainShell>
+    </MotionProvider>
     <StructuredData data={{ "@context": "https://schema.org", "@graph": [
       { "@type": "Organization", "@id": `${SITE.origin}/#organization`, name: SITE.name, url: SITE.origin, description: SITE.description, logo: `${SITE.origin}/icon.svg`, ...(SITE.contactEmail ? { email: SITE.contactEmail } : {}) },
       { "@type": "WebSite", "@id": `${SITE.origin}/#website`, url: SITE.origin, name: SITE.name, publisher: { "@id": `${SITE.origin}/#organization` } }
