@@ -196,6 +196,10 @@ body {
 .spin-18 { animation: spinSlow 18s linear infinite; }
 .spin-26 { animation: spinSlow 26s linear infinite; }
 
+/* Let people stop the capability ticker (WCAG 2.2.2). */
+:where(:hover, :focus-within) > .marquee-track,
+.marquee-track:hover { animation-play-state: paused; }
+
 /* FAQ: native <details> with the original open/close motion. */
 .faq-item::details-content {
   block-size: 0;

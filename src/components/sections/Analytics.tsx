@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import Reveal from "@/components/Reveal";
@@ -33,6 +34,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 export default function Analytics() {
+  const uid = useId().replace(/:/g, "");
   const w = MEASURE.workflow;
   const conic = w.segments
     .map((s, i) => {
@@ -130,11 +132,11 @@ export default function Analytics() {
               <p className="text-[12px] text-mut-2">{MEASURE.throughput.sub}</p>
               <svg viewBox="0 0 200 90" preserveAspectRatio="none" className="mt-3 h-24 w-full" aria-hidden>
                 <defs>
-                  <linearGradient id="perfFill" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={`perfFill${uid}`}x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#fa6e43" stopOpacity="0.32" />
                     <stop offset="100%" stopColor="#fa6e43" stopOpacity="0" />
                   </linearGradient>
-                  <clipPath id="perfClip">
+                  <clipPath id={`perfClip${uid}`}>
                     <motion.rect
                       data-fill-svg=""
                       x="0"
@@ -147,8 +149,8 @@ export default function Analytics() {
                     />
                   </clipPath>
                 </defs>
-                <g clipPath="url(#perfClip)">
-                  <polygon fill="url(#perfFill)" points="0,70 33,55 66,60 100,38 133,42 166,18 200,8 200,90 0,90" />
+                <g clipPath={`url(#perfClip${uid})`}>
+                  <polygon fill={`url(#perfFill${uid})`}points="0,70 33,55 66,60 100,38 133,42 166,18 200,8 200,90 0,90" />
                   <polyline fill="none" stroke="#5f5f66" strokeWidth="1.5" vectorEffect="non-scaling-stroke" points="0,78 33,72 66,66 100,60 133,55 166,46 200,40" />
                   <polyline fill="none" stroke="#fa6e43" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" points="0,70 33,55 66,60 100,38 133,42 166,18 200,8" />
                 </g>
