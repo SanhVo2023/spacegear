@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { QUICKSTART_KEY } from "../lib/quickstart";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 const subscribeHydration = () => () => {};
 type Turnstile = {
@@ -25,6 +26,22 @@ export default function ContactForm({ services, siteKey }: { services: {slug:str
     const requested = new URLSearchParams(window.location.search).get("service");
     if (select && requested && services.some(s=>s.slug===requested)) select.value=requested;
   },[services]);
+  useEffect(() => {
+    // Name and email handed over by the footer quick-start form (never via the URL).
+    try {
+      const saved = sessionStorage.getItem(QUICKSTART_KEY);
+      if (!saved) return;
+      sessionStorage.removeItem(QUICKSTART_KEY);
+      const { name, email } = JSON.parse(saved) as { name?: unknown; email?: unknown };
+      const fields = form.current?.elements;
+      const nameInput = fields?.namedItem("name") as HTMLInputElement | null;
+      const emailInput = fields?.namedItem("email") as HTMLInputElement | null;
+      if (nameInput && typeof name === "string") nameInput.value = name.slice(0, 100);
+      if (emailInput && typeof email === "string") emailInput.value = email.slice(0, 254);
+    } catch {
+      // Storage unavailable or malformed: the visitor simply types their details.
+    }
+  }, []);
   useEffect(() => {
     if (!siteKey) return;
     let disposed=false;

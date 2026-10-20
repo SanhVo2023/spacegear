@@ -176,6 +176,20 @@ try {
   await page.close();
   report.interactions.push("native FAQ keyboard toggles, contact service selection, compact viewport/text zoom, preview form disabled");
 
+  const quick = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await quick.goto(base, { waitUntil: "networkidle" });
+  await quick.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await quick.waitForTimeout(400);
+  await quick.getByLabel("Your name").fill("Robin Footer");
+  await quick.getByLabel("Your email").fill("robin@gmail.com");
+  await quick.getByRole("button", { name: "Continue to the project brief" }).click();
+  await quick.waitForURL("**/contact/");
+  await quick.waitForFunction(() => document.querySelector("#name")?.value === "Robin Footer");
+  assert.equal(await quick.locator("#email").inputValue(), "robin@gmail.com");
+  assert.equal(new URL(quick.url()).search, "", "quick start keeps personal details out of the URL");
+  await quick.close();
+  report.interactions.push("footer quick start hands name and email to the contact form without using the URL");
+
   const narrowPage = await browser.newPage({ viewport: { width: 320, height: 740 } });
   for (const route of routes) {
     await narrowPage.goto(new URL(route, base).href, { waitUntil: "networkidle" });
@@ -224,7 +238,15 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
     return route.fulfill({ status: phase === "success" ? 202 : phase === "conflict" ? 409 : 503, contentType: "application/json", body: JSON.stringify({ ok: phase === "success" }) });
   });
+  await formPage.addInitScript(() => {
+    if (sessionStorage.getItem("fixture-prefilled")) return;
+    sessionStorage.setItem("fixture-prefilled", "1");
+    sessionStorage.setItem("spacegear:quickstart", JSON.stringify({ name: "Sam Quickstart", email: "sam@gmail.com" }));
+  });
   await formPage.goto(`${base}/__form-fixture/`, { waitUntil: "networkidle" });
+  await formPage.waitForFunction(() => document.querySelector("#name")?.value === "Sam Quickstart");
+  assert.equal(await formPage.locator("#email").inputValue(), "sam@gmail.com", "quick-start email prefilled");
+  assert.equal(await formPage.evaluate(() => sessionStorage.getItem("spacegear:quickstart")), null, "quick-start details are used once");
   await formPage.getByLabel("Name", { exact: true }).fill("Alex Example");
   await formPage.getByLabel("Email", { exact: true }).fill("alex@gmail.com");
   await formPage.getByLabel("What would you like to improve?").fill("Connect our documents to the systems we already use.");
