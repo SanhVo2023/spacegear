@@ -1,12 +1,12 @@
 # Spacegear website revival: design and delivery brief
 
-Status: revision 2, proposed design, based on the local source audit and live site inspection. This revision sharpens positioning, the starting offer, homepage hierarchy, visual direction and measurement. No product implementation or deployment has occurred.
+Status: revision 3, based on the local source audit, live site inspection and owner feedback. The audience is open across industries, company sizes and regions; public company-scale signals are omitted; work proceeds directly without Cockpit. The offer, homepage hierarchy, visual direction and measurement from revision 2 remain. No product implementation or deployment has occurred.
 
 Evidence: [site audit](../../audits/2026-10-20-spacegear-site-audit.md). Execution: [implementation plan](../plans/2026-10-20-spacegear-revival.md).
 
-Start with the [short strategy and discussion brief](2026-10-20-spacegear-decision-brief.md). All recommendations below remain proposals until the relevant business facts are supplied.
+Start with the [short strategy and discussion brief](2026-10-20-spacegear-decision-brief.md). The owner's audience, scale-privacy and workflow decisions are confirmed. Other business recommendations remain proposals until the relevant facts are supplied.
 
-Repository update: the owner supplied `https://github.com/SanhVo2023/platform-design-contest`. GitHub API reports a public repository of size 0, default branch `main`; `git ls-remote` returned no refs. It currently contains no website source. Treat it as the proposed destination for the preserved local source, not evidence that the current local application is versioned there. Two clone attempts failed to connect to GitHub; the Cockpit fallback failed because the folder is unregistered. No clone or push has been completed.
+Repository update: the owner supplied `https://github.com/SanhVo2023/platform-design-contest`. GitHub API reported a public repository of size 0, default branch `main`; `git ls-remote` returned no refs. Treat it as the proposed destination for the preserved local source, not evidence that the current local application is versioned there. Three direct clone attempts failed to connect to GitHub. The earlier Cockpit fallback failed, and the owner subsequently instructed us to bypass Cockpit. Continue directly within tool permissions; no Cockpit registration is required. No clone or push has been completed.
 
 ## 1. Intent and fixed requirements
 
@@ -20,8 +20,11 @@ User requirements:
 - Optimize speed, technical SEO and visibility in AI-assisted search.
 - Analyze the existing site before planning the rebuild.
 - Clone the supplied repository when network access permits, then reconcile the preserved local source.
+- Keep customer eligibility open across industries, company sizes and regions; no segment-based inquiry screening.
+- Keep Spacegear's company scale out of public messaging, imagery and structured data without inventing a larger operation.
+- Use direct tools and commands; bypass Cockpit, including its registration and owner-command workflow.
 
-Planning assumptions, not confirmed company facts: spelling **Spacegear**; English first; B2B founders, business leaders, operations leaders and technology/data leaders; lead generation as the primary business goal; no country/industry specialization claimed until supplied. The final domain, legal entity, real team, contact details and client evidence remain owner inputs. These do not prevent building a local preview but must be resolved or omitted before publication.
+Confirmed audience: inquiries are welcome from any customer with a digital transformation, AI, automation or delivery need, regardless of industry, company size or region. Do not require existing data/systems, a named sponsor, a minimum budget or a particular organizational role before someone can inquire. Planning assumptions, not confirmed company facts: spelling **Spacegear**, English first and inquiries as the primary business goal. Final domain, necessary legal/contact details and permitted evidence remain owner inputs. A team roster is not required. Unknown facts do not prevent a local preview but must be resolved or omitted before publication.
 
 Avoid: retaining SaaS pricing under a consultancy logo; substituting unsupported success statistics; publishing generated portraits as actual staff; keyword-stuffed copy; promising search rankings or AI citations; adding a chatbot simply because the company offers AI services.
 
@@ -44,7 +47,9 @@ Keep “digital transformation consultancy” visible near the headline and in t
 
 Voice: direct, technically credible, business-oriented, specific about deliverables. Describe opportunities as opportunities, not guaranteed outcomes. Deep learning belongs in the relevant capability and use-case explanations; do not imply every business problem needs a neural network.
 
-Positioning recommendation: lead with operational improvement and accountable delivery. The visible distinction is the sequence of useful artifacts: a prioritized decision, an evaluated implementation, and an adoption/handover plan. Do not present that as a unique market claim or an established Spacegear track record without evidence. Avoid claiming equal relevance to every industry and company size; choose the first audience before final copy and search priorities are approved.
+Positioning recommendation: lead with operational improvement and accountable delivery. The visible distinction is the sequence of useful artifacts: a prioritized decision, an evaluated implementation, and an adoption/handover plan. Keep the copy specific about problems and deliverables while welcoming a broad customer audience; no first industry, size band or region must be selected. Do not imply proven expertise in every industry or an established Spacegear track record without evidence.
+
+Public scale policy: use the Spacegear name and “we” without publishing headcount, revenue, office counts, staff rosters, company-size categories or labels such as “small team,” “boutique,” “solo,” or “global workforce.” Omit scale signals from About, footer, imagery, metadata and Organization JSON-LD (including `numberOfEmployees`). Do not substitute stock team imagery or unsupported claims of large capacity/international offices. Required policy/contact facts stay accurate; proof and authorship remain truthful and optional rather than a route for inventing staff.
 
 ## 3. Service architecture
 
@@ -79,14 +84,14 @@ Primary navigation: **Services · Approach · About**, with **Discuss a project*
 | `/` | Explain Spacegear and guide buyers to a relevant service/contact | Required |
 | `/services/` and the five service detail routes above | Distinct buyer intents and indexable service information | Required; substantive, distinct copy |
 | `/approach/` | Explain assess → prioritize → validate → deliver → adopt | Required; owners, deliverables and decision gates |
-| `/about/` | Company purpose, working principles and verified people/facts | Required; omit unknown biographies/location claims |
-| `/contact/` | Qualified inquiry form and verified contact route | Required |
+| `/about/` | Company purpose, working principles and relevant evidence | Required; omit scale signals and a staff roster |
+| `/contact/` | Open inquiry form and verified contact route | Required; no customer-segment screening |
 | `/insights/`, `/insights/[slug]/` | Original, useful explanations linked to services | Target two reviewed articles at launch; if unavailable, defer the index, navigation and sitemap entries together |
 | `/privacy/`, `/terms/` | Actual website/data-handling terms | Required before collecting inquiries; owner supplies or approves final factual/legal content |
 | `/work/`, `/work/[slug]/` | Genuine case studies | Conditional; if none are verified, omit routes, navigation and sitemap entries |
 | `/404.html` | Helpful missing-page response | Required; real HTTP 404 |
 
-First editorial set: two substantial articles, “How to prioritize AI use cases for business value” and “From an AI pilot to production: what has to change.” Editorial content must be reviewed before publication; it must not hold a complete core website indefinitely or be replaced with placeholder posts. More content after launch: transformation roadmap, integration readiness, deep learning versus simpler approaches, data quality and AI evaluation. These are editorial hypotheses, not verified keyword-volume findings. Confirm target market, language, search intent and competing results before freezing content priorities.
+First editorial set: two substantial articles, “How to prioritize AI use cases for business value” and “From an AI pilot to production: what has to change.” Editorial content must be reviewed before publication; it must not hold a complete core website indefinitely or be replaced with placeholder posts. More content after launch: transformation roadmap, integration readiness, deep learning versus simpler approaches, data quality and AI evaluation. These are editorial hypotheses, not verified keyword-volume findings. Research problem/service search intent and competing results in the publishing language before freezing content priorities; selecting a narrow customer market is not a prerequisite.
 
 Article template: short direct answer; clear sections; practical examples; explicit assumptions and limitations; source references; genuine author/reviewer when known; actual publication/update dates; related services; one useful CTA. No automated bulk content program.
 
@@ -104,7 +109,7 @@ Case-study template, when evidence exists: business context, baseline, intervent
 | `Analytics.tsx` | Delivery example and measurement criteria | Integrate into the value/proof section; show a labeled workflow illustration, not a large standalone dashboard of invented metrics |
 | `Pricing.tsx` | Three engagement models | Keep card styling; remove billing toggle, seats and subscription prices |
 | `Faq.tsx` | Consultancy questions | Retain accordion styling; answer ownership, starting point, data readiness, integration and delivery |
-| `Team.tsx` | Verified founder/team material on About; concise delivery principles in the home approach section | Reuse the editorial layout where it helps; no mandatory long home section |
+| `Team.tsx` | Delivery principles and working method on About or within Approach | Reuse the editorial layout without a roster, headcount or company-size labels |
 | `Testimonials.tsx` | Verified quotes only | Omit by default until evidence is supplied |
 | `Labs.tsx` | Spacegear Insights | Retain article cards; replace placeholder expertise claims |
 | `Footer.tsx` | Real sitemap, identity, contact and policies | Preserve curtain reveal and badge; remove inert newsletter and dead links |
@@ -179,15 +184,15 @@ Export/routing contract: canonical paths end in `/`; Next.js `trailingSlash: tru
 
 ## 8. Conversion and inquiry contract
 
-Primary CTA consistently opens `/contact/`, optionally preselecting a service. Fields: name, work email, company (optional), service interest (optional), and a short description of the challenge. Explain how submitted information will be used and link the real privacy policy. No newsletter enrollment or file uploads at launch.
+Primary CTA consistently opens `/contact/`, optionally preselecting a service. Fields: name, email, company (optional), service interest (optional), and a short description of the challenge. Label the email field **Email** and accept legitimate personal or business addresses. Do not add industry, country, headcount, budget or data-readiness eligibility rules. Blank company/service fields are valid. Explain how submitted information will be used and link the real privacy policy. No newsletter enrollment or file uploads at launch.
 
-Use **Discuss a project** throughout navigation, service pages and final CTA. On the form, prompt **What would you like to improve?**; submission button **Send inquiry**. State what happens next without an unconfirmed response-time guarantee: the team reviews the brief and responds about a suitable next step. Include a real email fallback when JavaScript or Turnstile is unavailable; do not imply the protected form works without its required verification. Do not add a third-party scheduling embed. Scheduling can follow a qualified inquiry.
+Use **Discuss a project** throughout navigation, service pages and final CTA. On the form, prompt **What would you like to improve?**; submission button **Send inquiry**. State what happens next without an unconfirmed response-time guarantee: “We review your brief and respond about a suitable next step.” Include a real email fallback when JavaScript or Turnstile is unavailable; do not imply the protected form works without its required verification. Do not add a third-party scheduling embed. Scheduling can follow the initial conversation.
 
 `POST /api/contact` accepts a bounded JSON payload and a Turnstile token; only the configured site origin is accepted. Validate server-side, verify token success/hostname/action, rate-limit, and atomically store the inquiry and notification outbox row. Generate an idempotency key per submission attempt; the same key/body cannot create duplicate inquiries. Return success only after durable storage, even if notification is still pending.
 
 Display specific field errors; preserve typed values after transient failure; allow retry with a fresh challenge token. Generic server errors must not leak internal data. Worker responses are `no-store`. Email failure must not erase a captured inquiry; use bounded retries and visible operational failure status. Send to the fixed verified owner address only, not a user-controlled recipient. No visitor autoresponder or bulk newsletter depends on Cloudflare beta availability at launch.
 
-Keep inquiry data private; no public listing API. Provisional retention is 90 days for unqualified inquiries, configurable and confirmed before launch; do not delete data during this planning stage. Exclude personal data from analytics and logs. The website must accurately describe the final data practices.
+Keep inquiry data private; no public listing API. Provisional retention is 90 days for closed inquiries that do not become an engagement, configurable and confirmed before launch; do not delete data during this planning stage. Exclude personal data from analytics and logs. The website must accurately describe the final data practices.
 
 ## 9. Technical SEO and migration
 
@@ -200,7 +205,7 @@ Keep inquiry data private; no public listing API. Provisional retention is 90 da
 - If the old deployment/domain is controlled and has useful indexed URLs, configure one-hop permanent redirects to the equivalent production URLs and maintain them. If it is only a template preview, deindex/retire it when authorized. Do not claim old-domain search equity will transfer without that control.
 - Check final HTTP status, canonical destination, redirect chain, sitemap, indexability and social unfurls on Cloudflare. Verify Search Console and Bing Webmaster Tools and submit the sitemap once the domain exists.
 
-Search-intent ownership (hypotheses to validate for the selected market): transformation consulting belongs to `/services/digital-transformation/`; readiness/roadmaps to `/services/ai-strategy/`; AI implementation and appropriate ML/deep-learning use cases to `/services/applied-ai/`; workflow/integration to `/services/automation-integration/`; software product delivery to `/services/product-delivery/`. The services index summarizes and connects; it must not repeat five near-identical landing pages. Articles answer narrower research questions and link to the relevant service instead of competing for the same primary intent. Do not add city/industry doorway pages without actual differentiated expertise and demand.
+Search-intent ownership (problem/service hypotheses to validate in the publishing language): transformation consulting belongs to `/services/digital-transformation/`; readiness/roadmaps to `/services/ai-strategy/`; AI implementation and appropriate ML/deep-learning use cases to `/services/applied-ai/`; workflow/integration to `/services/automation-integration/`; software product delivery to `/services/product-delivery/`. The services index summarizes and connects; it must not repeat five near-identical landing pages. Articles answer narrower research questions and link to the relevant service instead of competing for the same primary intent. The broad audience does not require city/industry doorway pages or unsupported claims of global industry expertise.
 
 Language decision before route/content freeze: English-only remains the preview assumption. If another language is required at launch, agree the language scope first, then use separate stable locale URLs, a visible language switch, reciprocal `hreflang` and self-referencing canonicals. Do not auto-redirect by IP or publish an unfinished translation. A second language expands copy, review and QA scope; no translated routes are promised in the current estimate. [Google localized-page guidance](https://developers.google.com/search/docs/specialty/international/localized-versions)
 
@@ -212,7 +217,7 @@ Maintain consistent Spacegear name, description, real people and confirmed compa
 
 At Cloudflare, distinguish search/indexing and user-requested agent access from model training. Audit robots, WAF, managed bot settings and challenges together; a permissive robots file alone does not prove access. Start from the goal of allowing legitimate public search/retrieval, while keeping abuse protection and private paths protected. Training policy is a separate owner choice. Avoid user-agent spoofing as proof of verified crawler access. [Cloudflare classifications](https://developers.cloudflare.com/bots/concepts/bot/)
 
-An optional `llms.txt` may summarize published public material if a real consuming tool needs it. It is not a launch gate or a replacement for normal content. Do not serve a hidden, keyword-heavy alternate page to AI agents. Track actual referred visits, qualified inquiries and sampled citations, clearly distinguishing these from guaranteed visibility.
+An optional `llms.txt` may summarize published public material if a real consuming tool needs it. It is not a launch gate or a replacement for normal content. Do not serve a hidden, keyword-heavy alternate page to AI agents. Track actual referred visits, inquiries, resulting conversations and sampled citations, clearly distinguishing these from guaranteed visibility.
 
 ## 11. Performance and quality acceptance
 
@@ -237,13 +242,13 @@ Initial engineering budgets, to be checked on the first production build: compre
 
 Measure the home, service index, one service detail, approach, about and contact; add insight index/article and work templates when published. Run against a production build on Cloudflare with normal animation behavior and the same content for crawlers and people. Also test genuine mobile/reduced-motion fallbacks. Lighthouse is a diagnostic, not a ranking guarantee. Field Core Web Vitals require real traffic; an unavailable CrUX report is not a pass. [Core Web Vitals definitions](https://web.dev/articles/vitals)
 
-Business measurement: track accepted inquiries, the owner's qualified-inquiry count, qualified/accepted share and inquiry failures. A qualified inquiry has a real business need aligned to a service, a reachable contact and a plausible next conversation; budget may be unknown. D1 capture is the source for accepted inquiries. Use Cloudflare Web Analytics for visits and performance; do not claim it supplies custom conversion events or campaign attribution. Its current FAQ says custom events and UTM collection are unsupported. Additional CTA/form-start events, if needed after launch, use a small first-party Worker endpoint and Analytics Engine with an allowlisted payload and no personal data. They remain optional and do not add a launch dependency. Report inquiry counts per visit only as an approximate aggregate ratio across separately collected systems, not a person-level funnel. [Cloudflare Web Analytics FAQ](https://developers.cloudflare.com/web-analytics/faq/), [Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/get-started/)
+Business measurement: track accepted inquiries, replies, resulting conversations and inquiry failures. Record follow-up privately; do not use sector, location, company size or budget to screen legitimate inquiries. D1 capture is the source for accepted inquiries. Use Cloudflare Web Analytics for visits and performance; do not claim it supplies custom conversion events or campaign attribution. Its current FAQ says custom events and UTM collection are unsupported. Additional CTA/form-start events, if needed after launch, use a small first-party Worker endpoint and Analytics Engine with an allowlisted payload and no personal data. They remain optional and do not add a launch dependency. Report inquiry counts per visit only as an approximate aggregate ratio across separately collected systems, not a person-level funnel. [Cloudflare Web Analytics FAQ](https://developers.cloudflare.com/web-analytics/faq/), [Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/get-started/)
 
-Operating cadence: owner reviews incoming/failed inquiries each working day; weekly during the first month, check capture failures, top service pages and qualification; at 30/60/90 days, review search queries, useful content, actual referrals and performance trends. Establish a real baseline before promising conversion or ranking gains. Search Console inclusion and real visits are stronger evidence than synthetic AI prompt checks alone.
+Operating cadence: owner reviews incoming/failed inquiries each working day; weekly during the first month, check capture failures, top service pages and follow-up; at 30/60/90 days, review search queries, useful content, actual referrals and performance trends. Establish a real baseline before promising conversion or ranking gains. Search Console inclusion and real visits are stronger evidence than synthetic AI prompt checks alone.
 
 ## 12. Delivery sequence and owner inputs
 
-1. Preserve the current source and prepare the supplied empty repository as its future destination; confirm audience, starting offer, brand/domain and working branch.
+1. Preserve the current source and prepare the supplied empty repository as its future destination; use the confirmed open audience and scale privacy, with the proposed starting offer, brand/domain and working branch.
 2. Build one representative vertical slice: home hero/narrative, one service page and contact shell on a local Cloudflare production-style preview. Resolve motion fidelity and initial asset budgets here before duplicating the patterns.
 3. Extend the validated design to the remaining service/company pages; add the working inquiry flow, complete identity replacement and truthful proof modules.
 4. Complete metadata, schema, redirects, image/model optimization, accessibility and release verification across all core routes.
@@ -252,6 +257,6 @@ Operating cadence: owner reviews incoming/failed inquiries each working day; wee
 
 Planning estimate: roughly 10–15 focused engineering/editorial working days for one implementer once content and account inputs are available, plus observation after launch. This is a provisional effort estimate, not a committed delivery date. Content preparation and model optimization are the largest uncertainties.
 
-Owner inputs needed before public launch: exact brand spelling and final domain; legal/company/contact details; real people and evidence that may be published; target market/language priorities; Cloudflare project/domain/email eligibility and a verified owner destination. The repository URL is now known; remote access and local-source reconciliation remain operational work. No secrets belong in this document or chat. Use Cockpit owner-command workflows for credentialed/deployment actions after the project is registered.
+Owner inputs needed before public launch: exact brand spelling and final domain; necessary legal/contact details; evidence that may be published; any additional publishing language; Cloudflare project/domain/email eligibility and a verified owner destination. A narrow target market and team roster are not needed. The repository URL is known; remote access and local-source reconciliation remain operational work. No secrets belong in this document or chat. The owner's later instruction bypasses Cockpit: use direct tools/CLI within available permissions, keep source/decisions in the repository, and report any actual access blocker without requiring Cockpit registration or owner-command approval.
 
-Launch rollback: retain the previous known-good Worker/assets version, use additive D1 migrations, and never roll back by deleting captured inquiries. Post-launch checks: immediate HTTP/form/robots smoke tests; first-week crawl/error review; review field vitals after sufficient data accumulates, normally across a 28-day reporting window. Track qualified inquiry rate and content usefulness alongside technical scores.
+Launch rollback: retain the previous known-good Worker/assets version, use additive D1 migrations, and never roll back by deleting captured inquiries. Post-launch checks: immediate HTTP/form/robots smoke tests; first-week crawl/error review; review field vitals after sufficient data accumulates, normally across a 28-day reporting window. Track inquiries, follow-up conversations and content usefulness alongside technical scores.

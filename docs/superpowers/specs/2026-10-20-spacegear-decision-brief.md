@@ -1,6 +1,6 @@
 # Spacegear: refined direction and decisions
 
-Revision 2, 20 October 2026. This is a proposal for discussion, not a claim about existing company capabilities, clients or results.
+Revision 3, 20 October 2026. The owner confirmed an open customer audience, no public company-scale signals, and direct work without Cockpit. Other proposed offers and experience claims remain subject to real company facts.
 
 ## The recommendation
 
@@ -10,15 +10,16 @@ Keep the site's charcoal/orange palette, orbital hero, strong typography and sig
 
 The first version of the plan was strongest on engineering. This revision strengthens the offer, buyer journey, evidence, visual hierarchy and practical launch sequence.
 
-## Three decisions worth discussing
+## Confirmed direction and remaining proposals
 
 | Decision | My recommendation until you steer it | Why it matters |
 |---|---|---|
-| First customer and market | Start with businesses that have a concrete operational problem, existing systems/data and a sponsor who can own implementation. Pick the first sector, company-size range and country from your strongest real experience. English is only a preview assumption. | Determines the examples, language, service emphasis, search intent and credibility needed. “Every business globally” would make the copy vague. |
+| Customer audience — confirmed | Welcome inquiries across industries, company sizes and regions. Organize copy around problems and services, with no customer-segment eligibility rules. English is still the preview language. | Keeps the audience open while making the work understandable. No first sector, company-size range or country needs to be selected before writing the site. |
+| Public company scale — confirmed | Use Spacegear and “we” without headcount, revenue, office counts, team-size labels or a staff roster. Keep the About page centered on purpose, method and relevant evidence. | Keeps company scale private. Do not imply a larger team, international offices or unsupported delivery capacity. |
 | First engagement | Lead with a **Transformation Opportunity Assessment**, while allowing buyers with a defined project to discuss delivery directly. | Gives an interested visitor a useful, understandable starting point without committing to a large transformation program. |
 | Evidence at launch | Feature real projects, permitted founder experience or internal products, clearly labeled by context and role. | Lets the website demonstrate capability honestly. A founder's previous work can be valuable, but should not be presented as a Spacegear client engagement. |
 
-Brand spelling, domain and real company/contact details must also be settled before publication. They do not require reopening the entire design. No public pricing, promised timeline or response SLA should be invented to fill a layout.
+Brand spelling, domain and necessary company/contact details must also be settled before publication. Required policy and contact facts remain accurate without turning them into scale-related marketing. No public pricing, promised timeline or response SLA should be invented to fill a layout. The assessment offer and available proof are still proposals/input needs; the audience decision is settled.
 
 ## Proposed first screen
 
@@ -66,19 +67,19 @@ Keep Next.js and export the marketing pages to Cloudflare Workers Static Assets.
 
 Build a representative home/service/contact slice first and measure it in a local Cloudflare runtime before expanding the patterns. Core launch is 12 indexable pages plus the 404 and discovery files. Add insights and client work only when the material is ready. Keep a chatbot, CMS, newsletter campaign system and extra languages out of the initial build unless you choose them.
 
-Each service page owns a distinct buyer/search intent. Useful articles answer narrower questions and support those service pages. Confirm the first market before final keyword research and any localized copy. Avoid manufacturing dozens of near-duplicate industry or city pages.
+Each service page owns a distinct problem/service search intent. Useful articles answer narrower questions and support those pages. Research search demand across the chosen publishing language without requiring a narrow customer segment. Avoid manufacturing dozens of near-duplicate industry or city pages.
 
 Target 100 in the Lighthouse categories; retain the documented performance gates and real-world Core Web Vitals checks. Search/AI visibility depends on content relevance, credibility and access as well as technical quality. Google requires no special AI markup for its AI search features. [Google guidance](https://developers.google.com/search/docs/appearance/ai-features)
 
-Measure accepted inquiries and qualified conversations alongside page performance. Cloudflare Web Analytics does not currently provide custom conversion events or UTM collection; start with D1 inquiry counts and owner qualification, then add a small Cloudflare Analytics Engine integration only if needed. [Cloudflare FAQ](https://developers.cloudflare.com/web-analytics/faq/)
+Measure accepted inquiries, replies and resulting conversations alongside page performance. The form has no sector, location, headcount or budget screening; company and service interest remain optional, and the email field accepts personal or business addresses. Keep spam protection and input validation. Cloudflare Web Analytics does not currently provide custom conversion events or UTM collection; start with D1 inquiry counts and a private follow-up record, then add a small Cloudflare Analytics Engine integration only if needed. [Cloudflare FAQ](https://developers.cloudflare.com/web-analytics/faq/)
 
 ## Repository and next handoff
 
 You supplied [SanhVo2023/platform-design-contest](https://github.com/SanhVo2023/platform-design-contest). GitHub API metadata reports it is empty and Git advertises no refs. The local `platform-clone` folder remains the source of the website we reviewed. It contains substantial uncommitted work that must be preserved before importing it into a new repository.
 
-Two attempts to clone the supplied URL failed to connect to GitHub. The owner-command fallback could not be queued because Cockpit does not recognize this folder. No clone, source upload, push, deployment or application edit has been completed in this refinement stage.
+Three direct clone attempts, including one after the owner's latest instruction, failed to connect to GitHub. The earlier Cockpit fallback failed; the owner has now explicitly removed Cockpit from the workflow. Continue with direct tools under the available permissions. Cockpit registration is not a prerequisite. No clone, source upload, push, deployment or application edit has been completed in this refinement stage.
 
-The two most useful inputs now are your first customer/market and the real work we can show. The assessment offer and visual direction above are my recommendations, and the detailed plan can be implemented once the business direction is settled.
+The audience and scale decisions are now recorded. Keep the assessment as the recommended starting offer and use only real, permitted evidence; illustrative workflows are sufficient when project proof is not yet available. Further audience selection is not a planning or build blocker.
 
 - [Complete design and architecture](2026-10-20-spacegear-revival-design.md)
 - [Implementation checklist](../plans/2026-10-20-spacegear-revival.md)
