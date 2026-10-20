@@ -5,6 +5,7 @@ import Footer from "@/components/sections/Footer";
 import StructuredData from "@/components/StructuredData";
 import { SITE } from "@/lib/site";
 import "./globals.css";
+import "./legacy.css";
 
 const inter = localFont({ src: "./fonts/inter-latin.woff2", variable: "--font-inter", display: "swap" });
 const mono = localFont({ src: "./fonts/jetbrains-mono-latin.woff2", variable: "--font-code", display: "swap", preload: false });
