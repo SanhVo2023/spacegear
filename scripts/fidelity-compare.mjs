@@ -23,46 +23,57 @@ const MAX_SCREENS = 3;
 
 async function capture(browser, base, profile) {
   const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height }, deviceScaleFactor: 1 });
-  const page = await context.newPage();
-  await page.goto(base, { waitUntil: "networkidle" });
-  await page.waitForTimeout(3000);
-  // Walk the page once so in-view animations, count-ups and lazy images settle.
-  const total = await page.evaluate(() => document.documentElement.scrollHeight);
-  for (let y = 0; y < total; y += 400) {
-    await page.evaluate((v) => window.scrollTo(0, v), y);
-    await page.waitForTimeout(120);
-  }
-  const shots = {};
-  for (const id of [...REQUIRED, ...OPTIONAL]) {
-    const box = await page.evaluate((sid) => {
-      const el = document.getElementById(sid);
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { top: Math.round(r.top + window.scrollY), height: Math.round(r.height) };
-    }, id);
-    if (!box) continue;
-    const frames = [];
-    const shoot = async (y, settle) => {
+  try {
+    const page = await context.newPage();
+    await page.goto(base, { waitUntil: "networkidle" });
+    await page.waitForTimeout(3000);
+    const pageHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
+    // Walk the page once so in-view animations, count-ups and lazy images settle.
+    // The height is re-read each step: content can grow in while scrolling.
+    for (let y = 0; y < (await pageHeight()); y += 400) {
       await page.evaluate((v) => window.scrollTo(0, v), y);
-      await page.waitForTimeout(settle);
-      frames.push(await page.screenshot({ type: "png" }));
-    };
-    if (id === "home") {
-      // The desktop hero is a pinned scroll sequence: sample its opening, zoom and statement beats.
-      const travel = Math.max(0, box.height - profile.height);
-      for (const p of travel > profile.height ? [0, 0.4, 0.85] : [0]) await shoot(Math.round(box.top + travel * p), 1200);
-    } else if (id === "contact") {
-      // The footer may be pinned behind the page (curtain), so read it at the very bottom.
-      await shoot(total, 900);
-    } else {
-      const screens = Math.min(MAX_SCREENS, Math.ceil(box.height / profile.height));
-      for (let s = 0; s < screens; s++) await shoot(box.top + s * profile.height, 900);
+      await page.waitForTimeout(120);
     }
-    shots[id] = { ...box, frames };
+    const shots = {};
+    for (const id of [...REQUIRED, ...OPTIONAL]) {
+      const box = await page.evaluate((sid) => {
+        const el = document.getElementById(sid);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top + window.scrollY), height: Math.round(r.height) };
+      }, id);
+      if (!box) continue;
+      const frames = [];
+      const shoot = async (y, settle) => {
+        await page.evaluate((v) => window.scrollTo(0, v), y);
+        await page.waitForTimeout(settle);
+        frames.push(await page.screenshot({ type: "png" }));
+      };
+      if (id === "home") {
+        // The desktop hero is a pinned scroll sequence: sample its opening, zoom and statement beats.
+        const travel = Math.max(0, box.height - profile.height);
+        for (const p of travel > profile.height ? [0, 0.4, 0.85] : [0]) await shoot(Math.round(box.top + travel * p), 1200);
+      } else if (id === "contact") {
+        // The footer may be pinned behind the page (curtain), so read it at the very bottom.
+        await shoot(await pageHeight(), 900);
+      } else {
+        const screens = Math.min(MAX_SCREENS, Math.ceil(box.height / profile.height));
+        for (let s = 0; s < screens; s++) await shoot(box.top + s * profile.height, 900);
+      }
+      shots[id] = { ...box, frames };
+    }
+    return shots;
+  } finally {
+    await context.close();
   }
-  await context.close();
-  return shots;
 }
+
+// A frame is blank when every channel is flat (stdev < 2).
+async function isBlank(png) {
+  const { channels } = await sharp(png).stats();
+  return channels.every((ch) => ch.stdev < 2);
+}
+const allBlank = async (frames) => (await Promise.all(frames.map(isBlank))).every(Boolean);
 
 async function stack(frames, width) {
   const parts = await Promise.all(frames.map((f) => sharp(f).resize({ width }).png().toBuffer({ resolveWithObject: true })));
@@ -84,7 +95,6 @@ async function sideBySide(left, right, width, file) {
 
 const browser = await launchBrowser();
 const report = { testedAt: new Date().toISOString(), originalBase, candidateBase, tolerance: TOLERANCE, results: [] };
-let failed = false;
 try {
   for (const profile of PROFILES) {
     const dir = `artifacts/fidelity/${profile.name}`;
@@ -94,24 +104,31 @@ try {
     for (const id of [...REQUIRED, ...OPTIONAL]) {
       const o = original[id];
       const c = candidate[id];
+      const base = { profile: profile.name, section: id };
       if (!c) {
         const ok = OPTIONAL.includes(id);
-        if (!ok) failed = true;
-        report.results.push({ profile: profile.name, section: id, ok, reason: ok ? "optional, not rendered" : "missing in candidate" });
+        report.results.push({ ...base, ok, reason: ok ? "optional, not rendered" : "missing in candidate" });
         continue;
       }
-      if (!o) { report.results.push({ profile: profile.name, section: id, ok: true, reason: "not in original" }); continue; }
+      if (!o) { report.results.push({ ...base, ok: true, reason: "not in original" }); continue; }
+      if (o.height === 0) { report.results.push({ ...base, ok: false, reason: "original has zero height" }); continue; }
+      const sheet = o.frames.length > 0 && c.frames.length > 0;
+      if (sheet && (await allBlank(o.frames))) {
+        report.results.push({ ...base, ok: false, reason: "original blank render" });
+        await sideBySide(await stack(o.frames, profile.tile), await stack(c.frames, profile.tile), profile.tile, `${dir}/${id}.jpg`);
+        continue;
+      }
+      const blank = sheet && (await allBlank(c.frames));
       const ratio = c.height / o.height;
       const tolerance = TOLERANCE_OVERRIDES[`${profile.name}:${id}`] ?? TOLERANCE;
-      const ok = Math.abs(1 - ratio) <= tolerance;
-      if (!ok) failed = true;
-      report.results.push({ profile: profile.name, section: id, ok, originalHeight: o.height, candidateHeight: c.height, ratio: Number(ratio.toFixed(3)) });
-      await sideBySide(await stack(o.frames, profile.tile), await stack(c.frames, profile.tile), profile.tile, `${dir}/${id}.jpg`);
+      const ok = !blank && Math.abs(1 - ratio) <= tolerance;
+      report.results.push({ ...base, ok, originalHeight: o.height, candidateHeight: c.height, ratio: Number(ratio.toFixed(3)), tolerance, ...(blank ? { reason: "blank render" } : {}) });
+      if (sheet) await sideBySide(await stack(o.frames, profile.tile), await stack(c.frames, profile.tile), profile.tile, `${dir}/${id}.jpg`);
     }
   }
   await fs.writeFile("artifacts/fidelity/report.json", JSON.stringify(report, null, 2));
   for (const r of report.results) console.log(`${r.ok ? "ok  " : "FAIL"} ${r.profile.padEnd(8)} ${r.section.padEnd(13)} ${r.ratio ?? ""} ${r.reason ?? ""}`);
-  if (failed) { console.error("Fidelity check failed. Review artifacts/fidelity/<profile>/<section>.jpg"); process.exitCode = 1; }
+  if (report.results.some((r) => !r.ok)) { console.error("Fidelity check failed. Review artifacts/fidelity/<profile>/<section>.jpg"); process.exitCode = 1; }
   else console.log("Fidelity check passed. Review every sheet in artifacts/fidelity/ before signing off.");
 } finally {
   await browser.close();
