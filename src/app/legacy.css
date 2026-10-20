@@ -24,20 +24,6 @@
 .text-link span { color:#fa6e43; font-size:20px; }
 .body-copy { color:#b5b1b5; max-width:55ch; margin-top:25px; font-size:16px; }
 
-.services-home { display:grid; grid-template-columns:1fr 1.5fr; gap:90px; padding-block:14px 20px; }
-.services-intro h2 { margin-top:18px; }
-.services-intro>p:not(.eyebrow) { max-width:34ch; color:#b5b1b5; margin-top:24px; }
-.service-accordion details { border:1px solid #38383b; border-radius:12px; margin-bottom:10px; background:#1c1d20; overflow:hidden; }
-.service-accordion summary { list-style:none; display:flex; align-items:center; gap:20px; padding:24px; cursor:pointer; }
-.service-no { font:12px var(--font-code),monospace; color:#b4afb5; }
-.service-accordion h3 { font-size:20px; font-weight:450; line-height:1.25; letter-spacing:-.025em; }
-.expand-icon { margin-left:auto; font-size:24px; font-weight:300; }
-.service-panel { padding:0 24px 27px 59px; }
-.service-panel p { font-size:15px; max-width:49ch; }
-.service-panel a { display:inline-block; margin-top:22px; font-size:14px; font-weight:600; border-bottom:1px solid currentColor; padding-bottom:5px; }
-.service-accordion details[open] { background:#fa6e43; border-color:#fa6e43; color:#161719; }
-.service-accordion details[open] .service-no { color:#4b281c; }
-.service-accordion details[open] .expand-icon { transform:rotate(45deg); }
 .delivery-grid { display:grid; grid-template-columns:1fr 1.1fr; gap:85px; align-items:center; }
 .delivery-grid h2 { font-size:clamp(32px,3.4vw,45px); }
 .workflow { padding:28px; background:#202124; border:1px solid #393a3e; border-radius:18px; }
@@ -146,7 +132,6 @@
 @media(max-width:1023px) {
   .site-container { width:calc(100% - 48px); }
   .section-pad { padding-block:80px; }
-  .services-home { gap:40px; }
   .delivery-grid { gap:40px; }
   .engagement-card { padding:24px; }
   .engagement-card h3 { font-size:26px; }
@@ -160,10 +145,7 @@
   .section-top { margin-bottom:30px; }
   .section-heading { flex-direction:column; align-items:start; gap:24px; margin-bottom:32px; }
   .section-heading>p { max-width:40ch; }
-  .services-home,.delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
-  .service-accordion summary { padding:21px 18px; gap:14px; }
-  .service-accordion h3 { font-size:19px; }
-  .service-panel { padding:0 18px 25px 45px; }
+  .delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
   .workflow { padding:22px; }
   .process-grid { grid-template-columns:1fr; gap:30px; }
   .process-grid li { padding-right:0; }
