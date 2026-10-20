@@ -76,7 +76,8 @@ try {
       await page.goto(base, { waitUntil: "networkidle" });
       report.interactions.push("mobile menu keyboard open/Escape/focus and navigation");
     }
-    const faq = page.locator(".faq-list details").first();
+    // second item: closed by default (the first opens on load, as in the original)
+    const faq = page.locator(".faq-accordion details").nth(1);
     await faq.locator("summary").focus(); await page.keyboard.press("Enter");
     assert.notEqual(await faq.getAttribute("open"), null);
     await page.keyboard.press("Enter");

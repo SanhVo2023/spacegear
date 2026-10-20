@@ -38,13 +38,6 @@
 .review-tag { margin-left:auto; font-size:10px; color:#fba889; border:1px solid #865038; border-radius:5px; padding:3px 8px; }
 .workflow-note { border-top:1px solid #3a3a3e; padding-top:20px; margin-top:10px; font-size:12px; line-height:1.7; color:#b5b1b5; }
 .process-output { font-size:12px; color:#d9d1cf; border-top:1px solid #36373a; margin-top:28px; padding-top:15px; }
-.faq-grid { display:grid; grid-template-columns:1fr 1.3fr; gap:100px; }
-.faq-grid h2 { margin-top:18px; font-size:clamp(32px,3.8vw,48px); }
-.faq-list details { border-bottom:1px solid #414044; }
-.faq-list summary { display:flex; justify-content:space-between; gap:25px; align-items:center; padding:24px 0; list-style:none; cursor:pointer; font-size:16px; }
-.faq-list summary span { font-size:24px; color:#fa6e43; }
-.faq-list details[open] summary span { transform:rotate(45deg); }
-.faq-list details p { padding:0 35px 28px 0; font-size:14px; color:#b5b1b5; line-height:1.8; }
 .site-footer { position:relative; background:#0c0d0f; padding:85px 0 28px; z-index:1; }
 .footer-inquiry { text-align:center; padding-bottom:80px; }
 .footer-inquiry h2 { margin:25px 0 32px; font-size:clamp(42px,6vw,78px); }
@@ -115,7 +108,7 @@
   .site-container { width:calc(100% - 48px); }
   .section-pad { padding-block:80px; }
   .delivery-grid { gap:40px; }
-  .faq-grid,.detail-split,.contact-grid { gap:45px; }
+  .detail-split,.contact-grid { gap:45px; }
   .footer-grid { grid-template-columns:1.5fr 1fr 1.2fr; }
   .orbit-badge { display:none; }
 }
@@ -125,10 +118,9 @@
   .section-top { margin-bottom:30px; }
   .section-heading { flex-direction:column; align-items:start; gap:24px; margin-bottom:32px; }
   .section-heading>p { max-width:40ch; }
-  .delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
+  .delivery-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
   .workflow { padding:22px; }
   .process-output { margin-top:18px; }
-  .faq-list summary { font-size:15px; }
   .site-footer { padding-top:65px; }
   .footer-inquiry { text-align:left; padding-bottom:60px; }
   .footer-inquiry h2 { font-size:47px; }
