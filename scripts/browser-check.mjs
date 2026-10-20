@@ -3,9 +3,36 @@ import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { launchBrowser } from "./browser-runtime.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
+const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
+const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
+assert.ok(routes.length > 0, "sitemap lists routes");
 const browser = await launchBrowser();
 const report = { testedAt: new Date().toISOString(), base, browser: browser.version(), profiles: [], interactions: [] };
 await fs.mkdir("artifacts", { recursive: true });
+
+// Scrolls the page down and back up in steps (so in-view and lazy content gets
+// its chance to appear), then returns the start of every rendered text that is
+// still transparent through its own or an ancestor's opacity.
+async function hiddenText(page) {
+  for (let y = 0; y < await page.evaluate(() => document.documentElement.scrollHeight); y += 700) {
+    await page.evaluate(y => window.scrollTo(0, y), y);
+    await page.waitForTimeout(30);
+  }
+  for (let y = await page.evaluate(() => window.scrollY); y > 0; y -= 700) {
+    await page.evaluate(y => window.scrollTo(0, y), y);
+    await page.waitForTimeout(30);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(150);
+  return page.evaluate(() => {
+    const textBearing = [...document.querySelectorAll("main *")].filter(el => [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()));
+    return [...new Set([...document.querySelectorAll("main h1, main h2, main h3, main p"), ...textBearing])]
+      .filter(el => !el.closest("[data-hover-reveal]") && el.getClientRects().length > 0)
+      .filter(el => { for (let n = el; n; n = n.parentElement) if (parseFloat(getComputedStyle(n).opacity) < 0.99) return true; return false; })
+      .map(el => el.textContent.trim().replace(/\s+/g, " ").slice(0, 60));
+  });
+}
+
 try {
   for (const profile of [
     { name: "mobile-320", width: 320, height: 740 },
@@ -29,13 +56,6 @@ try {
     });
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
-    if (profile.javaScriptEnabled === false) {
-      const transparent = await page.evaluate(() => [...document.querySelectorAll("main h1, main h2, main h3, main p")]
-        .filter(el => !el.closest("[data-hover-reveal]") && el.getClientRects().length > 0)
-        .filter(el => { for (let n = el; n; n = n.parentElement) if (parseFloat(getComputedStyle(n).opacity) < 0.99) return true; return false; })
-        .map(el => el.textContent.trim().slice(0, 60)));
-      assert.deepEqual(transparent, [], "no-javascript: entrance states must not hide content");
-    }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
     const models = requests.filter(url => /\.glb(?:$|\?)/.test(url));
     if (profile.width < 1024 || profile.reducedMotion || profile.javaScriptEnabled === false) assert.equal(models.length, 0, `${profile.name}: no model`);
@@ -81,6 +101,16 @@ try {
       jsBytes: performance.getEntriesByType("resource").filter(entry => entry.initiatorType === "script").reduce((sum, entry) => sum + entry.encodedBodySize, 0),
     }));
     report.profiles.push({ name: profile.name, models: models.length, ...metrics });
+    // Runs last so the home-page assertions above keep their original timing.
+    if (profile.javaScriptEnabled === false || profile.reducedMotion) {
+      const sweep = await context.newPage();
+      for (const route of routes) {
+        await sweep.goto(new URL(route, base).href, { waitUntil: "networkidle" });
+        assert.deepEqual(await hiddenText(sweep), [], `${profile.name} ${route}: entrance states must not hide content`);
+      }
+      await sweep.close();
+      report.interactions.push(`${profile.name}: no transparent text on all ${routes.length} routes after a scroll pass`);
+    }
     await context.close();
   }
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });
@@ -94,9 +124,7 @@ try {
   report.interactions.push("native FAQ keyboard toggles, contact service selection, compact viewport/text zoom, preview form disabled");
 
   const narrowPage = await browser.newPage({ viewport: { width: 320, height: 740 } });
-  const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
-  for (const match of sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-    const route = new URL(match[1]).pathname;
+  for (const route of routes) {
     await narrowPage.goto(new URL(route, base).href, { waitUntil: "networkidle" });
     const clipped = await narrowPage.evaluate(() => [...document.querySelectorAll("main h1, main h2, main p, main label")].filter(el => !el.closest("[data-snap-row]")).flatMap(el => {
       const range = document.createRange(); range.selectNodeContents(el);

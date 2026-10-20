@@ -2,7 +2,6 @@
 
 import {
   motion,
-  useReducedMotion,
   useScroll,
   useTransform,
   type MotionStyle,
@@ -16,8 +15,12 @@ const FILL_EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
  * Appear: fade + translateY (+ optional blur), fired once on scroll-in.
- * Mirrors the reference's per-element appear effect. `data-reveal` lets the
- * no-JS stylesheet show the end state; reduced motion renders it directly.
+ * Mirrors the reference's per-element appear effect. The markup never
+ * branches on reduced motion (the static export is rendered without it, so a
+ * branch would not survive hydration). Instead `data-reveal` carries the end
+ * state: the no-JS stylesheet and the reduced-motion block in globals.css
+ * show it from first paint, and MotionProvider's `skipAnimations` makes any
+ * later transition instant.
  */
 export function Appear({
   children,
@@ -34,12 +37,11 @@ export function Appear({
   className?: string;
   once?: boolean;
 }) {
-  const reduce = useReducedMotion();
   return (
     <motion.div
       data-reveal=""
       className={className}
-      initial={reduce ? false : { opacity: 0, y, filter: blur ? "blur(6px)" : "blur(0px)" }}
+      initial={{ opacity: 0, y, filter: blur ? "blur(6px)" : "blur(0px)" }}
       whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       viewport={{ once, amount: 0.25, margin: "0px 0px -8% 0px" }}
       transition={{ duration: 0.8, ease: EASE, delay }}
@@ -61,11 +63,10 @@ export function AppearGroup({
   stagger?: number;
   delay?: number;
 }) {
-  const reduce = useReducedMotion();
   return (
     <motion.div
       className={className}
-      initial={reduce ? false : "hidden"}
+      initial="hidden"
       whileInView="show"
       viewport={{ once: true, amount: 0.2 }}
       variants={{
@@ -118,9 +119,7 @@ export function FillBar({
   duration?: number;
   delay?: number;
 }) {
-  const reduce = useReducedMotion();
   const target = `${value}%`;
-  if (reduce) return <div className={className} style={{ width: target }} />;
   return (
     <motion.div
       data-fill=""
@@ -146,9 +145,7 @@ export function FillColumn({
   duration?: number;
   delay?: number;
 }) {
-  const reduce = useReducedMotion();
   const target = `${value}%`;
-  if (reduce) return <div className={className} style={{ height: target }} />;
   return (
     <motion.div
       data-fill-h=""
@@ -160,41 +157,6 @@ export function FillColumn({
       transition={{ duration, ease: FILL_EASE, delay }}
     />
   );
-}
-
-/** Parallax: translate element on Y as it passes through the viewport. */
-export function Parallax({
-  children,
-  amount = 80,
-  className = "",
-}: {
-  children: ReactNode;
-  amount?: number;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-  const y = useTransform(scrollYProgress, [0, 1], [amount, -amount]);
-  return (
-    <motion.div ref={ref} style={{ y }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
-
-export function useSectionProgress(): [
-  React.RefObject<HTMLDivElement | null>,
-  MotionValue<number>
-] {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-  return [ref, scrollYProgress];
 }
 
 /**

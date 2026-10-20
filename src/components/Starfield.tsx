@@ -74,7 +74,8 @@ export default function Starfield({
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(parent);
-    const io = new IntersectionObserver(([entry]) => {
+    const io = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
       visible = entry.isIntersecting;
       if (visible && !reduce && !raf) raf = requestAnimationFrame(loop);
     });

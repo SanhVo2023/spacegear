@@ -77,7 +77,7 @@ export function SectionTag({
 /**
  * Standard section header hierarchy (matches "Our Work"):
  *  - large faint section title
- *  - a row: [00x / plat—form] · main heading · right-aligned blurb
+ *  - a row: [00x / space—gear] · main heading · right-aligned blurb
  */
 export function SectionHeader({
   title,

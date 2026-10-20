@@ -18,20 +18,23 @@ export default function Reveal({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
           if (e.isIntersecting) {
-            const t = setTimeout(() => el.classList.add("in"), delay);
+            timers.push(setTimeout(() => el.classList.add("in"), delay));
             io.unobserve(el);
-            return () => clearTimeout(t);
           }
         });
       },
       { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      timers.forEach(clearTimeout);
+    };
   }, [delay]);
 
   const Comp = Tag as "div";
