@@ -24,15 +24,6 @@
 .text-link span { color:#fa6e43; font-size:20px; }
 .body-copy { color:#b5b1b5; max-width:55ch; margin-top:25px; font-size:16px; }
 
-.challenge-grid { display:grid; grid-template-columns:1.25fr 1fr 1fr; gap:18px; }
-.challenge-card { min-height:400px; position:relative; overflow:hidden; border-radius:18px; border:1px solid #38383b; isolation:isolate; }
-.challenge-card img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transition:transform .8s; z-index:-2; }
-.challenge-card::after { content:""; position:absolute; inset:0; background:linear-gradient(0deg,#08090dfc 0%,#08090d9c 45%,#08090d33); z-index:-1; }
-.challenge-card:hover img { transform:scale(1.045); }
-.challenge-copy { height:100%; min-height:400px; padding:28px; display:flex; flex-direction:column; justify-content:end; }
-.challenge-copy h3 { font-size:26px; letter-spacing:-.035em; line-height:1.12; max-width:15ch; }
-.challenge-copy p { color:#c2bcc1; font-size:14px; margin-top:15px; }
-.arrow-square { display:grid; place-items:center; width:42px; height:42px; border-radius:9px; background:#fa6e43; color:#161719; margin-top:24px; font-size:25px; }
 .services-home { display:grid; grid-template-columns:1fr 1.5fr; gap:90px; padding-block:14px 20px; }
 .services-intro h2 { margin-top:18px; }
 .services-intro>p:not(.eyebrow) { max-width:34ch; color:#b5b1b5; margin-top:24px; }
@@ -155,9 +146,6 @@
 @media(max-width:1023px) {
   .site-container { width:calc(100% - 48px); }
   .section-pad { padding-block:80px; }
-  .challenge-grid { grid-template-columns:repeat(3,1fr); gap:12px; }
-  .challenge-copy { padding:20px; }
-  .challenge-copy h3 { font-size:24px; }
   .services-home { gap:40px; }
   .delivery-grid { gap:40px; }
   .engagement-card { padding:24px; }
@@ -172,11 +160,6 @@
   .section-top { margin-bottom:30px; }
   .section-heading { flex-direction:column; align-items:start; gap:24px; margin-bottom:32px; }
   .section-heading>p { max-width:40ch; }
-  .challenge-grid { grid-template-columns:1fr; gap:16px; }
-  .challenge-card,.challenge-copy { min-height:340px; }
-  .challenge-copy { padding:26px; }
-  .challenge-copy h3 { font-size:29px; }
-  .challenge-copy p { max-width:35ch; }
   .services-home,.delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
   .service-accordion summary { padding:21px 18px; gap:14px; }
   .service-accordion h3 { font-size:19px; }
@@ -230,11 +213,6 @@
 @keyframes section-rise { from { transform:translateY(18px); } to { transform:translateY(0); } }
 @keyframes orbit-turn { to { transform:rotate(160deg); } }
 @media(max-width:767px) and (min-height:700px) and (prefers-reduced-motion:no-preference) {
-  .challenge-grid { gap:64px; }
-  .challenge-card { position:sticky; top:104px; z-index:1; background:#161719; scroll-margin-top:130px; box-shadow:0 -12px 32px #0005; }
-  .challenge-1 { top:116px; z-index:2; }
-  .challenge-2 { top:128px; z-index:3; }
-  .challenge-card:focus-within { z-index:4; }
 }
 @media(prefers-reduced-motion:reduce) {
   html { scroll-behavior:auto; }
