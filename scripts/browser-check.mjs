@@ -27,7 +27,8 @@ async function hiddenText(page) {
   return page.evaluate(() => {
     const textBearing = [...document.querySelectorAll("main *")].filter(el => [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()));
     return [...new Set([...document.querySelectorAll("main h1, main h2, main h3, main p"), ...textBearing])]
-      .filter(el => !el.closest("[data-hover-reveal]") && el.getClientRects().length > 0)
+      // Dimmed disabled controls are a state, not hidden content.
+      .filter(el => !el.closest("[data-hover-reveal], :disabled") && el.getClientRects().length > 0)
       .filter(el => { for (let n = el; n; n = n.parentElement) if (parseFloat(getComputedStyle(n).opacity) < 0.99) return true; return false; })
       .map(el => el.textContent.trim().replace(/\s+/g, " ").slice(0, 60));
   });
