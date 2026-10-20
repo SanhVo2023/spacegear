@@ -7,4 +7,7 @@ for(const route of ["","services","services/digital-transformation","services/ai
   const file=path.join(root,route,"index.html");try{const html=await fs.readFile(file,"utf8");if(!html.includes("spacegear.tech"))errors.push(`Missing identity: ${route}`);if((html.match(/<h1(?:\s|>)/g)||[]).length!==1)errors.push(`H1 count: ${route}`);if(!html.includes('rel="canonical"'))errors.push(`No canonical: ${route}`);if(/hello@platform\.nl|Platform®|Platform B\.V\.|Book a Demo|97\.8/.test(html))errors.push(`Old identity: ${route}`);}catch{errors.push(`Missing HTML: ${route}`);}
 }
 await fs.access(path.join(root,"404.html")).catch(()=>errors.push("Missing 404"));
+// Sample preview content (src/lib/samples.ts) must never be exported, in HTML or in JS chunks.
+async function scanSamples(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanSamples(file);else if(/.(html|js|txt|json|xml|css|mjs)$/.test(entry.name)&&(await fs.readFile(file,"utf8")).includes("spacegear-sample-content"))errors.push(`Sample content exported: ${path.relative(root,file)}`);}}
+await scanSamples(root);
 if(errors.length){console.error(errors.join("\n"));process.exitCode=1;}else console.log(`Export valid: 12 core pages, ${count} files, ${(bytes/1048576).toFixed(2)} MiB total.`);
