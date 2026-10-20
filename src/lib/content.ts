@@ -144,7 +144,7 @@ export const HOME = {
 
 export type SectionCopy = { title: string; index: string; heading: string; description: string };
 export const SECTIONS = {
-  work: { title: "What We Do", index: "001", heading: "Strategy and delivery under one roof, built to help you move faster with less friction.", description: "Every engagement starts with a real problem and ends with something your team can use." },
+  work: { title: "What We Do", index: "001", heading: "Strategy and delivery under one roof, built to help you move faster with less friction.", description: "Each engagement starts with a real problem and aims to leave your team with something it can use." },
   services: { title: "Our Services", index: "002", heading: "Flexible services for modernizing operations and putting AI to work.", description: "Five capabilities that work on their own or together." },
   process: { title: "Our Process", index: "003", heading: "A clear path from the first conversation to daily use.", description: "Every stage produces something you can review and use." },
   analytics: { title: "What We Measure", index: "004", heading: "Know whether a change is working, with evidence you can act on.", description: "An illustrative example of the measures we agree before building — not client results." },
@@ -229,12 +229,12 @@ export const MEASURE = {
   ],
   stagesFooter: "Time per case · illustrative",
   accuracy: { label: "Accuracy vs. baseline", value: "94.6", unit: "%", sub: "Example target" },
-  throughput: { title: "Cases Handled", sub: "Assisted vs. manual", legend: [{ value: "+68%", label: "Assisted" }, { value: "Base", label: "Manual" }] },
+  throughput: { title: "Cases Handled", sub: "Assisted vs. manual · example", legend: [{ value: "+68%", label: "Assisted" }, { value: "Base", label: "Manual" }] },
   readiness: {
-    title: "Rollout Readiness", sub: "Where a pilot might stand", score: "82", scoreLabel: "Readiness score",
+    title: "Rollout Readiness", sub: "Where a pilot might stand · example", score: "82", scoreLabel: "Readiness score",
     bars: [{ label: "Data", v: 38 }, { label: "Integration", v: 79 }, { label: "Review", v: 92 }, { label: "Training", v: 84 }, { label: "Monitoring", v: 96 }],
   },
-  coverage: { tag: "Evaluation set", value: "99.1%", label: "Test-case coverage", progress: 99.1 },
+  coverage: { tag: "Example evaluation set", value: "99.1%", label: "Test-case coverage", progress: 99.1 },
   connectors: { tag: "Connects with your stack", glyphs: ["◇", "◎", "△", "⬡"] },
   ticker: ["Workflow mapping", "Data readiness review", "AI evaluation", "Human-in-the-loop review", "Systems integration", "Rollout & training", "Monitoring & improvement", "Product delivery"],
   cta: { label: "See how we evaluate AI", href: "/services/applied-ai/" },

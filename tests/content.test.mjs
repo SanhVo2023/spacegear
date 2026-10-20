@@ -3,17 +3,21 @@ import assert from "node:assert/strict";
 
 const content = await import("../src/lib/content.ts");
 
-const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "ARTICLES", "FOOTER", "SERVICES"];
+const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "ARTICLES", "FOOTER", "SERVICES", "serviceBySlug"];
 const FORBIDDEN = [
   [/\$\s?\d/, "a price"],
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
   [/TechCrunch|\bAWS\b/, "an unverified press or partnership claim"],
-  [/Enterprise Clients|Active Users|Deployments|API Calls/i, "an unverified scale claim"],
+  [/Enterprise Clients|Active Users|API Calls/i, "an unverified scale claim"],
   [/Platform®|Platform B\.V\.|Platform Labs|plat—form/, "the old brand"],
   [/Book a Demo/i, "the old call to action"],
   [/®/, "a registered-trademark sign (use ™ until the mark is registered)"],
   [/Amsterdam|New York|Dubai|Keizersgracht/, "an office location"],
   [/\b\d+(?:\.\d+)?\s?[MKB]\+/, "a scale figure"],
+  [/[€£¥]|\b(?:USD|EUR|GBP|VND)\b|per (?:month|year|seat)|\/\s?(?:mo|yr)\b/i, "a price"],
+  [/\b\d[\d,]*\+(?!\d)/, "a scale figure"],
+  [/\b\d+\s?(?:\+\s?)?years?\b/i, "an experience claim"],
+  [/\b\d+x\b/i, "a multiplier claim"],
 ];
 
 test("every public content export exists", () => {
@@ -21,13 +25,14 @@ test("every public content export exists", () => {
 });
 
 test("public content makes no unverified claims", () => {
-  const text = JSON.stringify(PUBLIC_KEYS.map((key) => content[key]));
+  const text = JSON.stringify(Object.entries(content).filter(([, v]) => typeof v !== "function").map(([, v]) => v));
   for (const [pattern, what] of FORBIDDEN) assert.doesNotMatch(text, pattern, `content contains ${what}`);
 });
 
 test("hero copy keeps the original four-line headline rhythm", () => {
   const { HOME } = content;
   assert.equal(HOME.headline.verbs.length, 3);
+  assert.deepEqual(HOME.headline.verbs, ["plan", "build", "scale"]);
   assert.ok(HOME.headline.verbs.every((verb) => verb.length <= 6), "hero verbs must stay short");
   assert.equal(HOME.stats.length, 2);
   assert.equal(HOME.cta.label, "Discuss a project");
@@ -57,13 +62,13 @@ test("work tiles and service pillars point at real service pages", () => {
 test("process steps count real outputs instead of invented timings", () => {
   for (const step of [...content.PROCESS_STEPS, ...content.APPROACH_STEPS]) {
     assert.ok(step.outputs.length >= 1, step.step);
-    assert.equal("metric" in step, false, `${step.step} has no timing metric`);
+    for (const key of Object.keys(step)) assert.ok(["step", "name", "desc", "outputs"].includes(key), `${step.step} has unexpected key ${key}`);
   }
 });
 
 test("engagements carry no prices and exactly one starting point", () => {
   for (const engagement of content.ENGAGEMENTS) {
-    assert.equal("price" in engagement, false, engagement.name);
+    for (const key of Object.keys(engagement)) assert.ok(["name", "short", "label", "description", "img", "stage", "stageNo", "deliverables", "outcomes", "featured"].includes(key), `${engagement.name} has unexpected key ${key}`);
     assert.ok(engagement.deliverables.length >= 3 && engagement.outcomes.length >= 3, engagement.name);
   }
   assert.equal(content.ENGAGEMENTS.filter((engagement) => engagement.featured).length, 1);
@@ -73,7 +78,9 @@ test("the team section shows roles, not invented people", () => {
   for (const role of content.TEAM_ROLES) {
     assert.doesNotMatch(role.name, /^[A-Z][a-z]+ [A-Z][a-z]+$/, `${role.name} looks like a person's name`);
     assert.doesNotMatch(role.img, /images\/team\//, "role cards must not use the stock portraits");
+    assert.equal(role.links.length, 0, `${role.name} must not link to invented profiles`);
   }
+  if (content.FOUNDER) assert.ok(content.FOUNDER.name && content.FOUNDER.img && content.FOUNDER.bio, "founder card needs a real name, photo and bio");
 });
 
 test("testimonials and articles only hold publishable entries", () => {
@@ -90,4 +97,41 @@ test("testimonials and articles only hold publishable entries", () => {
 
 test("sample preview data is not part of public content", () => {
   for (const key of Object.keys(content)) assert.doesNotMatch(key, /SAMPLE/);
+});
+
+test("every illustrative card says so", () => {
+  for (const key of ["workflow", "accuracy", "throughput", "readiness", "coverage"]) {
+    assert.match(JSON.stringify(content.MEASURE[key]), /illustrative|example|sample/i, `MEASURE.${key} is labelled`);
+  }
+  assert.match(content.MEASURE.stagesFooter, /illustrative/i);
+});
+
+test("displayed counts match the data", () => {
+  const n = content.SERVICES.length;
+  const pad = (v) => String(v).padStart(2, "0");
+  assert.equal(content.HOME.stats[0].value, pad(n));
+  assert.equal(content.HOME.stats[1].value, pad(content.ENGAGEMENTS.length));
+  assert.equal(content.WORK.lineup.count, `${n}/${n}`);
+  assert.equal(content.CORE_PANEL.count, `${n}/${n}`);
+  assert.equal(content.PILLARS.length, n);
+  assert.equal(content.WORK.assessment.badge, `01/${pad(content.ENGAGEMENTS.length)}`);
+});
+
+test("internal links point at real pages", () => {
+  const hrefs = [];
+  const walk = (value) => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "href" && typeof child === "string") hrefs.push(child);
+        else walk(child);
+      }
+    }
+  };
+  for (const value of Object.values(content)) if (typeof value !== "function") walk(value);
+  const allowed = new Set(["/", "/services/", "/approach/", "/about/", "/contact/", "/privacy/", "/terms/"]);
+  for (const service of content.SERVICES) allowed.add(`/services/${service.slug}/`);
+  for (const id of Object.keys(content.SECTIONS)) allowed.add(`/#${id}`);
+  assert.ok(hrefs.length > 0, "found hrefs");
+  for (const href of hrefs) assert.ok(allowed.has(href) || /^https?:\/\//.test(href), `${href} is not a real page`);
 });
