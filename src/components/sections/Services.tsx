@@ -64,7 +64,7 @@ export default function Services() {
                       <h3 className="text-xl font-medium text-[#161719]">{s.name}</h3>
                       <p className="mt-3 max-w-sm text-[13px] leading-relaxed text-[#5a2a17]">{s.desc}</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={s.img} alt="" className="mt-5 h-48 w-full max-w-sm rounded-xl object-cover" />
+                      <img src={s.img} alt="" loading="lazy" decoding="async" className="mt-5 h-48 w-full max-w-sm rounded-xl object-cover" />
                     </div>
 
                     {/* bottom tag */}
