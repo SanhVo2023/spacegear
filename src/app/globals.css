@@ -252,3 +252,12 @@ body {
 .prose-card p { margin-top: 12px; font-size: 14px; line-height: 1.7; color: #888891; }
 .prose-card a { color: #fa6e43; text-decoration: underline; text-underline-offset: 4px; }
 .prose-card .policy-preview { margin: 0 0 32px; border: 1px solid rgba(250, 110, 67, 0.4); border-radius: 12px; background: rgba(250, 110, 67, 0.05); padding: 16px 18px; font-size: 13px; color: #e3dbd8; }
+
+/* Hero (OrbitalCinematic.tsx). Until hydration, desktops that will get the
+   300vh cinematic keep its height, so deep links and reloads do not jump.
+   NoScriptStyles.tsx resets it without JavaScript. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .hero-reserve { min-height: 300vh; }
+}
+/* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
+#home[data-copy-hidden] a { pointer-events: none; }

@@ -9,9 +9,12 @@ const base = process.argv[2] || "http://127.0.0.1:8787";
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // Registered before navigation so the model response cannot be missed.
+  const model = page.waitForResponse((r) => r.url().includes("earth-hq.glb") && r.ok(), { timeout: 60000 });
   await page.goto(base, { waitUntil: "networkidle" });
+  await (await model).finished(); // the whole body, not just the headers
   await page.waitForSelector("#home .hero-scene canvas", { timeout: 30000 });
-  await page.waitForTimeout(5000); // model + 4K textures decode, sun glow settles
+  await page.waitForTimeout(1000); // Draco + texture decode, first frames settle
   await page.evaluate(() => {
     // display, not visibility: the nav's 500 ms `transition-all` would keep it visible for the shot.
     document.querySelector("header")?.style.setProperty("display", "none");

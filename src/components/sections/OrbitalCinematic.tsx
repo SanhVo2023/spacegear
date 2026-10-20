@@ -28,8 +28,14 @@ function eligible() {
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
   return window.matchMedia(QUERY).matches && !connection?.saveData;
 }
+// false on the server and during hydration, true afterwards.
+const noop = () => () => {};
 
-/** If WebGL fails, drop the canvas and keep the poster + copy on screen. */
+/**
+ * If the scene throws (model/texture loader or runtime error), drop the canvas
+ * and keep the poster + copy on screen. WebGL context creation is checked
+ * before mounting (R3F creates the renderer outside React's error handling).
+ */
 class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -138,21 +144,28 @@ function HeroCopy() {
 export default function OrbitalCinematic() {
   const outerRef = useRef<HTMLElement | null>(null);
   const cinematic = useSyncExternalStore(subscribe, eligible, () => false);
+  const hydrated = useSyncExternalStore(noop, () => true, () => false);
   const [ready, setReady] = useState(false);
   const [active, setActive] = useState(true);
   const progress = useMotionValue(0);
 
-  // Mount the WebGL scene when the browser is idle, after the copy has painted.
+  // Mount the WebGL scene when the browser is idle, after the copy has painted,
+  // and only while the hero is on screen (a reload mid-page fetches nothing).
   useEffect(() => {
-    if (!cinematic) return;
-    const enable = () => setReady(true);
+    if (!cinematic || !active || ready) return;
+    const enable = () => {
+      const gl = document.createElement("canvas").getContext("webgl2");
+      if (!gl) return; // keep the poster; skip the 6.3 MB model
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      setReady(true);
+    };
     if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(enable);
+      const id = window.requestIdleCallback(enable, { timeout: 2000 });
       return () => window.cancelIdleCallback(id);
     }
     const timer = setTimeout(enable, 0);
     return () => clearTimeout(timer);
-  }, [cinematic]);
+  }, [cinematic, active, ready]);
 
   // Manual scroll scrubber from the section's own rect; pause rendering offscreen.
   useEffect(() => {
@@ -160,17 +173,31 @@ export default function OrbitalCinematic() {
     if (!el || !cinematic) return;
     let frame = 0;
     let visible = true;
+    let copyHidden = false;
     const update = () => {
       const rect = el.getBoundingClientRect();
-      progress.set(Math.max(0, Math.min(1, -rect.top / Math.max(1, rect.height - window.innerHeight))));
+      const p = Math.max(0, Math.min(1, -rect.top / Math.max(1, rect.height - window.innerHeight)));
+      progress.set(p);
+      // Once the copy has faded, its links stop taking clicks (see globals.css).
+      if (p > 0.3 !== copyHidden) {
+        copyHidden = p > 0.3;
+        el.toggleAttribute("data-copy-hidden", copyHidden);
+      }
     };
     const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(update); };
     const visibility = () => setActive(visible && !document.hidden);
+    // The copy fades out as the hero scrolls, but its links stay focusable.
+    // Keyboard focus entering them scrolls back to the opening frame.
+    const reveal = () => {
+      if (progress.get() > 0.15)
+        window.scrollTo({ top: window.scrollY + el.getBoundingClientRect().top, behavior: "instant" });
+    };
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; visibility(); });
     observer.observe(el);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     document.addEventListener("visibilitychange", visibility);
+    el.addEventListener("focusin", reveal);
     update();
     return () => {
       cancelAnimationFrame(frame);
@@ -178,29 +205,37 @@ export default function OrbitalCinematic() {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       document.removeEventListener("visibilitychange", visibility);
+      el.removeEventListener("focusin", reveal);
+      el.removeAttribute("data-copy-hidden");
       progress.set(0);
     };
   }, [cinematic, progress]);
 
   // Mobile / reduced motion / no JS / first paint: the static cosmic hero (no three.js fetched).
+  // Until hydration, eligible desktops reserve the cinematic's 300vh (.hero-reserve in
+  // globals.css) so deep links and reloads land where they will stay.
   if (!cinematic) {
     return (
-      <section id="home" className="relative overflow-hidden">
-        <div className="hero-backdrop pointer-events-none absolute inset-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/galaxy.webp" alt="" aria-hidden width={3840} height={1629} fetchPriority="high" className="h-full w-full object-cover opacity-70" />
-          <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg" />
-          <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
+      <section id="home" className={hydrated ? "relative" : "hero-reserve relative"}>
+        {/* the cinematic's poster, fetched early on the desktops that will show it */}
+        <link rel="preload" as="image" href="/images/hero-poster.webp" media={QUERY} />
+        <div className="relative overflow-hidden">
+          <div className="hero-backdrop pointer-events-none absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/galaxy.webp" alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70" />
+            <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg" />
+            <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
+          </div>
+          <Starfield className="opacity-50" />
+
+          <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
+            <HeroCopy />
+          </Container>
+
+          <Container className="relative pb-24">
+            <ScrollFillText text={HOME.statement} className="max-w-3xl" />
+          </Container>
         </div>
-        <Starfield className="opacity-50" />
-
-        <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
-          <HeroCopy />
-        </Container>
-
-        <Container className="relative pb-24">
-          <ScrollFillText text={HOME.statement} className="max-w-3xl" />
-        </Container>
       </section>
     );
   }

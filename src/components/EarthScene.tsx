@@ -21,9 +21,10 @@ const mapClamp = (
   const t = clamp01((x - inA) / (inB - inA));
   return outA + (outB - outA) * t;
 };
-// Pausing offscreen (frameloop "never") can hand the next frame a huge delta
-// (R3F passes the rAF timestamp in ms); cap it so the globe and galaxy keep
-// turning smoothly instead of jumping to a random angle.
+// While paused offscreen (frameloop "never"), a frame that still runs in
+// `never` mode can get a huge delta (R3F passes the rAF timestamp in ms); cap
+// it so the globe and galaxy keep turning smoothly instead of jumping to a
+// random angle.
 const spin = (delta: number) => Math.min(delta, 0.1);
 
 // The visible sun sits in the upper-left of the frame (behind the globe), while
@@ -237,10 +238,11 @@ export default function EarthScene({
       <directionalLight position={[6, -2, 3]} intensity={0.4} color="#9bbcff" />
       <ambientLight intensity={0.18} />
 
-      {/* real 3D star field — parallaxes with the FPV camera for true depth */}
-      <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
-
       <Suspense fallback={null}>
+        {/* real 3D star field — parallaxes with the FPV camera for true depth.
+            Inside Suspense so it appears with the scene, not over the poster's
+            baked-in stars while the model loads. */}
+        <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
         <Galaxy />
         <Sun />
         <Rig progress={progress}>

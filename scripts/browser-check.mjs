@@ -124,6 +124,34 @@ try {
       assert.equal(focus.inFooter, true, "desktop: keyboard focus in the curtain footer must be visible (focus must enter the footer)");
       assert.equal(focus.visible, true, "desktop: keyboard focus in the curtain footer must be visible");
       report.interactions.push("desktop keyboard focus in the curtain footer is visible");
+
+      // The hero copy fades out mid-scroll but its links stay focusable; focus must bring them back.
+      await page.evaluate(() => {
+        const home = document.getElementById("home");
+        const top = window.scrollY + home.getBoundingClientRect().top;
+        window.scrollTo({ top: top + (home.offsetHeight - innerHeight) * 0.6, behavior: "instant" });
+      });
+      await page.waitForTimeout(150);
+      const corner = page.locator('#home a[href="/services/applied-ai/"]');
+      assert.ok(await corner.evaluate(el => { let o = 1; for (let n = el; n; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return o; }) < 0.5, "desktop: hero copy fades at mid-scroll (precondition for the focus check)");
+      await corner.focus();
+      await page.waitForTimeout(150);
+      const heroFocus = await page.evaluate(() => {
+        const el = document.activeElement, r = el.getBoundingClientRect();
+        let opacity = 1;
+        for (let n = el; n; n = n.parentElement) opacity *= parseFloat(getComputedStyle(n).opacity);
+        return { corner: el.matches('#home a[href="/services/applied-ai/"]'), opacity, inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth };
+      });
+      assert.ok(heroFocus.corner && heroFocus.opacity >= 0.99 && heroFocus.inView, "desktop: focused hero links must be visible");
+      report.interactions.push("desktop keyboard focus on a faded hero link scrolls the copy back into view");
+
+      // The static hero (first paint) reserves the cinematic's height, so a deep link lands on its section.
+      const deep = await context.newPage();
+      await deep.goto(`${base}/#pricing`, { waitUntil: "load" });
+      await deep.waitForTimeout(1500);
+      assert.ok(await deep.evaluate(() => Math.abs(document.getElementById("pricing").getBoundingClientRect().top) < 200), "desktop: deep link to #pricing must land on the section");
+      await deep.close();
+      report.interactions.push("desktop deep link to #pricing lands on the section after hydration");
     }
     // Runs last so the home-page assertions above keep their original timing.
     if (profile.javaScriptEnabled === false || profile.reducedMotion) {
@@ -160,16 +188,23 @@ try {
   report.interactions.push("all 12 routes: actual text bounds fit 320px, including long service headings");
 
   const fallbackPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const fallbackErrors = [], fallbackModels = [];
+  fallbackPage.on("pageerror", error => fallbackErrors.push(error.message));
+  fallbackPage.on("request", request => { if (/\.glb(?:$|\?)/.test(request.url())) fallbackModels.push(request.url()); });
+  // Every WebGL flavour (webgl, webgl2, experimental-webgl) fails to create a context.
   await fallbackPage.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /webgl/.test(type) ? null : original.call(this, type, ...args); };
   });
   await fallbackPage.goto(base, { waitUntil: "networkidle" });
+  await fallbackPage.waitForTimeout(2500); // past the idle-mount timeout
   assert.ok(await fallbackPage.locator("h1").isVisible());
   assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
+  assert.deepEqual(fallbackErrors, [], "webgl-fallback: no page errors");
+  assert.deepEqual(fallbackModels, [], "webgl-fallback: no model download");
   await fallbackPage.close();
-  report.interactions.push("failed WebGL retains headline, poster and CTA");
+  report.interactions.push("failed WebGL retains headline, poster and CTA, without errors or the model download");
 
   // Exercise the real form component with isolated verification and endpoint fixtures.
   // No inquiry or email leaves the local test browser.

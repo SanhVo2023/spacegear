@@ -8,6 +8,8 @@ const CSS = [
   "[data-fill-svg]{width:100%!important}",
   "[data-line]{width:100%!important}",
   "[data-dot]{transform:none!important}",
+  // The hero only reserves the cinematic's height for a hydration that never comes.
+  ".hero-reserve{min-height:0!important}",
 ].join("");
 
 export default function NoScriptStyles() {
