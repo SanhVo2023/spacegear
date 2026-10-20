@@ -102,6 +102,29 @@ try {
       jsBytes: performance.getEntriesByType("resource").filter(entry => entry.initiatorType === "script").reduce((sum, entry) => sum + entry.encodedBodySize, 0),
     }));
     report.profiles.push({ name: profile.name, models: models.length, ...metrics });
+    if (profile.name === "desktop") {
+      // The curtain footer is fixed behind the content; tabbing into it must bring it into view.
+      await page.evaluate(() => {
+        const items = [...document.querySelectorAll("main a[href], main button:not([disabled]), main summary, main input, main select, main textarea")]
+          .filter(el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden");
+        items.at(-1).focus();
+      });
+      await page.keyboard.press("Tab");
+      await page.waitForTimeout(100);
+      const focus = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return { inFooter: false, visible: false };
+        const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return {
+          inFooter: Boolean(el.closest("#contact")),
+          visible: r.width > 0 && r.height > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && Boolean(top && (top === el || el.contains(top))),
+        };
+      });
+      assert.equal(focus.inFooter, true, "desktop: keyboard focus in the curtain footer must be visible (focus must enter the footer)");
+      assert.equal(focus.visible, true, "desktop: keyboard focus in the curtain footer must be visible");
+      report.interactions.push("desktop keyboard focus in the curtain footer is visible");
+    }
     // Runs last so the home-page assertions above keep their original timing.
     if (profile.javaScriptEnabled === false || profile.reducedMotion) {
       const sweep = await context.newPage();

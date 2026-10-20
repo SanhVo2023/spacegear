@@ -39,6 +39,20 @@ export default function CurtainShell({
     };
   }, []);
 
+  useEffect(() => {
+    const el = footerRef.current;
+    if (!curtain || !el) return;
+    // The fixed footer sits behind the content, so the browser never scrolls
+    // it into view on focus. Reveal it by scrolling to the end of the page.
+    const reveal = () =>
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "instant",
+      });
+    el.addEventListener("focusin", reveal);
+    return () => el.removeEventListener("focusin", reveal);
+  }, [curtain]);
+
   return (
     <>
       <div
