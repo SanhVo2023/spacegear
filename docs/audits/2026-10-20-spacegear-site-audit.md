@@ -1,6 +1,6 @@
 # Spacegear revival: audit of the existing website
 
-Date: 20 October 2026. Scope: read-only analysis of the existing application and public deployment; planning documents and baseline screenshots only.
+Date: 20 October 2026. Scope: read-only analysis of the existing application and public deployment; planning documents and baseline screenshots only. Original evidence below describes the first audit; the repository update at the end records the subsequently supplied URL.
 
 ## Evidence and repository status
 
@@ -84,3 +84,11 @@ Completed baseline checks: build and TypeScript pass; lint fails with these exis
 | `src/components/sections/OrbitalCinematic.tsx` | 256 | `react/jsx-no-comment-textnodes`: comment-like text in JSX children |
 
 The design was reviewed independently with the builder-check prompt; the reviewer reported “nothing important left.” Documentation and screenshot files were added; existing application code was not changed. Cockpit progress submission was attempted and returned the same unregistered-folder error. No deployment or remote clone has been performed.
+
+## Repository update and planning revision 2
+
+The owner subsequently supplied `https://github.com/SanhVo2023/platform-design-contest`. A successful `gh api repos/SanhVo2023/platform-design-contest` call reported `private: false`, `default_branch: main`, `size: 0`; `git ls-remote` succeeded with no advertised refs. The supplied repository is empty and currently cannot be compared with the existing local implementation. Treat it as the proposed destination; retain the local source as the audit baseline.
+
+Two `git clone https://github.com/SanhVo2023/platform-design-contest.git platform-design-contest` attempts failed to connect to GitHub on port 443. No clone directory remains. An exact-command Cockpit owner request was attempted, but the folder is not registered, so no owner command was queued. The URL is no longer a missing input; network/owner execution access is the unresolved operational dependency. No push or public source upload was attempted.
+
+Revision 2 sharpens the proposed audience/offer, replaces the generic hero with a delivery-oriented message, consolidates the homepage, defines proof provenance and a starting assessment, and makes editorial content conditional on readiness. The runtime architecture and measured quality gates remain. Business measurement now explicitly separates D1 inquiry counts from Cloudflare Web Analytics, whose current FAQ says it does not support custom events or UTM collection. No application tests were rerun for these documentation-only changes; the original baseline results above still apply.
