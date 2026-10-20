@@ -150,7 +150,7 @@ export const SECTIONS = {
   analytics: { title: "What We Measure", index: "004", heading: "Know whether a change is working, with evidence you can act on.", description: "An illustrative example of the measures we agree before building — not client results." },
   pricing: { title: "Engagements", index: "005", heading: "Clear ways to work together. Scoped around your objectives.", description: "Start with one challenge or a defined project. Scope and terms are agreed before work begins." },
   faq: { title: "Questions & Answers", index: "006", heading: "Simple explanations to help you decide where to start.", description: "You don’t need every answer before starting a conversation." },
-  team: { title: "Who You Work With", index: "007", heading: "The disciplines behind the work. Strategists, engineers and problem-solvers.", description: "You work directly with the people doing the thinking and the building." },
+  team: { title: "Who You Work With", index: "007", heading: "The disciplines behind the work. Strategy, engineering and delivery.", description: "Each engagement draws on these disciplines, from first conversation to handover." },
   testimonials: { title: "What Our Clients Say", index: "008", heading: "Stories from organizations we have worked with.", description: "Published with each client’s permission." },
   labs: { title: "Spacegear Labs", index: "009", heading: "Practical notes on transformation, AI and the systems behind everyday work.", description: "Explainers and field notes from our work." },
 } satisfies Record<string, SectionCopy>;

@@ -44,6 +44,7 @@ export default function Team() {
                       exit={{ opacity: 0, y: -12 }}
                       transition={{ duration: 0.35, ease: EASE }}
                     >
+                      <span className="sr-only">Role {i + 1} of {MEMBERS.length}</span>
                       <h3 className="display text-[clamp(24px,2.4vw,34px)] text-ink">{m.name}</h3>
                       <p className="mt-1 text-[13px] text-flame">{m.role}</p>
                     </motion.div>
@@ -89,7 +90,7 @@ export default function Team() {
                   />
                 </AnimatePresence>
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-card/30 to-transparent" />
-                <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-bg/60 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur lg:hidden">
+                <span aria-hidden className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-bg/60 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur lg:hidden">
                   ‹ swipe ›
                 </span>
               </motion.div>
