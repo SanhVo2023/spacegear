@@ -12,6 +12,13 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "worker-configuration.d.ts",
+    "artifacts/**",
+    "assets/**",
+    "dist/**",
+    "public/draco/**",
+    ".wrangler/**",
+    ".superpowers/**",
   ]),
 ]);
 

@@ -8,6 +8,6 @@ The supplied remote is `https://github.com/SanhVo2023/platform-design-contest.gi
 
 Original raw art is preserved under ignored `assets/source/` and in the unchanged original checkout. Public outputs must contain only optimized art used by Spacegear. The original baseline passed type checking/build and had four lint errors and one warning, documented in the audit; implementation resolves them.
 
-Owner directions: open audience, no company-scale marketing, Cloudflare only, preserve aesthetics/motion, bypass Cockpit. Production domain, contact destination and approved policy facts are pending. Preview builds stay non-indexable; production validation must reject missing settings.
+Owner directions: open audience, no company-scale marketing, Cloudflare only, preserve aesthetics/motion, bypass Cockpit. The owner confirmed spacegear.tech as the public name and domain during implementation. The contact destination and approved policy facts remain pending. Preview builds stay non-indexable; production validation must reject missing settings.
 
 Legacy URLs: `/work/neural-core/`, `/work/design-engine/`, `/work/scale-matrix/`, `/work/neural-net/`, `/work/shield-core/` and the four `/labs/*` articles describe fictional template content. Retire them with real 404 responses; there is no equivalent consulting page that warrants a redirect. Preserve useful home hash destinations for services, process, pricing/engagements, faq and contact. Update all links to canonical routes.

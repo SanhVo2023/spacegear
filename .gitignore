@@ -38,11 +38,14 @@ yarn-error.log*
 
 # Local originals and execution evidence
 /assets/source/
+/public/models/earth.glb
 /.wrangler/
 /artifacts/
 /.dev.vars*
 /playwright-report/
 /test-results/
+/dist/
+!.env.example
 
 # typescript
 *.tsbuildinfo

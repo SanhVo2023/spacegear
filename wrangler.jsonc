@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "spacegear-tech-preview",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "force-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SITE_ORIGIN": "http://localhost:8787",
+    "CONTACT_ENABLED": "false",
+    "NOTIFICATIONS_ENABLED": "false",
+    "OWNER_EMAIL": "",
+    "SENDER_EMAIL": ""
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "spacegear-preview", "migrations_dir": "./migrations" }],
+  "send_email": [{ "name": "EMAIL" }],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "env": {
+    "production": {
+      "name": "spacegear-tech",
+      "workers_dev": false,
+      "vars": {
+        "SITE_ORIGIN": "https://spacegear.tech",
+        "CONTACT_ENABLED": "false",
+        "NOTIFICATIONS_ENABLED": "false",
+        "OWNER_EMAIL": "",
+        "SENDER_EMAIL": ""
+      },
+      "d1_databases": [{ "binding": "DB", "database_name": "spacegear-production", "migrations_dir": "./migrations" }],
+      "send_email": [{ "name": "EMAIL" }],
+      "triggers": { "crons": ["*/5 * * * *"] }
+    }
+  }
+}

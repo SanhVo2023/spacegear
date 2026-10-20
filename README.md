@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# spacegear.tech
 
-## Getting Started
+Digital transformation and AI consultancy website. Next.js exports 12 visible HTML pages; Cloudflare Workers Static Assets serves them. A same-origin Worker validates inquiries with Turnstile, stores them in D1 and queues owner notifications through Cloudflare Email Service.
 
-First, run the development server:
+Customer eligibility is open across industries, regions and company sizes. Public copy and schema contain no company-scale claims or fictional clients, staff, testimonials or results.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Local development
+
+Use Node 22.14+ and npm. Run `npm ci`, then `npm run dev` for development.
+
+For the actual Cloudflare runtime:
+
+```sh
+npm run build:cf
+npm run db:migrate:local
+npm run preview:cf
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:8787. Preview is non-indexable and cannot send inquiries without explicit contact configuration. Only **dist/** is deployable; **out/** is an intermediate export containing preserved source assets. Packaging uses explicit route/asset lists. Production packaging requires a fresh checkout without an existing dist directory; local previews preserve existing files.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If Windows restricts Wrangler's global config writes, set XDG_CONFIG_HOME to this checkout's .wrangler/config and WRANGLER_LOG_PATH to artifacts/wrangler-preview.log for local commands. Keep production authentication in the supported credential store.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Verification
 
-## Learn More
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build:cf
+npm run check:seo
+npm run test:browser
+```
 
-To learn more about Next.js, take a look at the following resources:
+The last two expect the local Cloudflare server. Install the pinned browser with `npx playwright install chromium`, or set PLAYWRIGHT_CHROMIUM_EXECUTABLE to a compatible Chromium executable. The SEO command also accepts a URL and --production.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Tests cover durable capture, same-key races against local D1, transactional rollback, throttling, notification retries, publication guards, canonical routes, no-JavaScript content, reduced motion, responsive layout, keyboard navigation and the actual form's recovery behavior. Browser timings are local observations, not Lighthouse scores or field measurements.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Content and release
 
-## Deploy on Vercel
+- [Content](src/lib/content.ts): services, engagements, FAQs and illustrative use cases.
+- [Site configuration](src/lib/site.ts) and [.env.example](.env.example): identity and publication settings.
+- [Cloudflare release runbook](docs/operations/cloudflare-release.md): bindings, gates, operations and rollback.
+- [Source provenance](docs/operations/source-provenance.md): preserved source and clone status.
+- [Implementation record](docs/operations/implementation-status.md): evidence and remaining dependencies.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The original checkout remains intact. The supplied GitHub destination was empty when inspected; cloning and Cloudflare account access were blocked by network access in this environment. No remote push or public deployment is claimed.

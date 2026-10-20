@@ -6,8 +6,8 @@ import { type MotionValue } from "motion/react";
 import { Suspense, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 
-const MODEL = "/models/earth-4k.glb";
-const GALAXY = "/images/galaxy.webp";
+const MODEL = "/models/earth-optimized.glb";
+const GALAXY = "/images/galaxy-small.webp";
 
 /* ---- scroll math (used inside useFrame; no React state) ---- */
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -29,13 +29,15 @@ const SUN_POS = new THREE.Vector3(-9, 5.5, -26);
 const LIGHT_POS = new THREE.Vector3(-4, 2.5, 4);
 
 function Earth() {
-  const { scene } = useGLTF(MODEL, true);
+  const { scene } = useGLTF(MODEL, "/draco/");
   const group = useRef<THREE.Group>(null);
 
-  useMemo(() => {
-    scene.traverse((o) => {
+  const prepared = useMemo(() => {
+    const copy = scene.clone(true);
+    copy.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       mats.forEach((m) => {
         const mat = m as THREE.MeshStandardMaterial;
@@ -47,6 +49,7 @@ function Earth() {
         mat.needsUpdate = true;
       });
     });
+    return copy;
   }, [scene]);
 
   useFrame((_, delta) => {
@@ -55,7 +58,7 @@ function Earth() {
 
   return (
     <group ref={group} rotation={[0, 0, 0.41]}>
-      <primitive object={scene} />
+      <primitive object={prepared} />
     </group>
   );
 }
@@ -140,8 +143,8 @@ function Rig({
 
 /** Equirectangular-ish galaxy on a giant inverted sphere — the cosmic backdrop. */
 function Galaxy() {
-  const tex = useTexture(GALAXY);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  const source = useTexture(GALAXY);
+  const tex = useMemo(() => { const copy = source.clone(); copy.colorSpace = THREE.SRGBColorSpace; return copy; }, [source]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame((_, delta) => {
     if (ref.current) ref.current.rotation.y += delta * 0.004;
@@ -201,26 +204,20 @@ function FpvCamera() {
   return null;
 }
 
-function Loader() {
-  return (
-    <mesh>
-      <sphereGeometry args={[2, 32, 32]} />
-      <meshBasicMaterial color="#1d1e21" wireframe />
-    </mesh>
-  );
-}
-
 export default function EarthScene({
   progress,
-  dpr = [1, 2],
+  dpr = [1, 1.5],
+  active = true,
 }: {
   progress: MotionValue<number>;
   dpr?: [number, number];
+  active?: boolean;
 }) {
   return (
     <Canvas
       camera={{ position: [0, 0, 6.2], fov: 38 }}
       dpr={dpr}
+      frameloop={active ? "always" : "never"}
       gl={{ antialias: true, alpha: true }}
       onCreated={({ gl }) => {
         gl.toneMappingExposure = 1.2;
@@ -237,9 +234,9 @@ export default function EarthScene({
       <ambientLight intensity={0.18} />
 
       {/* real 3D star field — parallaxes with the FPV camera for true depth */}
-      <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
+      <Stars radius={45} depth={55} count={1800} factor={7} saturation={0} fade speed={0.5} />
 
-      <Suspense fallback={<Loader />}>
+      <Suspense fallback={null}>
         <Galaxy />
         <Sun />
         <Rig progress={progress}>
@@ -252,5 +249,3 @@ export default function EarthScene({
     </Canvas>
   );
 }
-
-useGLTF.preload(MODEL, true);

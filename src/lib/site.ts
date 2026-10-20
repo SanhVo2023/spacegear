@@ -1,8 +1,8 @@
 import { SERVICES } from "./content";
 export const SITE = {
-  name: "Spacegear",
+  name: "spacegear.tech",
   description: "Digital transformation and AI consulting, from strategy to working systems. Modernize operations, connect data and put AI to work.",
-  origin: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:8787",
+  origin: process.env.NEXT_PUBLIC_SITE_URL || "https://spacegear.tech",
   contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "",
   publicationMode: process.env.SITE_MODE === "production" ? "production" : "preview",
   policiesApproved: process.env.POLICIES_APPROVED === "true",
