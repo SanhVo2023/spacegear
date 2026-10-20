@@ -265,3 +265,6 @@ body {
 }
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }
+
+/* FAQ question focus ring stays inside its rounded, overflow-hidden card. */
+.faq-item > summary:focus-visible { outline-offset: -3px; border-radius: 0.75rem; }
