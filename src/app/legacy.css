@@ -38,17 +38,6 @@
 .review-tag { margin-left:auto; font-size:10px; color:#fba889; border:1px solid #865038; border-radius:5px; padding:3px 8px; }
 .workflow-note { border-top:1px solid #3a3a3e; padding-top:20px; margin-top:10px; font-size:12px; line-height:1.7; color:#b5b1b5; }
 .process-output { font-size:12px; color:#d9d1cf; border-top:1px solid #36373a; margin-top:28px; padding-top:15px; }
-.engagement-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
-.engagement-card { padding:32px; border:1px solid #393a3e; background:#202124; border-radius:18px; display:flex; flex-direction:column; }
-.engagement-card h3 { font-size:30px; font-weight:450; line-height:1.15; letter-spacing:-.04em; margin:25px 0 18px; }
-.engagement-card>p:not(.eyebrow) { color:#b5b1b5; font-size:14px; line-height:1.75; }
-.engagement-card ul { list-style:none; padding:24px 0 28px; margin:0 0 auto; font-size:13px; }
-.engagement-card li { padding:10px 0; border-bottom:1px solid #ffffff14; }
-.engagement-card li::before { content:"↗"; margin-right:10px; color:#fa6e43; }
-.engagement-card small { font-size:11px; text-align:center; margin-top:14px; color:#b5b1b5; }
-.engagement-featured { background:#fa6e43; color:#161719; border-color:#fa6e43; }
-.engagement-featured .eyebrow,.engagement-featured>p:not(.eyebrow),.engagement-featured small,.engagement-featured li::before { color:#40271f; }
-.engagement-featured li { border-color:#16171933; }
 .faq-grid { display:grid; grid-template-columns:1fr 1.3fr; gap:100px; }
 .faq-grid h2 { margin-top:18px; font-size:clamp(32px,3.8vw,48px); }
 .faq-list details { border-bottom:1px solid #414044; }
@@ -126,8 +115,6 @@
   .site-container { width:calc(100% - 48px); }
   .section-pad { padding-block:80px; }
   .delivery-grid { gap:40px; }
-  .engagement-card { padding:24px; }
-  .engagement-card h3 { font-size:26px; }
   .faq-grid,.detail-split,.contact-grid { gap:45px; }
   .footer-grid { grid-template-columns:1.5fr 1fr 1.2fr; }
   .orbit-badge { display:none; }
@@ -141,10 +128,6 @@
   .delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
   .workflow { padding:22px; }
   .process-output { margin-top:18px; }
-  .engagement-grid { grid-template-columns:1fr; }
-  .engagement-card { padding:28px; }
-  .engagement-card h3 { font-size:32px; }
-  .engagement-card ul { padding-block:20px 26px; }
   .faq-list summary { font-size:15px; }
   .site-footer { padding-top:65px; }
   .footer-inquiry { text-align:left; padding-bottom:60px; }
