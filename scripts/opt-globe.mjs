@@ -1,7 +1,8 @@
 // Builds public/models/earth-hq.glb from the preserved 4K source model.
 // The Earth surface maps (base colour, night lights, normal, roughness) keep
 // their full 4096×2048 resolution — they carry the detail you see. Only the
-// cloud shell's two textures are resized to 2048 px; they hold ~90% of the bytes.
+// cloud shell's two textures are resized to 3072 px; they hold ~90% of the bytes
+// (2048 px read visibly softer than the original in the fidelity sheets).
 // Usage: node scripts/opt-globe.mjs   (reads assets/source/earth-4k.glb)
 import fs from "node:fs/promises";
 import sharp from "sharp";
@@ -9,7 +10,7 @@ import sharp from "sharp";
 const SOURCE = "assets/source/earth-4k.glb";
 const TARGET = "public/models/earth-hq.glb";
 const CLOUD_MATERIAL = "Material_62"; // cloud shell: base colour (with alpha) + emissive
-const CLOUD_WIDTH = 2048;
+const CLOUD_WIDTH = 3072;
 
 const source = await fs.readFile(SOURCE);
 const jsonLength = source.readUInt32LE(12);

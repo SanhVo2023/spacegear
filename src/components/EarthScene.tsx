@@ -6,8 +6,8 @@ import { type MotionValue } from "motion/react";
 import { Suspense, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 
-const MODEL = "/models/earth-optimized.glb";
-const GALAXY = "/images/galaxy-small.webp";
+const MODEL = "/models/earth-hq.glb";
+const GALAXY = "/images/galaxy.webp";
 
 /* ---- scroll math (used inside useFrame; no React state) ---- */
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -21,6 +21,10 @@ const mapClamp = (
   const t = clamp01((x - inA) / (inB - inA));
   return outA + (outB - outA) * t;
 };
+// Pausing offscreen (frameloop "never") can hand the next frame a huge delta
+// (R3F passes the rAF timestamp in ms); cap it so the globe and galaxy keep
+// turning smoothly instead of jumping to a random angle.
+const spin = (delta: number) => Math.min(delta, 0.1);
 
 // The visible sun sits in the upper-left of the frame (behind the globe), while
 // the key light comes from a front-left angle so the camera-facing hemisphere
@@ -53,7 +57,7 @@ function Earth() {
   }, [scene]);
 
   useFrame((_, delta) => {
-    if (group.current) group.current.rotation.y += delta * 0.035;
+    if (group.current) group.current.rotation.y += spin(delta) * 0.035;
   });
 
   return (
@@ -147,7 +151,7 @@ function Galaxy() {
   const tex = useMemo(() => { const copy = source.clone(); copy.colorSpace = THREE.SRGBColorSpace; return copy; }, [source]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 0.004;
+    if (ref.current) ref.current.rotation.y += spin(delta) * 0.004;
   });
   return (
     <mesh ref={ref} scale={120}>
@@ -206,7 +210,7 @@ function FpvCamera() {
 
 export default function EarthScene({
   progress,
-  dpr = [1, 1.5],
+  dpr = [1, 2],
   active = true,
 }: {
   progress: MotionValue<number>;
@@ -234,7 +238,7 @@ export default function EarthScene({
       <ambientLight intensity={0.18} />
 
       {/* real 3D star field — parallaxes with the FPV camera for true depth */}
-      <Stars radius={45} depth={55} count={1800} factor={7} saturation={0} fade speed={0.5} />
+      <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
 
       <Suspense fallback={null}>
         <Galaxy />
@@ -249,3 +253,5 @@ export default function EarthScene({
     </Canvas>
   );
 }
+
+useGLTF.preload(MODEL, "/draco/");

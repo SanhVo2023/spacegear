@@ -9,7 +9,7 @@ if(process.env.SITE_MODE==="production") {
 }
 await fs.mkdir(target,{recursive:true});
 const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms"];
-const assets=["apple-icon.png","icon.svg","favicon.ico","licenses/fonts.txt","images/galaxy-small.webp","images/galaxy.webp","images/earth-color.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","models/earth-optimized.glb","models/earth-hq.glb","seo/og.png","draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"];
+const assets=["apple-icon.png","icon.svg","favicon.ico","licenses/fonts.txt","images/galaxy-small.webp","images/galaxy.webp","images/hero-poster.webp","images/earth-color.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","models/earth-optimized.glb","models/earth-hq.glb","seo/og.png","draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"];
 const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|__next\..*\.txt)$/.test(name));
 for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});
