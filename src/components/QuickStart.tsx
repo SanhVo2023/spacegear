@@ -15,15 +15,29 @@ export default function QuickStart() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const values = { name: name.current?.value.trim() ?? "", email: email.current?.value.trim() ?? "" };
+    if (window.location.pathname.replace(/\/$/, "") === "/contact") {
+      // Already on the contact page: the form is mounted, so fill it directly (no storage, no navigation).
+      const nameField = document.getElementById("name") as HTMLInputElement | null;
+      const emailField = document.getElementById("email") as HTMLInputElement | null;
+      if (nameField) nameField.value = values.name.slice(0, 100);
+      if (emailField) emailField.value = values.email.slice(0, 254);
+      const message = document.getElementById("message");
+      if (message) {
+        message.focus({ preventScroll: true });
+        message.scrollIntoView({ block: "center" });
+      }
+      return;
+    }
     try {
-      sessionStorage.setItem(QUICKSTART_KEY, JSON.stringify({ name: name.current?.value.trim() ?? "", email: email.current?.value.trim() ?? "" }));
+      sessionStorage.setItem(QUICKSTART_KEY, JSON.stringify(values));
     } catch {
       // Storage unavailable (private mode): the contact page still opens.
     }
     router.push("/contact/");
   }
 
-  const input = "w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame focus:outline-none";
+  const input = "w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame";
   return (
     <form action="/contact/" method="get" onSubmit={submit} className="mt-6 space-y-3">
       <input ref={name} type="text" autoComplete="name" maxLength={100} aria-label="Your name" placeholder="Your Name" className={input} />
@@ -32,7 +46,7 @@ export default function QuickStart() {
         <button
           type="submit"
           aria-label="Continue to the project brief"
-          className="grid aspect-square h-[50px] place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-0.5"
+          className="grid aspect-square h-[50px] place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-0.5 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame"
         >
           →
         </button>

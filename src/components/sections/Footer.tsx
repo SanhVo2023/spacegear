@@ -56,10 +56,10 @@ export default function Footer() {
             )}
             <div className="relative mt-4 lg:mt-8">
               {/* sized so "space—gear" (one glyph wider than "plat—form") fills the same cell */}
-              <h2 className="display text-[clamp(36px,10vw,104px)] leading-[0.85] lg:text-[clamp(40px,8vw,104px)] text-flame">
+              <p className="display text-[clamp(36px,10vw,104px)] leading-[0.85] lg:text-[clamp(40px,8vw,104px)] text-flame">
                 space<span className="text-ink">—</span>gear
-                <sup className="ml-1 align-top text-base text-mut-3">™</sup>
-              </h2>
+                <sup aria-hidden className="ml-1 align-top text-base text-mut-3">™</sup>
+              </p>
               <div className="mt-5 text-[13px] leading-relaxed text-mut-2 lg:mt-6">
                 <p>{FOOTER.identity[0]}</p>
                 <p>{FOOTER.identity[1]}</p>
@@ -91,13 +91,13 @@ export default function Footer() {
           </div>
 
           <div className="p-6 sm:p-8">
-            <h3 className="display text-2xl text-ink-strong">{FOOTER.quickStart.title}</h3>
+            <h2 className="display text-2xl text-ink-strong">{FOOTER.quickStart.title}</h2>
             <p className="mt-2 text-[13px] text-mut-2">
               {FOOTER.quickStart.text} <span className="text-flame">*</span>
             </p>
             <QuickStart />
             <p className="mt-4 text-[12px] text-mut-2">
-              By continuing, you agree to our{" "}
+              Read how we handle your details in our{" "}
               <Link prefetch={false} href="/privacy/" className="text-flame hover:underline">Privacy policy.</Link>
             </p>
             <p className="mt-2 text-[12px] text-flame">* {FOOTER.quickStart.note}</p>

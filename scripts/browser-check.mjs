@@ -176,19 +176,39 @@ try {
   await page.close();
   report.interactions.push("native FAQ keyboard toggles, contact service selection, compact viewport/text zoom, preview form disabled");
 
+  const KEY = "spacegear:quickstart";
+  const hostile = '<img src=x onerror="window.__x=1">';
   const quick = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await quick.goto(base, { waitUntil: "networkidle" });
   await quick.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await quick.waitForTimeout(400);
-  await quick.getByLabel("Your name").fill("Robin Footer");
+  await quick.getByLabel("Your name").fill(hostile);
   await quick.getByLabel("Your email").fill("robin@gmail.com");
   await quick.getByRole("button", { name: "Continue to the project brief" }).click();
   await quick.waitForURL("**/contact/");
-  await quick.waitForFunction(() => document.querySelector("#name")?.value === "Robin Footer");
+  await quick.waitForFunction(() => document.querySelector("#name")?.value !== "");
+  assert.equal(await quick.locator("#name").inputValue(), hostile, "hostile name arrives verbatim");
   assert.equal(await quick.locator("#email").inputValue(), "robin@gmail.com");
-  assert.equal(new URL(quick.url()).search, "", "quick start keeps personal details out of the URL");
+  assert.equal(await quick.evaluate(() => window.__x), undefined, "hostile name is not executed");
+  const handed = quick.url();
+  assert.ok(!/robin|%40|@/i.test(handed), "quick start keeps the email out of the URL");
+  assert.ok(!handed.includes("img") && new URL(handed).search === "" && new URL(handed).hash === "", "no query or hash after hand-off");
+  assert.equal(await quick.evaluate((k) => sessionStorage.getItem(k), KEY), null, "hand-off storage consumed");
+  await quick.reload({ waitUntil: "networkidle" });
+  assert.equal(await quick.locator("#name").inputValue(), "", "reload does not restore the name");
+  // Same-page case: the footer on /contact/ must fill the form that is already mounted.
+  await quick.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await quick.waitForTimeout(400);
+  await quick.getByLabel("Your name").fill("Pat Samepage");
+  await quick.getByLabel("Your email").fill("pat@gmail.com");
+  await quick.getByRole("button", { name: "Continue to the project brief" }).click();
+  await quick.waitForTimeout(800);
+  assert.equal(await quick.locator("#name").inputValue(), "Pat Samepage", "same-page hand-off fills name");
+  assert.equal(await quick.locator("#email").inputValue(), "pat@gmail.com", "same-page hand-off fills email");
+  assert.equal(await quick.evaluate((k) => sessionStorage.getItem(k), KEY), null, "same-page hand-off leaves no storage");
+  assert.equal(await quick.evaluate(() => document.activeElement?.id), "message", "message field focused");
   await quick.close();
-  report.interactions.push("footer quick start hands name and email to the contact form without using the URL");
+  report.interactions.push("footer quick start hands name and email to the contact form (also on the contact page) without URL or leftover storage");
 
   const narrowPage = await browser.newPage({ viewport: { width: 320, height: 740 } });
   for (const route of routes) {
