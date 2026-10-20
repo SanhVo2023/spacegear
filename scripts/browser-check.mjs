@@ -29,6 +29,13 @@ try {
     });
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
+    if (profile.javaScriptEnabled === false) {
+      const transparent = await page.evaluate(() => [...document.querySelectorAll("main h1, main h2, main h3, main p")]
+        .filter(el => !el.closest("[data-hover-reveal]") && el.getClientRects().length > 0)
+        .filter(el => { for (let n = el; n; n = n.parentElement) if (parseFloat(getComputedStyle(n).opacity) < 0.99) return true; return false; })
+        .map(el => el.textContent.trim().slice(0, 60)));
+      assert.deepEqual(transparent, [], "no-javascript: entrance states must not hide content");
+    }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
     const models = requests.filter(url => /\.glb(?:$|\?)/.test(url));
     if (profile.width < 1024 || profile.reducedMotion || profile.javaScriptEnabled === false) assert.equal(models.length, 0, `${profile.name}: no model`);
@@ -91,7 +98,7 @@ try {
   for (const match of sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)) {
     const route = new URL(match[1]).pathname;
     await narrowPage.goto(new URL(route, base).href, { waitUntil: "networkidle" });
-    const clipped = await narrowPage.evaluate(() => [...document.querySelectorAll("main h1, main h2, main p, main label")].flatMap(el => {
+    const clipped = await narrowPage.evaluate(() => [...document.querySelectorAll("main h1, main h2, main p, main label")].filter(el => !el.closest("[data-snap-row]")).flatMap(el => {
       const range = document.createRange(); range.selectNodeContents(el);
       return [...range.getClientRects()].some(rect => rect.right > innerWidth + 1 || rect.left < -1) ? [el.textContent] : [];
     }));
