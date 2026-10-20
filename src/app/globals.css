@@ -160,7 +160,6 @@ body {
 :focus-visible {
   outline: 2px solid #fa6e43;
   outline-offset: 3px;
-  border-radius: 6px;
 }
 
 .skip-link {
@@ -206,8 +205,11 @@ body {
 .faq-item[open]::details-content { block-size: auto; }
 .faq-item > summary::-webkit-details-marker,
 .mobile-menu > summary::-webkit-details-marker { display: none; }
+.faq-item > summary,
+.mobile-menu > summary { list-style: none; }
 
 @media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; }
   .dot-pulse, .tile-pulse, .spin-16, .spin-18, .spin-26, .marquee-track, .pulse-dot { animation: none; }
   .dot-pulse { opacity: 0.6; }
   .faq-item::details-content { transition: none; }
