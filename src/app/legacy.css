@@ -37,13 +37,6 @@
 .workflow li p { font-size:12px; color:#b5b1b5; margin-top:3px; }
 .review-tag { margin-left:auto; font-size:10px; color:#fba889; border:1px solid #865038; border-radius:5px; padding:3px 8px; }
 .workflow-note { border-top:1px solid #3a3a3e; padding-top:20px; margin-top:10px; font-size:12px; line-height:1.7; color:#b5b1b5; }
-.process-section { background:#1b1c1f; border-block:1px solid #2c2d30; }
-.process-grid { list-style:none; padding:0; margin:0 0 32px; display:grid; grid-template-columns:repeat(3,1fr); gap:40px; }
-.process-grid li { padding-right:30px; }
-.process-number { font-size:60px; font-weight:350; color:#fa6e43; letter-spacing:-.06em; padding-bottom:30px; border-bottom:1px solid #414044; margin-bottom:25px; display:flex; align-items:center; justify-content:space-between; }
-.process-number span { font-size:28px; color:#a7a2a6; }
-.process-grid h3 { font-size:25px; font-weight:450; margin:12px 0; letter-spacing:-.03em; }
-.process-grid li>p:not(.eyebrow) { color:#b5b1b5; font-size:15px; }
 .process-output { font-size:12px; color:#d9d1cf; border-top:1px solid #36373a; margin-top:28px; padding-top:15px; }
 .engagement-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
 .engagement-card { padding:32px; border:1px solid #393a3e; background:#202124; border-radius:18px; display:flex; flex-direction:column; }
@@ -147,9 +140,6 @@
   .section-heading>p { max-width:40ch; }
   .delivery-grid,.faq-grid,.detail-split,.contact-grid { grid-template-columns:1fr; gap:35px; }
   .workflow { padding:22px; }
-  .process-grid { grid-template-columns:1fr; gap:30px; }
-  .process-grid li { padding-right:0; }
-  .process-number { font-size:46px; padding-bottom:12px; margin-bottom:20px; }
   .process-output { margin-top:18px; }
   .engagement-grid { grid-template-columns:1fr; }
   .engagement-card { padding:28px; }
