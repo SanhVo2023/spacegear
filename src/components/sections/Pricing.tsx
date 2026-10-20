@@ -9,7 +9,7 @@ import { Container, SectionHeader } from "@/components/ui";
 import { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS, type Engagement } from "@/lib/content";
 
 /** Original billing toggle, repurposed: switch the list between deliverables and outcomes. */
-function Toggle({ outcomes, onToggle }: { outcomes: boolean; onToggle: (v: boolean) => void }) {
+function Toggle({ outcomes, onToggle, label }: { outcomes: boolean; onToggle: (v: boolean) => void; label: string }) {
   return (
     <div className="mt-3 flex items-center gap-2 text-[12px]">
       <span className={outcomes ? "text-mut-2" : "text-ink"}>Deliverables</span>
@@ -17,9 +17,9 @@ function Toggle({ outcomes, onToggle }: { outcomes: boolean; onToggle: (v: boole
         type="button"
         role="switch"
         aria-checked={outcomes}
-        aria-label="Show outcomes instead of deliverables"
+        aria-label={`Show outcomes instead of deliverables (${label})`}
         onClick={() => onToggle(!outcomes)}
-        className="relative h-5 w-9 rounded-full bg-card-3 transition-colors"
+        className="relative h-5 w-9 rounded-full bg-card-3 transition-colors before:absolute before:-inset-1 before:content-['']"
       >
         <motion.span
           initial={false}
@@ -72,7 +72,7 @@ function EngagementRow({ item, selected, onSelect }: { item: Engagement; selecte
       {/* stage + toggle (the original price cell) */}
       <Cell label="Stage">
         <span className="display text-4xl text-ink">{item.stageNo}</span>
-        <Toggle outcomes={outcomes} onToggle={setOutcomes} />
+        <Toggle outcomes={outcomes} onToggle={setOutcomes} label={item.short} />
       </Cell>
 
       {/* engagement + focus stacked (the original plan + seats cells) */}
@@ -103,6 +103,7 @@ function EngagementRow({ item, selected, onSelect }: { item: Engagement; selecte
           type="button"
           onClick={onSelect}
           aria-pressed={selected}
+          aria-label={`Select ${item.short}`}
           whileTap={{ scale: 0.96 }}
           className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-medium transition-colors duration-300 ${
             selected
@@ -152,12 +153,14 @@ export default function Pricing() {
           ))}
         </SnapRow>
 
-        {chosen && (
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-6 text-center text-[13px] text-flame">
-            {chosen.short} selected —{" "}
-            <Link prefetch={false} href="/contact/" className="underline underline-offset-4">tell us about your challenge</Link> to get started.
-          </motion.p>
-        )}
+        <div aria-live="polite" role="status">
+          {chosen && (
+            <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-6 text-center text-[13px] text-flame">
+              {chosen.short} selected —{" "}
+              <Link prefetch={false} href="/contact/" className="underline underline-offset-4">tell us about your challenge</Link> to get started.
+            </motion.p>
+          )}
+        </div>
 
         <Reveal delay={120}>
           <div className="mt-8 flex items-center justify-center gap-4 sm:justify-end">
