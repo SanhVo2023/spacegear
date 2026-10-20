@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Brand from "@/components/Brand";
 import { SERVICES } from "@/lib/content";
@@ -33,7 +34,6 @@ function Dropdown({ label, href, items }: { label: string; href: string; items: 
         ref={trigger}
         prefetch={false}
         href={href}
-        aria-haspopup="true"
         className="flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] text-mut-2 transition-colors group-hover:text-ink group-focus-within:text-ink"
       >
         {label}
@@ -82,6 +82,7 @@ function MobileGroup({ title, items, onNavigate }: { title: string; items: Item[
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -89,6 +90,10 @@ export default function Nav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (menu.current) menu.current.open = false;
+  }, [pathname]);
 
   const close = () => { if (menu.current) menu.current.open = false; };
 
@@ -133,7 +138,7 @@ export default function Nav() {
           <details
             ref={menu}
             className="mobile-menu lg:hidden"
-            onKeyDown={(event) => { if (event.key === "Escape") { close(); menu.current?.querySelector("summary")?.focus(); } }}
+            onKeyDown={(event) => { if (event.key === "Escape" && menu.current?.open) { close(); menu.current?.querySelector("summary")?.focus(); } }}
           >
             <summary
               aria-label="Open navigation"
@@ -145,7 +150,7 @@ export default function Nav() {
               </span>
             </summary>
             {/* mobile sitemap — positioned against the fixed header, like the original */}
-            <div className="scrollbar-none absolute left-4 right-4 top-[72px] max-h-[78vh] overflow-y-auto rounded-2xl border border-line bg-[#161719]/97 p-3 backdrop-blur-xl">
+            <div className="scrollbar-none absolute -inset-x-px top-[calc(100%+3px)] max-h-[78vh] overflow-y-auto rounded-2xl border border-line bg-[#161719]/97 p-3 backdrop-blur-xl">
               {[...PRIMARY, { label: "Services", href: "/services/" }, ...TAIL].map((it) => (
                 <Link
                   prefetch={false}
