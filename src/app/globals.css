@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Surfaces */
+  --color-bg: #161719;
+  --color-bg-2: #111112;
+  --color-card: #1d1e21;
+  --color-card-2: #212225;
+  --color-card-3: #2c2c2f;
+  --color-line: #2a2b2e;
+  --color-line-soft: #232427;
+
+  /* Text */
+  --color-ink: #e3dbd8;
+  --color-ink-strong: #ffffff;
+  --color-mut: #c0c0c0;
+  --color-mut-2: #888891;
+  --color-mut-3: #5f5f66;
+
+  /* Accent */
+  --color-flame: #fa6e43;
+  --color-flame-soft: #fa6f45;
+
+  --font-sans: var(--font-inter), "Inter", sans-serif;
+  --font-mono: var(--font-mono), monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #161719;
+  --foreground: #e3dbd8;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: #fa6e43;
+  color: #161719;
+}
+
+/* Display headings emulate Inter Display via tight tracking */
+.display {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-mut-3);
+}
+
+/* Reveal-on-scroll (matches the reference's blur + rise appear effect) */
+.reveal {
+  opacity: 0;
+  transform: translateY(34px);
+  filter: blur(6px);
+  transition: opacity 0.8s cubic-bezier(0.44, 0, 0.56, 1),
+    transform 0.8s cubic-bezier(0.44, 0, 0.56, 1),
+    filter 0.8s cubic-bezier(0.44, 0, 0.56, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}
+
+/* Marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+
+/* Glow + texture helpers */
+.flame-glow {
+  background: radial-gradient(
+    60% 60% at 70% 30%,
+    rgba(250, 110, 67, 0.55) 0%,
+    rgba(250, 110, 67, 0.12) 38%,
+    rgba(22, 23, 25, 0) 72%
+  );
+}
+
+.grid-faint {
+  background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.pulse-dot {
+  animation: pulseDot 1.8s ease-in-out infinite;
 }

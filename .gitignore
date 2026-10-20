@@ -36,6 +36,16 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local originals and execution evidence
+/assets/source/
+/.wrangler/
+/artifacts/
+/.dev.vars*
+/playwright-report/
+/test-results/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
