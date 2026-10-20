@@ -1,260 +1,87 @@
-/** Shared content for the landing cards and their detail pages. */
-
-export type Article = {
-  slug: string;
-  author: string;
-  date: string;
-  title: string;
-  sub: string;
-  img: string;
-  body: string[];
-};
-
-export const ARTICLES: Article[] = [
-  {
-    slug: "ethical-ai-systems",
-    author: "Bruce Sommers",
-    date: "Monday, April 28, 2025",
-    title: "Ethical AI Systems for Scalable Products",
-    sub: "Why responsible AI isn’t optional in high-growth tech",
-    img: "/images/labs/ethical-ai.webp",
-    body: [
-      "As infrastructure learns to make its own decisions, the question stops being “can it scale?” and becomes “should it?”. Responsible AI is no longer a compliance checkbox — it is a design constraint that shapes every layer of a modern platform.",
-      "We bake fairness, transparency, and reversibility into the core of every automated decision. Models explain themselves, actions are auditable, and a human can always step back in. That discipline is what lets teams move fast without losing trust.",
-      "The result is a system that grows responsibly: one that earns the confidence of customers, regulators, and the engineers who maintain it long after launch day.",
-    ],
-  },
-  {
-    slug: "zero-latency-infrastructure",
-    author: "Leon Hartmann",
-    date: "Wednesday, April 2, 2025",
-    title: "Zero-Latency Infrastructure for Real-Time AI",
-    sub: "Speed isn’t a feature — it’s the foundation of AI-based systems",
-    img: "/images/labs/zero-latency.webp",
-    body: [
-      "Real-time AI lives or dies on milliseconds. When inference sits in the critical path of a user action, every hop, queue, and cold start is felt directly.",
-      "We push compute to the edge, keep models warm, and route requests along the shortest viable path — continuously, automatically, as traffic shifts around the globe.",
-      "Zero-latency isn’t a destination; it’s a posture. The platform is always tuning itself toward it.",
-    ],
-  },
-  {
-    slug: "observability-made-simple",
-    author: "Rafael Noor",
-    date: "Wednesday, March 5, 2025",
-    title: "Automated Infrastructure Observability Made Simple",
-    sub: "Why automation and observability should always go together",
-    img: "/images/labs/observability.webp",
-    body: [
-      "You cannot automate what you cannot see. Observability and automation are two halves of the same loop: the system watches itself, then acts on what it learns.",
-      "Metrics, traces, and logs feed a model of healthy behaviour. Drift from that model triggers a response before a human ever opens a dashboard.",
-      "The payoff is calm operations — fewer pages, faster recovery, and a system that explains exactly what it did and why.",
-    ],
-  },
-  {
-    slug: "process-automation-small-teams",
-    author: "Marius Ortega",
-    date: "Sunday, March 2, 2025",
-    title: "AI-Powered Process Automation for Small Teams",
-    sub: "How small teams can do more with intelligent workflows",
-    img: "/images/labs/process-automation.webp",
-    body: [
-      "Small teams win by refusing to do work a machine can do better. Intelligent workflows turn repetitive operations into background processes that simply happen.",
-      "From provisioning to scaling to incident response, the platform handles the busywork so a handful of people can operate like a department.",
-      "Leverage, not headcount, is how lean teams outpace much larger ones.",
-    ],
-  },
-];
-
-export type Product = {
-  slug: string;
-  name: string;
-  tagline: string;
-  img: string;
-  gallery: string[];
-  features: string[];
-  specs: { label: string; value: string }[];
-};
-
-export const PRODUCTS: Product[] = [
-  {
-    slug: "neural-core",
-    name: "Neural Core",
-    tagline:
-      "Transform how your infrastructure thinks and evolves — AI-driven automation with intelligent scaling in one self-evolving system.",
-    img: "/images/suite/neural-core.webp",
-    gallery: [
-      "/images/suite/neural-core.webp",
-      "/images/suite/neural-net.webp",
-      "/images/suite/shield-core.webp",
-    ],
-    features: [
-      "Self-learning decision engine",
-      "Millisecond inference at the edge",
-      "Adaptive scaling under load",
-      "Continuous self-optimization",
-    ],
-    specs: [
-      { label: "Latency", value: "3 ms" },
-      { label: "Uptime", value: "99.9%" },
-      { label: "Model", value: "Gemini 2.5 Pro" },
-      { label: "Release", value: "4.0b" },
-    ],
-  },
-  {
-    slug: "design-engine",
-    name: "Design Engine",
-    tagline:
-      "An automated infrastructure architect that designs and adapts your perfect environment.",
-    img: "/images/suite/design-engine.webp",
-    gallery: ["/images/suite/design-engine.webp", "/images/suite/scale-matrix.webp"],
-    features: [
-      "Best-practice environment provisioning",
-      "Topology-aware configuration",
-      "Drift detection & repair",
-      "One-connection setup",
-    ],
-    specs: [
-      { label: "Setup", value: "30 s" },
-      { label: "Templates", value: "120+" },
-      { label: "Clouds", value: "Multi" },
-      { label: "Mode", value: "Automated" },
-    ],
-  },
-  {
-    slug: "scale-matrix",
-    name: "Scale Matrix",
-    tagline:
-      "An intelligent scaling system that grows and optimizes automatically with demand.",
-    img: "/images/suite/scale-matrix.webp",
-    gallery: ["/images/suite/scale-matrix.webp", "/images/suite/neural-net.webp"],
-    features: [
-      "Predictive autoscaling",
-      "Cost-aware capacity planning",
-      "Zero-downtime resizing",
-      "Global load distribution",
-    ],
-    specs: [
-      { label: "Scale", value: "8/8" },
-      { label: "Savings", value: "47%" },
-      { label: "Regions", value: "Global" },
-      { label: "Mode", value: "Predictive" },
-    ],
-  },
-  {
-    slug: "neural-net",
-    name: "Neural Net",
-    tagline: "A self-learning core that makes smart decisions in milliseconds.",
-    img: "/images/suite/neural-net.webp",
-    gallery: ["/images/suite/neural-net.webp", "/images/suite/shield-core.webp"],
-    features: [
-      "Online learning loop",
-      "Anomaly detection",
-      "Explainable decisions",
-      "Hardware-accelerated inference",
-    ],
-    specs: [
-      { label: "Inference", value: "< 5 ms" },
-      { label: "Accuracy", value: "99.6%" },
-      { label: "Learning", value: "Online" },
-      { label: "Mode", value: "Adaptive" },
-    ],
-  },
-  {
-    slug: "shield-core",
-    name: "Shield Core",
-    tagline: "A proactive security system that evolves with every new threat.",
-    img: "/images/suite/shield-core.webp",
-    gallery: ["/images/suite/shield-core.webp", "/images/suite/design-engine.webp"],
-    features: [
-      "Adaptive 24/7 threat detection",
-      "Per-layer defense",
-      "Automated response",
-      "Private hosting options",
-    ],
-    specs: [
-      { label: "Detection", value: "10 s" },
-      { label: "Coverage", value: "24/7" },
-      { label: "Layers", value: "All" },
-      { label: "Mode", value: "Proactive" },
-    ],
-  },
-];
-
 export type Service = {
-  no: string;
-  slug: string;
-  name: string;
-  tag: string;
-  glyph: string;
-  img: string;
-  desc: string;
-  long: string;
-  bullets: string[];
+  slug: string; name: string; shortName: string; summary: string; buyerProblem: string;
+  deliverables: string[]; process: string[]; faqs: { question: string; answer: string }[];
+  relatedInsightSlugs: string[]; image: string; category: string;
 };
-
 export const SERVICES: Service[] = [
   {
-    no: "01",
-    slug: "neural-network",
-    name: "Neural Network",
-    tag: "learning",
-    glyph: "≈",
-    img: "/images/suite/neural-net.webp",
-    desc: "A self-learning intelligence core that observes, learns, and makes smart decisions in milliseconds to optimize your operations.",
-    long: "Our learning layer turns telemetry into action. It models your stack’s healthy behaviour, then makes thousands of small optimizations per minute — quietly keeping performance high and cost low.",
-    bullets: [
-      "Continuous online learning",
-      "Millisecond decisioning",
-      "Self-tuning performance",
-      "Explainable actions",
-    ],
+    slug: "digital-transformation", name: "Digital Transformation Strategy", shortName: "Digital transformation",
+    category: "Direction", image: "/images/suite/design-engine.webp",
+    summary: "Find the friction. Set the priorities. Create a practical path from the way you work today to what comes next.",
+    buyerProblem: "Digital change gets difficult when tools, processes and priorities move in different directions. We start with how work actually happens, then connect the business goals to decisions you can act on.",
+    deliverables: ["A map of your current workflows and systems", "A prioritized opportunity shortlist", "An implementation roadmap with owners and dependencies", "Success criteria and a practical first initiative"],
+    process: ["Understand the business challenge and current workflow.", "Compare improvement options, effort and dependencies.", "Agree the roadmap and the first measurable step."],
+    faqs: [
+      { question: "Do we need a transformation plan already?", answer: "No. Bring the problem you want to solve. We can start with discovery and help you decide what should change first." },
+      { question: "Does transformation mean replacing everything?", answer: "No. The assessment considers what to keep, connect, improve or replace. A useful change may be a focused workflow improvement." }
+    ], relatedInsightSlugs: []
   },
   {
-    no: "02",
-    slug: "design-intelligence",
-    name: "Design Intelligence",
-    tag: "architecture",
-    glyph: "◇",
-    img: "/images/suite/design-engine.webp",
-    desc: "Automated architecture that designs, adapts, and provisions the perfect environment for every workload.",
-    long: "Describe intent; the platform designs the architecture. It provisions best-practice environments, adapts topology to workloads, and repairs drift before it becomes an incident.",
-    bullets: [
-      "Intent-based provisioning",
-      "Best-practice templates",
-      "Drift detection & repair",
-      "Multi-cloud aware",
-    ],
+    slug: "ai-strategy", name: "AI Strategy & Enablement", shortName: "AI strategy",
+    category: "Direction", image: "/images/suite/neural-core.webp",
+    summary: "Move from AI interest to an informed decision about where it can help, what it needs and how to begin.",
+    buyerProblem: "A promising demonstration is not yet a business case. We connect potential AI use cases to available data, operational constraints and a clear way to evaluate whether the solution is useful.",
+    deliverables: ["AI opportunity and readiness assessment", "Prioritized use cases and data requirements", "Evaluation criteria, risks and human review points", "A pilot plan and an enablement approach"],
+    process: ["Explore decisions, tasks and information flows.", "Compare AI options against simpler alternatives.", "Define a pilot, evaluation process and adoption plan."],
+    faqs: [
+      { question: "What if our data is not ready?", answer: "That is a useful starting point. We identify the data and process work needed before an AI pilot can be evaluated responsibly." },
+      { question: "Will you recommend AI for every problem?", answer: "No. Rules, better integration or a simpler workflow may be more appropriate. The recommendation follows the problem." }
+    ], relatedInsightSlugs: []
   },
   {
-    no: "03",
-    slug: "security-ai",
-    name: "Security AI",
-    tag: "protection",
-    glyph: "◈",
-    img: "/images/suite/shield-core.webp",
-    desc: "A proactive defense layer that evolves with new threats and guards every layer of your stack, 24/7.",
-    long: "Security that learns. It watches every layer, recognizes new attack patterns as they emerge, and neutralizes threats automatically — long before they reach you.",
-    bullets: [
-      "Adaptive threat detection",
-      "Per-layer defense",
-      "Automated response",
-      "Continuous evolution",
-    ],
+    slug: "applied-ai", name: "Applied AI & Deep Learning", shortName: "Applied AI",
+    category: "Delivery", image: "/images/suite/neural-net.webp",
+    summary: "Turn data and unstructured information into useful software, with evaluation and human oversight built in.",
+    buyerProblem: "Documents, images and operational data can contain useful information that is difficult to use consistently. We build and evaluate AI systems around a specific workflow, including the cases where a person needs to take over.",
+    deliverables: ["A baseline and evaluation dataset", "A prototype for document intelligence, retrieval, forecasting or vision", "An integrated implementation with human review", "Monitoring, limitations and operating documentation"],
+    process: ["Define the task, constraints and quality threshold.", "Compare approaches against a measurable baseline.", "Integrate, evaluate and prepare the system for operation."],
+    faqs: [
+      { question: "When is deep learning appropriate?", answer: "It can help with complex patterns in text, images or other data, when enough suitable data and evaluation capacity exist. We compare it with simpler methods before choosing an approach." },
+      { question: "How do you handle incorrect outputs?", answer: "Use-case design includes evaluation, quality checks where appropriate, human review, and a clear path for exceptions. No model is treated as infallible." }
+    ], relatedInsightSlugs: []
   },
   {
-    no: "04",
-    slug: "smart-scale",
-    name: "Smart Scale",
-    tag: "growth",
-    glyph: "△",
-    img: "/images/suite/scale-matrix.webp",
-    desc: "Intelligent scaling that grows and optimizes automatically, so capacity always matches demand.",
-    long: "Capacity that anticipates. Predictive autoscaling reads demand before it spikes, resizes without downtime, and balances load across regions — all while keeping spend in check.",
-    bullets: [
-      "Predictive autoscaling",
-      "Cost-aware planning",
-      "Zero-downtime resizing",
-      "Global distribution",
-    ],
+    slug: "automation-integration", name: "Automation & Systems Integration", shortName: "Automation & integration",
+    category: "Connection", image: "/images/suite/scale-matrix.webp",
+    summary: "Connect the tools you use and reduce repeated manual work, while keeping exceptions and control visible.",
+    buyerProblem: "Copying information between disconnected tools consumes attention and introduces avoidable errors. We redesign the workflow, connect systems and make the handoffs easier to understand and manage.",
+    deliverables: ["A redesigned workflow and integration map", "API connections and automated handoffs", "Exception handling and human approval steps", "Operational visibility and maintenance documentation"],
+    process: ["Map the repeated work and its exceptions.", "Connect systems with explicit rules and ownership.", "Test the full workflow and prepare the handover."],
+    faqs: [
+      { question: "Can you work with our existing tools?", answer: "We assess their APIs, access controls and integration options first. Existing systems are part of the starting point, not an automatic reason to replace them." },
+      { question: "What happens when an automated step fails?", answer: "The design includes error handling, safe retry behavior and a way for someone to review exceptions. These paths are tested alongside successful runs." }
+    ], relatedInsightSlugs: []
   },
+  {
+    slug: "product-delivery", name: "Digital Product & Platform Delivery", shortName: "Product delivery",
+    category: "Delivery", image: "/images/suite/shield-core.webp",
+    summary: "Carry an idea through discovery, design and engineering into software people can use and improve.",
+    buyerProblem: "A strategy becomes useful when it reaches a working system. We connect product decisions, user experience and implementation, with explicit scope, acceptance criteria and a plan for rollout.",
+    deliverables: ["A defined problem, scope and user journey", "Product design and technical architecture", "A tested implementation and rollout plan", "Handover, documentation and an improvement backlog"],
+    process: ["Define the users, problem and first useful release.", "Design and build in reviewable increments.", "Test, release and support adoption."],
+    faqs: [
+      { question: "Can we start with an existing project?", answer: "Yes. We can review the current product, code or delivery plan and discuss the work needed to move it forward." },
+      { question: "Who owns the delivered work?", answer: "Ownership, access, licensing and handover are agreed in the engagement scope before work starts. The website does not substitute for that agreement." }
+    ], relatedInsightSlugs: []
+  }
 ];
+export const ENGAGEMENTS = [
+  { name: "Assess & prioritize", label: "Find the right starting point", description: "A Transformation Opportunity Assessment turns one business challenge into a clear set of options and a practical next step.", deliverables: ["Current workflow and opportunity map", "Data and integration requirements", "Recommended first pilot"], featured: true },
+  { name: "Validate & build", label: "Make it work", description: "Test the important assumptions, then design and deliver a solution around the way your business operates.", deliverables: ["Prototype and evaluation criteria", "Integrated, tested implementation", "Rollout and handover"], featured: false },
+  { name: "Embed & improve", label: "Put it into daily use", description: "Support adoption, understand what happens in practice and improve the system as needs evolve.", deliverables: ["Adoption and operating guidance", "Performance and exception review", "Prioritized improvements"], featured: false }
+];
+export const USE_CASES = [
+  { title: "Too much repeated work?", text: "Connect tools and automate the handoffs that keep pulling people away from useful work.", service: "automation-integration", image: "/images/suite/scale-matrix.webp" },
+  { title: "Data that is hard to use?", text: "Make documents and disconnected information easier to find, understand and act on.", service: "applied-ai", image: "/images/suite/neural-net.webp" },
+  { title: "Ideas stuck before delivery?", text: "Turn a promising direction into a clear scope, a tested solution and a practical rollout.", service: "product-delivery", image: "/images/suite/design-engine.webp" }
+];
+export const FAQS = [
+  { question: "Where do we start?", answer: "Tell us what you would like to improve. If the next step is unclear, an Opportunity Assessment can map the workflow, identify options and recommend a first initiative. If you already have a brief, we can discuss delivery directly." },
+  { question: "Do you work with our existing systems?", answer: "Yes. We start by understanding what is already in place. The right answer may be to improve a process, connect tools or extend a system, rather than replace everything." },
+  { question: "Do we need our data ready before talking?", answer: "No. Understanding data quality, access and readiness can be part of the first engagement. You can start with the business problem." },
+  { question: "How are AI solutions evaluated?", answer: "We agree what useful performance means, compare against a baseline and test relevant examples and exceptions. Human review and operating limits are designed around the use case." },
+  { question: "How are scope and pricing agreed?", answer: "We discuss the objectives, constraints and deliverables first, then agree the scope and commercial terms. There are no software subscription tiers or fixed packages on this site." },
+  { question: "Can you help after the first release?", answer: "Continuing improvement can include adoption, monitoring, exception review and further delivery. The level of support and responsibilities are agreed for the engagement." }
+];
+export const INSIGHTS: { slug: string; title: string; published: boolean }[] = [];
+export const CASE_STUDIES: { slug: string; title: string; published: boolean; approved: boolean }[] = [];
