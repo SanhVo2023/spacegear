@@ -6,6 +6,7 @@ import Analytics from "@/components/sections/Analytics";
 import Process from "@/components/sections/Process";
 import Pricing from "@/components/sections/Pricing";
 import Faq from "@/components/sections/Faq";
+import Team from "@/components/sections/Team";
 
 export const metadata = buildMetadata({ title: "Digital Transformation & AI Consulting", description: "Turn business challenges into working digital systems. spacegear.tech brings digital transformation, AI strategy and hands-on delivery together.", path: "/" });
 
@@ -21,6 +22,7 @@ export default function Home() {
         <Analytics />
         <Pricing />
         <Faq />
+        <Team />
       </div>
     </main>
   );
