@@ -4,11 +4,6 @@ import sharp from "sharp";
 await fs.mkdir("assets/source", { recursive: true });
 await fs.copyFile("public/models/earth-4k.glb", "assets/source/earth-4k.glb");
 await sharp(await fs.readFile("public/images/galaxy.webp")).resize(1600).webp({quality:66}).toFile("public/images/galaxy-small.webp");
-for (const name of ["design-engine", "scale-matrix", "neural-net", "shield-core", "neural-core"]) {
-  const file = `public/images/suite/${name}.webp`;
-  const input = await fs.readFile(file);
-  await sharp(input).resize({ width:768, withoutEnlargement:true }).webp({quality:74}).toFile(file);
-}
 await fs.mkdir("public/draco", { recursive: true });
 for (const file of ["draco_wasm_wrapper.js", "draco_decoder.wasm", "draco_decoder.js"]) {
   await fs.copyFile(path.join("node_modules/three/examples/jsm/libs/draco/gltf",file),path.join("public/draco",file));
