@@ -280,10 +280,18 @@ test("check-content passes the committed content and lists every problem by file
     const loader = path.join(root, "src/lib/content.ts");
     const original = fs.readFileSync(loader, "utf8");
     fs.writeFileSync(loader, `${original}\nexport const broken = ;\n`);
+    // A module that fails differently (an enum, sorted first, imported by nothing) is not blamed.
+    fs.writeFileSync(path.join(root, "src/lib/aa-enum.ts"), "export enum Mode { A, B }\n");
     result = run();
     assert.equal(result.status, 1);
     assert.ok(listed(result).some((problem) => problem.startsWith("src/lib/content.ts: SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]")), result.stderr);
     assert.match(result.stderr, /^\s+at parseTypeScript /m, "the stack is printed");
+    fs.rmSync(path.join(root, "src/lib/aa-enum.ts"));
+    // Unsupported syntax in loaded code is named the same way.
+    fs.writeFileSync(loader, `${original}\nexport enum Mode { A, B }\n`);
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).some((problem) => problem.startsWith("src/lib/content.ts: SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]")), result.stderr);
     // So is a SyntaxError that code throws (a JSON.parse of a literal): the stack names the file.
     // First in the module body, so it runs before the content checks there.
     fs.writeFileSync(loader, `export const parsed = JSON.parse("{not json");\n${original}`);

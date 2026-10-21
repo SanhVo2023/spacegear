@@ -23,14 +23,18 @@ const fromRoot = pathsFromRoot(ROOT);
  */
 const isContentError = (error) => ["ERR_MODULE_NOT_FOUND", "ENOENT"].includes(error?.code)
   || (error instanceof SyntaxError && fromRoot(error.message).startsWith("content/"));
-/** The module under src/lib/ that does not parse: Node's TypeScript syntax error does not name it. */
-function unparsableModule() {
+const TYPESCRIPT_ERRORS = ["ERR_INVALID_TYPESCRIPT_SYNTAX", "ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX"];
+/**
+ * The module under src/lib/ that fails with exactly this TypeScript error (same code, same
+ * message): Node's error does not name it, and another file failing differently is not it.
+ */
+function failingModule(error) {
   const dir = path.join(ROOT, "src", "lib");
   for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".ts")).sort()) {
     try {
       stripTypeScriptTypes(fs.readFileSync(path.join(dir, name), "utf8"));
-    } catch {
-      return `src/lib/${name}`;
+    } catch (other) {
+      if (other?.code === error.code && other?.message === error.message) return `src/lib/${name}`;
     }
   }
   return "";
@@ -47,7 +51,7 @@ async function attempt(run) {
     if (Array.isArray(error?.issues)) errors.push(...error.issues);
     else if (isContentError(error)) errors.push(fromRoot(error.message));
     else {
-      const file = error?.code === "ERR_INVALID_TYPESCRIPT_SYNTAX" ? unparsableModule() : "";
+      const file = TYPESCRIPT_ERRORS.includes(error?.code) ? failingModule(error) : "";
       errors.push(`${file ? `${file}: ` : ""}${error instanceof Error && error.stack ? error.stack : String(error)}`);
     }
     return undefined;
