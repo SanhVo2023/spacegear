@@ -104,6 +104,86 @@ export async function loadTextureSet<K extends string>(entries: TextureEntry<K>[
   }
 }
 
+export type StreamOptions = {
+  /** Stops the downloads and any wait; every map made so far is freed and the promise rejects. Once it
+   *  has aborted, the caller must not upload a map it was handed and has not uploaded yet. */
+  signal: AbortSignal;
+  /** Uploads one decoded map to the GPU and resolves once it has (EarthScene: one map per frame). */
+  upload: (texture: THREE.Texture) => Promise<void>;
+};
+
+/**
+ * A plain same-origin GET, the request THREE.FileLoader makes for the first set (same credentials, no
+ * extra headers, the default cache mode), so the 4k maps are cached and revalidated alike. The signal
+ * goes straight to fetch, not through a Request as FileLoader does: Node's fetch (the unit tests) can
+ * lose that abort after a garbage collection.
+ */
+async function fetchBlob(url: string, signal: AbortSignal): Promise<Blob> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`fetch for "${url}" responded with ${response.status}: ${response.statusText}`);
+  return response.blob();
+}
+
+/**
+ * The 4k upgrade. Every map downloads at once (2.1 MB in all), but they are decoded one at a time,
+ * each only once the previous map has been uploaded, so one full-size decoded bitmap (32 MiB at
+ * 4096 × 2048) is held at a time instead of five. The maps come back as one set, for an in-place swap.
+ * On a missing or undecodable map, or an abort, the other downloads stop, every map made so far
+ * (uploaded or not) is freed and the error is rethrown. Nothing is retried.
+ */
+export async function streamTextureSet<K extends string>(entries: TextureEntry<K>[], { signal, upload }: StreamOptions): Promise<Record<K, THREE.Texture>> {
+  signal.throwIfAborted();
+  // The downloads stop on the caller's abort and on the first failure.
+  const downloads = new AbortController();
+  // `halted` rejects on the first failed download or on the abort; `aborted` only on the abort.
+  const halt: { failure: { reason: unknown } | null; fail: (reason: unknown) => void; abort: (reason: unknown) => void } = { failure: null, fail: () => {}, abort: () => {} };
+  const halted = new Promise<never>((_, reject) => {
+    halt.fail = (reason) => {
+      if (halt.failure) return;
+      halt.failure = { reason };
+      reject(reason);
+    };
+  });
+  const aborted = new Promise<never>((_, reject) => {
+    halt.abort = reject;
+  });
+  halted.catch(() => undefined);
+  aborted.catch(() => undefined);
+  const onAbort = () => {
+    halt.fail(signal.reason);
+    halt.abort(signal.reason);
+    downloads.abort(signal.reason);
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  const blobs = entries.map((entry) => fetchBlob(entry.url, downloads.signal));
+  for (const blob of blobs) blob.catch(halt.fail);
+  const made: Promise<THREE.Texture>[] = [];
+  try {
+    const set = {} as Record<K, THREE.Texture>;
+    for (const [index, entry] of entries.entries()) {
+      const blob = await Promise.race([blobs[index], halted]);
+      // A decode is never abandoned: it is awaited and then freed, so no bitmap outlives a failure.
+      const texture = decode(blob).then((decoded) => toTexture(entry.kind, decoded));
+      made.push(texture);
+      const map = await texture;
+      if (halt.failure) throw halt.failure.reason;
+      // Only an abort ends the wait for an upload: after a failed download the caller may still upload
+      // the map it holds, so the map is freed only once that upload is done.
+      await Promise.race([upload(map), aborted]);
+      set[entry.key] = map;
+    }
+    return set;
+  } catch (error) {
+    downloads.abort();
+    for (const result of await Promise.allSettled(made)) {
+      if (result.status === "fulfilled") freeTexture(result.value);
+    }
+    throw error;
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
 /** The hero's first set: the globe tier plus, on desktop, the galaxy backdrop. */
 export async function loadHeroTextures(tier: GlobeTier, { backdrop, onProgress }: { backdrop: boolean; onProgress?: (fraction: number) => void }): Promise<HeroTextures> {
   const entries: TextureEntry<GlobeMapName | "backdrop">[] = [...globeEntries(tier), ...(backdrop ? [BACKDROP_ENTRY] : [])];
