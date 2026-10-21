@@ -30,9 +30,19 @@ export const SUN_START: Vec3 = [-4, 2.5, 4];
 export const SUN_END: Vec3 = [-0.8, 0.45, -0.45];
 /** Scroll window of the sun sweep (the same window as the shrink to centre). */
 export const SUN_SWEEP: [number, number] = [0.08, 0.62];
-/** The mobile globe's fixed sun: mostly night with a lit crescent, like the desktop's centred beat. */
-export const MOBILE_SUN_T = 0.8;
+/**
+ * The mobile globe's fixed sun: mostly night with a lit crescent, the desktop's centred beat (SUN_END).
+ * At 0.8 the GPU render showed nearly half the disc lit, bright behind the statement.
+ */
+export const MOBILE_SUN_T = 1;
 export const MOBILE_RADIUS = 1.5;
+/**
+ * Frames per second of the phone and tablet globe once it is on screen. Its light is fixed and nothing
+ * reacts to input, so only the idle spin moves it: about 6 CSS px a second at the centre of a 468 px
+ * phone globe, under half a pixel a frame at this rate. Rendering on demand at this rate instead of
+ * every display frame saves most of the GPU work and the battery.
+ */
+export const MOBILE_FPS = 20;
 
 /** Rig: the previous model's radius 5 × its 0.62 → 0.26 rig scale, now on a unit sphere. */
 export const RIG_RANGE: [number, number] = [0.1, 0.62];

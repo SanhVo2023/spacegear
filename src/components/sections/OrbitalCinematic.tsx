@@ -14,9 +14,9 @@ import Link from "next/link";
 import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
-import { hasWebGL2 } from "@/components/globe/device";
+import { hasWebGL2, readDeviceEnv } from "@/components/globe/device";
 import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
-import type { GlobeTier } from "@/components/globe/tiers";
+import { chooseHeroMode, type GlobeTier } from "@/components/globe/tiers";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
 // 3D scene is client-only (WebGL) — load without SSR. Its code chunk fills the first INTRO_CHUNK_SHARE of
@@ -125,6 +125,73 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
             onTier={onTier}
             onLost={fail}
           />
+        </SceneBoundary>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The phone and tablet globe: a light 1k scene behind the statement (EarthScene's "mobile" variant) on
+ * devices that chooseHeroMode() allows after idle (WebGL2, deviceMemory ≥ 4 or unknown, no Save-Data,
+ * motion allowed); everyone else keeps the galaxy and fetches nothing. Like HeroScene it exists only in
+ * its branch (the static hero), so crossing 1024 px discards it and a return mounts a fresh one. It
+ * renders nothing until the device qualifies, so the static markup and first paint stay as they were.
+ * A failure (a lost context, a shader or loader error) is final: the canvas goes and the galaxy stays.
+ */
+function MobileScene() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
+  const [active, setActive] = useState(true);
+  const fail = () => setGlobe("failed");
+
+  // When the browser is idle, after the copy and the galaxy have painted.
+  useEffect(() => {
+    const enable = () => {
+      if (chooseHeroMode(readDeviceEnv()) === "mobile-globe") setEnabled(true);
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(enable, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(enable, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // It renders only while it is on screen and the tab is visible; reduced motion turned on removes it.
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return;
+    let visible = true;
+    const update = () => setActive(visible && !document.hidden);
+    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; update(); });
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const reduce = () => { if (motion.matches) setEnabled(false); };
+    observer.observe(el);
+    document.addEventListener("visibilitychange", update);
+    motion.addEventListener("change", reduce);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", update);
+      motion.removeEventListener("change", reduce);
+    };
+  }, [enabled]);
+
+  if (!enabled) return null;
+  // The canvas fades in over the galaxy once its first textured frame has rendered, and fades into the
+  // page at the bottom (globals.css). At most the viewport's width and 520 px, so the globe (about 72 %
+  // of the box) stays below the stats row at 320–1023 px and the copy above it stays legible.
+  return (
+    <div
+      ref={ref}
+      className="hero-mobile-globe pointer-events-none absolute bottom-0 left-1/2 aspect-square w-[min(100vw,520px)] -translate-x-1/2"
+      data-globe={globe}
+      aria-hidden
+    >
+      {globe !== "failed" && (
+        <SceneBoundary onError={fail}>
+          <EarthScene variant="mobile" active={active} onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))} onLost={fail} />
         </SceneBoundary>
       )}
     </div>
@@ -347,9 +414,9 @@ export default function OrbitalCinematic() {
     };
   }, [cinematic, progress]);
 
-  // Mobile / reduced motion / no JS / first paint: the static cosmic hero (no three.js fetched).
-  // Until hydration, eligible desktops reserve the cinematic's 300vh (.hero-reserve in
-  // globals.css) so deep links and reloads land where they will stay.
+  // Mobile / reduced motion / no JS / first paint: the static cosmic hero (no three.js fetched until a
+  // phone or tablet qualifies for the 1k globe, MobileScene). Until hydration, eligible desktops reserve
+  // the cinematic's 300vh (.hero-reserve in globals.css) so deep links and reloads land where they will stay.
   if (!cinematic) {
     // Hero images go first in <head>, one per visitor: the cinematic's poster (high priority) on the
     // desktops that will show it, the galaxy everywhere else. The galaxy <img> below reuses this
@@ -366,6 +433,7 @@ export default function OrbitalCinematic() {
             <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
           </div>
           <Starfield className="opacity-50" />
+          <MobileScene />
 
           <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
             <HeroCopy />

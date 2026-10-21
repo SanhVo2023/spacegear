@@ -274,10 +274,18 @@ html { scroll-padding-top: 88px; }
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }
 
-/* The hero globe canvas (EarthScene.tsx) fades in over the poster once its first textured frame
-   has rendered (data-globe="ready"). */
-.hero-scene { opacity: 0; transition: opacity 0.6s cubic-bezier(0.44, 0, 0.56, 1); }
-.hero-scene[data-globe="ready"] { opacity: 1; }
+/* The hero globe canvases (EarthScene.tsx) fade in over the poster or the galaxy once their first
+   textured frame has rendered (data-globe="ready"). */
+.hero-scene,
+.hero-mobile-globe { opacity: 0; transition: opacity 0.6s cubic-bezier(0.44, 0, 0.56, 1); }
+.hero-scene[data-globe="ready"],
+.hero-mobile-globe[data-globe="ready"] { opacity: 1; }
+/* The phone and tablet globe (OrbitalCinematic.tsx MobileScene) sits behind the statement on a
+   transparent canvas and fades into the page at the bottom. */
+.hero-mobile-globe {
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
 /* Fine pointers can spin the globe (usePointerInput.ts); touch keeps native scrolling. A press on the
    scene never starts a text selection, so the hook can leave the press (and focus) alone. */
 .hero-scene { -webkit-user-select: none; user-select: none; }

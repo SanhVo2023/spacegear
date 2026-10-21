@@ -1,3 +1,5 @@
+import type { DeviceEnv } from "./tiers";
+
 /** True when a WebGL2 context can be created; the test context is released at once. */
 export function hasWebGL2(): boolean {
   try {
@@ -20,4 +22,24 @@ export function rendererName(gl: WebGLRenderingContext | WebGL2RenderingContext)
   if (!/^webkit webgl$/i.test(reported.trim())) return reported;
   const info = gl.getExtension("WEBGL_debug_renderer_info");
   return info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? reported) : reported;
+}
+
+export type NavigatorFacts = { saveData: boolean; effectiveType?: string; deviceMemory?: number };
+
+/** Save-Data, the connection type and the device memory, where the browser reports them (Chromium). */
+export function readNavigatorFacts(): NavigatorFacts {
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean; effectiveType?: string } };
+  return { saveData: Boolean(nav.connection?.saveData), effectiveType: nav.connection?.effectiveType, deviceMemory: nav.deviceMemory };
+}
+
+/** The facts chooseHeroMode() needs, read from the browser. */
+export function readDeviceEnv(): DeviceEnv {
+  const { saveData, deviceMemory } = readNavigatorFacts();
+  return {
+    width: window.innerWidth,
+    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    saveData,
+    deviceMemory,
+    webgl2: hasWebGL2(),
+  };
 }

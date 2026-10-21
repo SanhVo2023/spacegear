@@ -1,13 +1,13 @@
 "use client";
 
-import { Canvas, useFrame, type RootState } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
 import type { MotionValue } from "motion/react";
 import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
-import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, STREAM_IDLE_FALLBACK_MS, STREAM_IDLE_TIMEOUT_MS, SUN_END, SUN_START } from "@/components/globe/constants";
-import { rendererName } from "@/components/globe/device";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_FPS, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, STREAM_IDLE_FALLBACK_MS, STREAM_IDLE_TIMEOUT_MS, SUN_END, SUN_START } from "@/components/globe/constants";
+import { readNavigatorFacts, rendererName } from "@/components/globe/device";
 import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
@@ -34,16 +34,11 @@ export type EarthSceneProps = {
 const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
 const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
 
-type Connection = { saveData?: boolean; effectiveType?: string };
-
 /** canStream4k for this page: a hardware GPU with 4096 px textures, enough memory, a fast connection. */
 function streams4k(gl: THREE.WebGLRenderer): boolean {
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: Connection };
   return canStream4k({
     viewportWidth: window.innerWidth,
-    saveData: Boolean(nav.connection?.saveData),
-    effectiveType: nav.connection?.effectiveType,
-    deviceMemory: nav.deviceMemory,
+    ...readNavigatorFacts(),
     maxTextureSize: gl.capabilities.maxTextureSize,
     renderer: rendererName(gl.getContext()),
   });
@@ -170,6 +165,16 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   useEffect(() => {
     live.current = active;
   }, [active]);
+
+  // Phones and tablets render on demand (EarthScene), MOBILE_FPS frames a second while on screen in a
+  // visible tab: the warm-up's uploads, then the slow idle spin. Off screen nothing asks for a frame.
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    if (variant === "cinematic" || !active) return;
+    invalidate();
+    const timer = window.setInterval(() => invalidate(), 1000 / MOBILE_FPS);
+    return () => window.clearInterval(timer);
+  }, [variant, active, invalidate]);
 
   // The reveal starts when the overlay starts to lift, even if no frame runs at that moment (a hidden
   // tab when the load cap fires); drive() falls back to its first frame after the lift.
@@ -359,7 +364,8 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
  * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop, the scroll beats,
  * cursor tilt and drag; its loading drives the intro counter. Once the intro is over and the browser
  * is idle, capable desktops stream the 4k set and swap it in place. Phones and tablets ("mobile"):
- * the 1k globe alone.
+ * the 1k globe alone on a transparent canvas (no galaxy, no 3D stars), lit as a fixed crescent, taking
+ * no input and rendered on demand at MOBILE_FPS; it never streams 4k.
  */
 export default function EarthScene({ variant, active, progress, dragTarget, onReady, onTier, onLost }: EarthSceneProps) {
   const [load] = useState(() => {
@@ -372,14 +378,17 @@ export default function EarthScene({ variant, active, progress, dragTarget, onRe
     promise.catch(() => undefined);
     return promise;
   });
-  const pointer = usePointerInput(dragTarget, variant === "cinematic");
+  const cinematic = variant === "cinematic";
+  const pointer = usePointerInput(dragTarget, cinematic);
 
   return (
     <Canvas
       camera={{ position: [0, 0, CAMERA_Z], fov: CAMERA_FOV }}
-      dpr={variant === "cinematic" ? [1, 1.75] : [1, 1.5]}
-      frameloop={active ? "always" : "never"}
-      gl={{ antialias: true, alpha: true, powerPreference: variant === "cinematic" ? "high-performance" : "default" }}
+      dpr={cinematic ? [1, 1.75] : [1, 1.5]}
+      // Desktop: every display frame while on screen. Phones and tablets: on demand, MOBILE_FPS a second
+      // (SceneContents). Off screen or in a hidden tab: no frames at all.
+      frameloop={active ? (cinematic ? "always" : "demand") : "never"}
+      gl={{ antialias: true, alpha: true, powerPreference: cinematic ? "high-performance" : "default" }}
       onCreated={({ gl }) => {
         // ACES Filmic with sRGB output, as before: deep space blacks and a warm roll-off for the
         // over-bright city lights. Textures: colour maps sRGB, data maps linear.
@@ -397,6 +406,9 @@ export default function EarthScene({ variant, active, progress, dragTarget, onRe
         };
       }}
       className="!absolute inset-0"
+      // R3F gives its wrapper pointer-events: auto. The phone globe takes no input at all (no drag, no
+      // tilt), so presses and touches over it reach the page and a swipe scrolls it.
+      style={cinematic ? undefined : { pointerEvents: "none" }}
     >
       <Suspense fallback={null}>
         <SceneContents variant={variant} load={load} active={active} progress={progress} pointer={pointer} onReady={onReady} onTier={onTier} />
