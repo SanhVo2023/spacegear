@@ -158,6 +158,8 @@ test("a broken featured value is reported once, without also saying that none is
   assert.deepEqual(issuesOf(input), ["content/engagements/build.json: featured: expected true or false"]);
   delete entry(input, "engagements", "build.json").featured;
   assert.deepEqual(issuesOf(input), ["content/engagements/build.json: featured: missing"]);
+  input.collections.engagements.find((item) => item.file === "build.json").data = "not an entry";
+  assert.deepEqual(issuesOf(input), ["content/engagements/build.json: (file): expected a group of fields"]);
 });
 
 test("work tiles point at different services (Work.tsx keys tiles by slug)", () => {
@@ -175,9 +177,13 @@ test("testimonials differ by name or company (the carousel keys them by both)", 
     { file: "b.json", data: { ...quote, quote: "They helped again.", order: 2 } },
     { file: "c.json", data: { ...quote, company: "Other Ltd", order: 3 } },
     { file: "d.json", data: { ...quote, name: "Bo Client", order: 4 } },
+    // Different fields, same React key: "Ada|Client|Example Ltd".
+    { file: "e.json", data: { ...quote, name: "Ada|Client", order: 5 } },
+    { file: "f.json", data: { ...quote, name: "Ada", company: "Client|Example Ltd", order: 6 } },
   ];
   assert.deepEqual(issuesOf(input), [
-    'content/testimonials/b.json: name "Ada Client" and company "Example Ltd" are already used by a.json; give every entry its own combination of name and company',
+    'content/testimonials/b.json: name and company make the key "Ada Client|Example Ltd", which a.json already uses; give every entry its own combination of name and company',
+    'content/testimonials/f.json: name and company make the key "Ada|Client|Example Ltd", which e.json already uses; give every entry its own combination of name and company',
   ]);
 });
 

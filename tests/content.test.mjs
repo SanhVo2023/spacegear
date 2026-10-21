@@ -149,6 +149,27 @@ test("check-content passes the committed content and lists every problem by file
     assert.equal(result.status, 1);
     assert.ok(listed(result).some((problem) => problem.startsWith("content/faqs/who-we-work-with.json: ")), result.stderr);
     assert.doesNotMatch(result.stderr, /^\s+at /m, "no stack trace");
+
+    // A missing file is a content problem: its message, from the project folder, without a stack.
+    fs.rmSync(terms);
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).includes("ENOENT: no such file or directory, open 'content/legal/terms.md'"), result.stderr);
+    assert.doesNotMatch(result.stderr, /^\s+at /m, "no stack trace");
+
+    // So is an entry file name the index refuses.
+    fs.writeFileSync(path.join(root, "content/faqs/Bad.json"), "{}");
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).includes("Rename content/faqs/Bad.json: entry file names use lowercase letters, digits, - and _ only."), result.stderr);
+    assert.doesNotMatch(result.stderr, /^\s+at /m, "no stack trace");
+
+    // A bug in the code keeps its stack, so it can be found.
+    fs.writeFileSync(path.join(root, "src/lib/legal.ts"), 'export const LEGAL_PAGES = ["privacy"] as const;\nexport function legalSections(): never { throw new TypeError("boom"); }\n');
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).includes("TypeError: boom"), result.stderr);
+    assert.match(result.stderr, /^\s+at legalSections /m, "the stack is printed");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

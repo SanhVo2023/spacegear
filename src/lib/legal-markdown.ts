@@ -34,10 +34,14 @@ export class LegalPageError extends Error {
 
 const newlines = (text: string) => text.split("\n").length - 1;
 
-/** Up to CONTEXT characters on each side of a match, with "…" where the line goes on. */
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+
+/** Up to CONTEXT characters on each side of a match, with "…" where the line goes on; never half a surrogate pair. */
 function excerpt(line: string, index: number, length: number) {
-  const start = Math.max(0, index - CONTEXT);
-  const end = Math.min(line.length, index + length + CONTEXT);
+  let start = Math.max(0, index - CONTEXT);
+  let end = Math.min(line.length, index + length + CONTEXT);
+  if (start > 0 && isLowSurrogate(line.charCodeAt(start))) start -= 1;
+  if (end < line.length && isLowSurrogate(line.charCodeAt(end))) end += 1;
   return `${start > 0 ? "…" : ""}${line.slice(start, end)}${end < line.length ? "…" : ""}`;
 }
 
@@ -52,7 +56,8 @@ function syntaxProblems(text: string, pattern: RegExp, where: string, hint: stri
 }
 
 export function parseLegalMarkdown(source: string, file: string): LegalSection[] {
-  const normalized = source.replace(/\r\n?/g, "\n");
+  // A byte order mark would hide the front matter.
+  const normalized = source.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
   const frontMatter = FRONT_MATTER.exec(normalized)?.[0] ?? "";
   const rest = normalized.slice(frontMatter.length);
   const body = rest.trim();

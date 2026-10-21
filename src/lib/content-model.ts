@@ -224,8 +224,10 @@ function withoutOrder<T extends { order: number }>(entry: T): Omit<T, "order"> {
 
 /**
  * Reports every entry whose `fields` repeat an earlier entry's values, in display order. The
- * site uses these values to tell entries apart (React keys, the selected engagement); with
- * several fields, the combination must be unique. Missing and empty values are left to the schema.
+ * site uses these values to tell entries apart (React keys, the selected engagement). Several
+ * fields are joined with "|", exactly like the key that TestimonialsCarousel builds from name and
+ * company, so two entries whose fields differ but join to the same key are refused too. Missing
+ * and empty values are left to the schema.
  */
 function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, fields: K | readonly K[], issues: string[]) {
   const keys: readonly K[] = typeof fields === "string" ? [fields] : fields;
@@ -233,11 +235,11 @@ function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[]
   for (const { file, entry } of loaded) {
     const values: unknown[] = keys.map((key) => entry[key]);
     if (values.some((value) => typeof value !== "string" || value === "")) continue;
-    const id = JSON.stringify(values);
+    const id = values.join("|");
     const other = seen.get(id);
     if (other === undefined) seen.set(id, file);
-    else if (keys.length === 1) issues.push(`content/${name}/${file}: ${keys[0]} ${JSON.stringify(values[0])} is already used by ${other}; give every entry its own ${keys[0]}`);
-    else issues.push(`content/${name}/${file}: ${keys.map((key, i) => `${key} ${JSON.stringify(values[i])}`).join(" and ")} are already used by ${other}; give every entry its own combination of ${keys.join(" and ")}`);
+    else if (keys.length === 1) issues.push(`content/${name}/${file}: ${keys[0]} ${JSON.stringify(id)} is already used by ${other}; give every entry its own ${keys[0]}`);
+    else issues.push(`content/${name}/${file}: ${keys.join(" and ")} make the key ${JSON.stringify(id)}, which ${other} already uses; give every entry its own combination of ${keys.join(" and ")}`);
   }
 }
 
@@ -259,14 +261,14 @@ function uniqueItems(items: unknown, file: string, field: string, issues: string
 }
 
 /**
- * The engagements section highlights one engagement, so exactly one entry sets `featured`. An
- * entry whose `featured` is already reported (missing, not true or false) is not also counted
- * as "none featured".
+ * The engagements section highlights one engagement, so exactly one entry sets `featured`. When
+ * an entry's file has no true/false `featured` (the schema reports it), "none featured" is not
+ * also reported.
  */
-function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], issues: string[]) {
+function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], files: readonly CollectionFile[], issues: string[]) {
   const featured = engagements.filter(({ entry }) => entry.featured === true);
-  const broken = engagements.some(({ file }) => issues.some((issue) => issue.startsWith(`content/engagements/${file}: featured:`)));
-  if (featured.length === 0 && !broken) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
+  const unreadable = files.some(({ data }) => !isRecord(data) || typeof data.featured !== "boolean");
+  if (featured.length === 0 && !unreadable) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
   for (const { file } of featured.slice(1)) issues.push(`content/engagements/${file}: featured is already set on ${featured[0].file}; set featured on exactly one engagement`);
 }
 
@@ -308,7 +310,7 @@ export function buildContent(input: ContentInput) {
     uniqueItems(entry.outcomes, `content/engagements/${file}`, "outcomes", issues);
   }
   uniqueField(engagements, "engagements", "name", issues);
-  oneFeatured(engagements, issues);
+  oneFeatured(engagements, input.collections.engagements, issues);
   uniqueField(faqs, "faqs", "question", issues);
   uniqueField(testimonials, "testimonials", ["name", "company"], issues);
   uniqueField(articles, "articles", "slug", issues);

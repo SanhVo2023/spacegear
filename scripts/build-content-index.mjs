@@ -16,6 +16,15 @@ export const INDEX_FILE = "src/lib/content-index.generated.ts";
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ENTRY_NAME = /^[a-z0-9][a-z0-9_-]*\.json$/;
 
+/** A file name to fix, not a bug: `issues` lists it the way ContentError does, so check-content prints it without a stack. */
+export class EntryNameError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "EntryNameError";
+    this.issues = [message];
+  }
+}
+
 /**
  * Entry files of one folder collection, sorted by name. Dotfiles (.gitkeep) are skipped. The
  * extension is matched in any case, so a name such as X.JSON is refused instead of skipped.
@@ -27,7 +36,7 @@ export function listEntries(root, collection) {
     .filter((entry) => entry.isFile() && !entry.name.startsWith(".") && entry.name.toLowerCase().endsWith(".json"))
     .map((entry) => entry.name);
   const bad = names.filter((name) => !ENTRY_NAME.test(name));
-  if (bad.length) throw new Error(`Rename ${bad.map((name) => `content/${collection}/${name}`).join(", ")}: entry file names use lowercase letters, digits, - and _ only.`);
+  if (bad.length) throw new EntryNameError(`Rename ${bad.map((name) => `content/${collection}/${name}`).join(", ")}: entry file names use lowercase letters, digits, - and _ only.`);
   return names.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 

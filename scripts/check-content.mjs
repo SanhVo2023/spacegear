@@ -13,21 +13,28 @@ import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
 const errors = [];
 // Node names a broken JSON import (or a missing entry) by its absolute path: print it from ROOT.
-const projectPath = new RegExp(`${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\s'":]*)`, "g");
+// Windows paths are case-insensitive, so the match is too.
+const projectPath = new RegExp(`${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\s'":]*)`, process.platform === "win32" ? "gi" : "g");
 const fromRoot = (message) => message.replace(projectPath, (_, rest) => rest.replaceAll("\\", "/"));
-/** Runs one check. A content error (ContentError, LegalPageError) adds its list of problems; any other error adds its message. */
+/** Errors that describe the content (a file to fix), not a bug in the code. */
+const isContentError = (error) => error instanceof SyntaxError || ["ERR_MODULE_NOT_FOUND", "ENOENT"].includes(error?.code);
+/**
+ * Runs one check. A content error adds its list of problems (ContentError, LegalPageError) or its
+ * message (broken JSON, missing file); anything else is a bug in the code and keeps its stack.
+ */
 async function attempt(run) {
   try {
     return await run();
   } catch (error) {
     if (Array.isArray(error?.issues)) errors.push(...error.issues);
-    else errors.push(fromRoot(error instanceof Error ? error.message : String(error)));
+    else if (isContentError(error)) errors.push(fromRoot(error.message));
+    else errors.push(error instanceof Error && error.stack ? error.stack : String(error));
     return undefined;
   }
 }
 const readJson = (file) => {
   const source = fs.readFileSync(path.join(ROOT, file), "utf8");
-  try { return JSON.parse(source); } catch (error) { throw new Error(`${file}: ${error.message}`); }
+  try { return JSON.parse(source); } catch (error) { throw new SyntaxError(`${file}: ${error.message}`, { cause: error }); }
 };
 // The CMS writes content/; the build regenerates the entry index first, so a stale index means
 // this script ran on its own: `npm run content:index` fixes it.

@@ -131,6 +131,21 @@ test("heading, block and placement problems say what to change", () => {
   assert.deepEqual(problemsOf(""), ["x.md: no sections found"]);
 });
 
+test("a byte order mark before the front matter or the first heading is ignored", () => {
+  const expected = [{ heading: "A", paragraphs: ["Text"] }];
+  assert.deepEqual(parseLegalMarkdown("﻿---\ntitle: x\n---\n## A\n\nText", "x.md"), expected);
+  assert.deepEqual(parseLegalMarkdown("﻿## A\n\nText", "x.md"), expected);
+});
+
+test("the context around a problem never splits a surrogate pair", () => {
+  const emoji = "😀".repeat(10);
+  const issues = [...problemsOf(`## A\n\n${emoji} * tail`), ...problemsOf(`## A\n\nx * ${emoji}`)];
+  assert.equal(issues.length, 2);
+  for (const issue of issues) assert.ok(issue.isWellFormed(), issue);
+  assert.equal(issues[0], `x.md, line 3: "*" in "…${"😀".repeat(6)} * tail": ${TEXT_HINT}`);
+  assert.equal(issues[1], `x.md, line 3: "*" in "x * ${"😀".repeat(6)}…": ${TEXT_HINT}`);
+});
+
 test("INLINE_SYNTAX is exported for the CMS config mirror and matches each inline construct", () => {
   assert.ok(INLINE_SYNTAX instanceof RegExp);
   assert.equal(INLINE_SYNTAX.flags, "", "usable inside a CMS pattern as is");
