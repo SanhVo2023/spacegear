@@ -18,8 +18,9 @@
 //     - Client references keep their module id and export name, and the async flag. Turbopack's
 //       ids shift whenever the module set changes, so `compare` lists a page that differs only in
 //       ids with each change; `--explain-client-ids <dist of the saved build>` passes it when each
-//       changed id keeps its export and place and has byte-identical factory code, and
-//       `--loose-client-ids` ignores the ids (and warns), for a first look.
+//       changed id keeps its export and place and its factory code is identical apart from
+//       module ids that are explained in turn (explainModule), and `--loose-client-ids` ignores
+//       the ids (and warns), for a first look.
 //     - The layout's async chunk elements (["$","script","script-N",{src,async,nonce}] with exactly
 //       those props) are dropped, so a different number of chunks compares equal.
 //     - The id-less hint rows are sorted, so their order in the stream does not matter.

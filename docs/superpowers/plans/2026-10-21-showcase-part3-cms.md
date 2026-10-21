@@ -63,8 +63,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 - **Heavy gates:** rebuild, then `bash "$WT" "$CMS" 8788 run npm run check:seo -- http://127.0.0.1:8788`, then `bash "$WT" "$CMS" 8788 run npm run test:browser -- http://127.0.0.1:8788`. `check:fidelity` is not part of this plan: the HTML identity check proves that nothing renders differently.
 - **Rendered output must not change.** Tasks that touch rendering end with `node scripts/html-snapshot.mjs compare artifacts/html-baseline` after a rebuild. The expected result is `Rendered HTML identical to artifacts/html-baseline: 15 pages.` A difference is a bug to fix, never a reason to loosen the normalizer, except for a build-noise pattern that appears identically in both builds of the same page (record it under "Amendments").
   - **Client module ids** (format 3, after the Task 6b review) are Turbopack's, and they shift whenever the module set changes. Tasks 7, 9 and 10 add client modules, so their compare may report pages where only client module ids changed.
-  - **Before rebuilding,** copy the saved build's chunks: `mkdir -p artifacts/dist-before/_next/static && cp -r dist/_next/static/chunks artifacts/dist-before/_next/static/`.
-  - **Then run** `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-before`. It passes only when every changed id is explained: the same `$client` export at the same place in an otherwise identical page, with byte-identical factory code in the two builds.
+  - **Before rebuilding,** copy the saved build's chunks. Remove the old copy first, so stale chunks cannot be matched: `rm -rf artifacts/dist-before && mkdir -p artifacts/dist-before/_next/static && cp -r dist/_next/static/chunks artifacts/dist-before/_next/static/`.
+  - **Then run** `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-before`. It passes only when every changed id is explained: the same `$client` export at the same place in an otherwise identical page, with factory code identical in the two builds apart from module ids, each of which is explained the same way (see the merge notes).
   - Record the explained ids under "Amendments" and save the baseline again.
 - **Line endings.** A fresh worktree on this machine is checked out with `core.autocrlf=true`, so existing files may be CRLF. The Edit tool handles that; anchors in this plan never span a line break. New files are written with LF. Every check this plan adds normalizes CRLF; the vendored Sveltia files are marked `-text -diff` in `.gitattributes` so their bytes never change.
 - **Shared files** (Part 1 and Part 2 also edit them): `package.json`, `package-lock.json`, `public/_headers`, `scripts/package-site.mjs`, `scripts/check-export.mjs`, `scripts/check-seo.mjs`, `scripts/browser-check.mjs`, `scripts/build-production.mjs`. Every edit there is additive and fenced with `>>> CMS (showcase Part 3)` / `<<< CMS` comments, except the `build` script line in `package.json`.
@@ -3377,12 +3377,22 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
 - **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
-  1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge. Also keep that build's chunks for step 2: `mkdir -p artifacts/dist-pre-merge/_next/static && cp -r dist/_next/static/chunks artifacts/dist-pre-merge/_next/static/`.
+  1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge. Also keep that build's chunks for step 2, removing any older copy first: `rm -rf artifacts/dist-pre-merge && mkdir -p artifacts/dist-pre-merge/_next/static && cp -r dist/_next/static/chunks artifacts/dist-pre-merge/_next/static/`.
   2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. **Expect identical, or only `"$module"` changes**:
      - Part 3 is output-neutral and Task 8 is deferred.
      - Turbopack's client module ids are not stable across branches; they shift whenever the module set changes. The Task 6b re-review found that 2 of 28 ids differed between this branch and the main worktree (`Pricing.tsx` 44815 / 89176, `ContactForm.tsx` 26675 / 65254), with byte-identical source and factory code.
      - A page that differs only in ids is listed with each change (export, old id → new id, line). Re-run `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-pre-merge`.
-     - The ids are **explained** when the pages are identical apart from the ids, and each changed id has the same `$client` export name at the same place, with byte-identical factory code in the two builds. `--explain-client-ids` checks exactly this and passes only then.
+     - The ids are **explained** when all of these hold:
+       - the pages are identical apart from the ids;
+       - each changed id has the same `$client` export name at the same place;
+       - its factory code is identical in the two builds apart from module ids;
+       - every module id that differs maps one to one to a module that is explained the same way, recursively. Such an id can be the module's own id, which merged factories register as `e.s([...], id)`, an import (`e.i(N)`), or another export registration.
+
+       `--explain-client-ids` checks exactly this and passes only then.
+     - **Fallback** if it still refuses an id while the pages are identical apart from ids, and the reason names a module id:
+       1. Diff the two factories (`moduleFactory` in `scripts/html-snapshot.mjs`, or the chunks directly).
+       2. Confirm that every differing token is a module id and that each maps to a module that is itself the same code.
+       3. Record the pairs under "Amendments", or escalate. Any other difference is a real change.
      - `--loose-client-ids` only drops the ids (with a warning), for a first look.
   3. Once the compare passes (identical, or every id change explained), save the baseline again from the merged build and keep it for the remaining work.
 - **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
@@ -3573,6 +3583,17 @@ The only task that edits section components. Each edit replaces `src={X}` with `
        - **Still flagged outside the legal pages:** "6–12 weeks" and "within 90 days". Also still flagged: "3 projects" and "2 teams" (digit plus a scale noun).
      - **Title and sub or text:** a group with a title and a sub or text is now read as one phrase, so `{ title: "Trusted by 200", sub: "companies across Asia" }` is caught. This adds no hits on the real tree or the ordinary-phrase list.
      - **check-content:** blames a `src/lib` module only when `stripTypeScriptTypes` fails on it with the same code and message. `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` (enum, namespace) in loaded code gets the file prefix too.
+  10. **Task 6b final round** (`82d82f9`, `26f1562`). Only `scripts/` and tests changed, so no rebuild was needed; the format-3 compare stayed identical.
+     - **Self ids:** 6 of the 21 client factories register their exports under their own id (`e.s([...], id)`: 10403 Tile, 18140, 60719, 648 ProcessSteps, 71829, 84834), so a pure id shift used to fail `--explain-client-ids`.
+       - `explainModule` now compares factories token by token. A differing number counts only as a module reference (after `x.i(`, `x.r(`, `x.A(`… or `],`), and each differing pair must map one to one to a module that is the same, checked recursively. This covers the module's own id and shifted dependencies alike.
+       - Reviewer plants (`explain-plants.mjs`): the Tile shift with identical code is now explained. A one-character change, a dependency changed to another module, a component swap, an export rename and a swapped factory are still refused.
+       - On the real chunks, every client id explains against its own build, and a consistent shift of Pricing and its dependency 43476 is explained.
+     - **Honesty, reopened bypasses closed:**
+       - **Model sizes:** excused only as a B/M parameter count right after a model name (with `\b`) and an optional version, never before an audience or revenue noun. "Gemma 1M" therefore passes by design: it has the shape of a model size.
+       - **Sizing exclusions:** "parameters"/"models" excuse B sizes only; the context exclusion is the plain "k context window"; "tokens" is no longer excused.
+       - **SOC 2:** "our SOC 2 …" and "SOC 2 report available / on request" are caught.
+       - **Partners:** "a select partner", "preferred/select partner of|for" and "<Vendor>'s … partner" are caught.
+       - **Results:** `honesty-round3.mjs` regressions against `0913b94` went from 17 to 1 ("Gemma 1M"). The reviewer's 1 MB ReDoS shapes take at most 221 ms.
 
 ## Risks and open questions
 
