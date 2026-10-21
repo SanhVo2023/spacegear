@@ -15,11 +15,19 @@ import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
 import { hasWebGL2 } from "@/components/globe/device";
-import { getIntroPhase, getServerIntroPhase, introStore } from "@/components/globe/intro-store";
+import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
-// 3D scene is client-only (WebGL) — load without SSR.
-const EarthScene = dynamic(() => import("@/components/EarthScene"), { ssr: false });
+// 3D scene is client-only (WebGL) — load without SSR. Its code chunk fills the first INTRO_CHUNK_SHARE of
+// the intro counter, so the count moves before the textures start; their bytes fill the rest (EarthScene.tsx).
+const EarthScene = dynamic(
+  () =>
+    import("@/components/EarthScene").then((scene) => {
+      introStore.setProgress(INTRO_CHUNK_SHARE);
+      return scene;
+    }),
+  { ssr: false },
+);
 
 // Desktop, motion allowed, not on a data-saver connection → upgrade to the cinematic.
 const QUERY = "(min-width: 1024px) and (prefers-reduced-motion: no-preference)";
@@ -158,19 +166,48 @@ function Stat({ value, unit, label, sub }: StatData) {
   );
 }
 
+/**
+ * Entrance states. Every visitor starts from "hidden" (server-rendered). Without the intro the copy
+ * goes straight to "shown". With it, it is "held" under the overlay, then "revealed": a slower,
+ * later choreography timed to the curtain lift, with the words tipping up from their bottom-left
+ * corner. The label comes from the intro store, whose server snapshot is "off", so the markup never
+ * differs between server and client; reduced motion never plays the intro.
+ */
+type CopyState = "held" | "shown" | "revealed";
+const copyState = (phase: IntroPhase): CopyState => (phase === "loading" ? "held" : phase === "off" ? "shown" : "revealed");
 const EASE = [0.44, 0, 0.56, 1] as const;
 const RISE = [0.16, 1, 0.3, 1] as const;
-const fade = (delay: number): Variants => ({
-  hidden: { opacity: 0, y: 28, filter: "blur(6px)" },
-  shown: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.9, ease: EASE, delay } },
-});
+/** On intro visits the eyebrow, pitch and stats wait this much longer for the curtain to clear. */
+const INTRO_COPY_DELAY = 0.3;
+const fade = (delay: number): Variants => {
+  const hidden = { opacity: 0, y: 28, filter: "blur(6px)" };
+  const visible = { opacity: 1, y: 0, filter: "blur(0px)" };
+  return {
+    hidden,
+    held: hidden,
+    shown: { ...visible, transition: { duration: 0.9, ease: EASE, delay } },
+    revealed: { ...visible, transition: { duration: 0.9, ease: EASE, delay: delay + INTRO_COPY_DELAY } },
+  };
+};
 const EYEBROW = fade(0.05);
 const PITCH = fade(0.3);
 const STATS = fade(0.42);
-const HEADLINE: Variants = { hidden: {}, shown: { transition: { delayChildren: 0.12, staggerChildren: 0.045 } } };
+const HEADLINE: Variants = {
+  hidden: {},
+  held: {},
+  shown: { transition: { delayChildren: 0.12, staggerChildren: 0.045 } },
+  revealed: { transition: { delayChildren: 0.35, staggerChildren: 0.055 } },
+};
 // 125 %, not 110 %: at the display face's 0.92 line height the ascenders of a word moved down by
-// 110 % still reach into its mask's bottom padding, which would show slivers before the rise.
-const WORD: Variants = { hidden: { y: "125%" }, shown: { y: "0%", transition: { duration: 0.95, ease: RISE } } };
+// 110 % still reach into its mask's bottom padding, which would show slivers before the rise. Under
+// the intro overlay the words also tip by 5° (transform-origin 0% 100% in globals.css); they end
+// level, at transform: none, so the end-state CSS still matches.
+const WORD: Variants = {
+  hidden: { y: "125%" },
+  held: { y: "125%", rotate: 5, transition: { duration: 0 } },
+  shown: { y: "0%", rotate: 0, transition: { duration: 0.95, ease: RISE } },
+  revealed: { y: "0%", rotate: 0, transition: { duration: 1.05, ease: RISE } },
+};
 
 type Word = { text: string; tone?: string; after?: string };
 const [FIRST, SECOND, THIRD] = HOME.headline.verbs;
@@ -189,7 +226,7 @@ function HeroCopy() {
   // Same markup for every visitor (static export). The intro holds the copy until its reveal;
   // reduced motion and no-JS get the end state from CSS on [data-reveal] (globals.css, NoScriptStyles).
   const phase = useSyncExternalStore(introStore.subscribe, getIntroPhase, getServerIntroPhase);
-  const state = phase === "loading" ? "hidden" : "shown";
+  const state = copyState(phase);
   return (
     <div className="hero-copy mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
       <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="text-[15px] leading-tight">
