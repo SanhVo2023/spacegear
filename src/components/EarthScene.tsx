@@ -1,259 +1,155 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Stars, useGLTF, useTexture } from "@react-three/drei";
-import { type MotionValue } from "motion/react";
-import { Suspense, useMemo, useRef, type ReactNode } from "react";
+import type { MotionValue } from "motion/react";
+import { Suspense, use, useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
+import Backdrop from "@/components/globe/Backdrop";
+import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { normalize, rigAt, slerpDirection } from "@/components/globe/scroll";
+import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
 
-const MODEL = "/models/earth-hq.glb";
-const GALAXY = "/images/galaxy.webp";
-
-/* ---- scroll math (used inside useFrame; no React state) ---- */
-const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const mapClamp = (
-  x: number,
-  inA: number,
-  inB: number,
-  outA: number,
-  outB: number
-) => {
-  const t = clamp01((x - inA) / (inB - inA));
-  return outA + (outB - outA) * t;
+export type SceneVariant = "cinematic" | "mobile";
+export type EarthSceneProps = {
+  variant: SceneVariant;
+  active: boolean;
+  /** Hero scroll progress 0…1 (cinematic only). */
+  progress?: MotionValue<number>;
+  /** The first textured frame has rendered. */
+  onReady: () => void;
+  /** The WebGL context was lost: drop the canvas and keep the poster. */
+  onLost: () => void;
 };
-// While paused offscreen (frameloop "never"), a frame that still runs in
-// `never` mode can get a huge delta (R3F passes the rAF timestamp in ms); cap
-// it so the globe and galaxy keep turning smoothly instead of jumping to a
-// random angle.
-const spin = (delta: number) => Math.min(delta, 0.1);
 
-// The visible sun sits in the upper-left of the frame (behind the globe), while
-// the key light comes from a front-left angle so the camera-facing hemisphere
-// stays lit. Sharing the x/y keeps the lighting visually consistent with the sun.
-const SUN_POS = new THREE.Vector3(-9, 5.5, -26);
-const LIGHT_POS = new THREE.Vector3(-4, 2.5, 4);
+const CINEMATIC_SUN = normalize(SUN_START);
+const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
+const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
 
-function Earth() {
-  const { scene } = useGLTF(MODEL, "/draco/");
-  const group = useRef<THREE.Group>(null);
-
-  const prepared = useMemo(() => {
-    const copy = scene.clone(true);
-    copy.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mats.forEach((m) => {
-        const mat = m as THREE.MeshStandardMaterial;
-        if (mat.emissiveMap) {
-          mat.emissive = new THREE.Color("#ffd9a0");
-          mat.emissiveIntensity = 2.4;
-        }
-        mat.toneMapped = true;
-        mat.needsUpdate = true;
-      });
-    });
-    return copy;
-  }, [scene]);
-
-  useFrame((_, delta) => {
-    if (group.current) group.current.rotation.y += spin(delta) * 0.035;
-  });
-
-  return (
-    <group ref={group} rotation={[0, 0, 0.41]}>
-      <primitive object={prepared} />
-    </group>
-  );
-}
-
-function Atmosphere({ progress }: { progress: MotionValue<number> }) {
-  const mat = useRef<THREE.ShaderMaterial>(null);
-  const uniforms = useMemo(
-    () => ({
-      uInner: { value: new THREE.Color("#2b6cff") },
-      uOuter: { value: new THREE.Color("#fa6e43") },
-      uOpacity: { value: 0.85 },
-    }),
-    []
-  );
-  useFrame(() => {
-    if (mat.current)
-      mat.current.uniforms.uOpacity.value = mapClamp(
-        progress.get(),
-        0.45,
-        0.65,
-        0.85,
-        0.5
-      );
-  });
-  return (
-    <mesh scale={2.5}>
-      <sphereGeometry args={[1, 64, 64]} />
-      <shaderMaterial
-        ref={mat}
-        side={THREE.BackSide}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        uniforms={uniforms}
-        vertexShader={`
-          varying vec3 vNormal; varying vec3 vEye;
-          void main(){
-            vNormal = normalize(normalMatrix * normal);
-            vec4 mv = modelViewMatrix * vec4(position,1.0);
-            vEye = normalize(-mv.xyz);
-            gl_Position = projectionMatrix * mv;
-          }`}
-        fragmentShader={`
-          varying vec3 vNormal; varying vec3 vEye;
-          uniform vec3 uInner; uniform vec3 uOuter; uniform float uOpacity;
-          void main(){
-            float f = pow(1.0 - abs(dot(vNormal, vEye)), 2.4);
-            vec3 col = mix(uInner, uOuter, smoothstep(0.2, 0.9, f));
-            gl_FragColor = vec4(col, f * uOpacity);
-          }`}
-      />
-    </mesh>
-  );
-}
-
-/** Rig drives the scroll motion: Earth starts on the RIGHT showing half of it,
- *  then pulls back (zooms OUT) to the full planet centered. Never zooms in. */
-function Rig({
-  progress,
-  children,
-}: {
-  progress: MotionValue<number>;
-  children: ReactNode;
-}) {
+/** Scroll beats: right of centre, then shrinking to the centre (eased toward rigAt). */
+function Rig({ progress, children }: { progress: MotionValue<number>; children: ReactNode }) {
   const rig = useRef<THREE.Group>(null);
-  useFrame((_, delta) => {
-    const g = rig.current;
-    if (!g) return;
-    const p = progress.get();
-    const scaleT = mapClamp(p, 0.1, 0.62, 0.62, 0.26); // shrink → crisp full globe
-    const xT = mapClamp(p, 0.1, 0.62, 2.4, 0); // side → center
-    const s = THREE.MathUtils.damp(g.scale.x, scaleT, 5, delta);
-    g.scale.setScalar(s);
-    g.position.x = THREE.MathUtils.damp(g.position.x, xT, 5, delta);
+  useFrame((_, raw) => {
+    const group = rig.current;
+    if (!group) return;
+    const delta = Math.min(raw, 0.1);
+    const target = rigAt(progress.get());
+    group.scale.setScalar(THREE.MathUtils.damp(group.scale.x, target.scale, 5, delta));
+    group.position.x = THREE.MathUtils.damp(group.position.x, target.x, 5, delta);
   });
   return (
-    <group ref={rig} scale={0.62} position={[2.4, 0, 0]}>
+    <group ref={rig} scale={RIG_SCALE[0]} position={RIG_START}>
       {children}
     </group>
   );
 }
 
-/** Equirectangular-ish galaxy on a giant inverted sphere — the cosmic backdrop. */
-function Galaxy() {
-  const source = useTexture(GALAXY);
-  const tex = useMemo(() => { const copy = source.clone(); copy.colorSpace = THREE.SRGBColorSpace; return copy; }, [source]);
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += spin(delta) * 0.004;
-  });
-  return (
-    <mesh ref={ref} scale={120}>
-      <sphereGeometry args={[1, 64, 64]} />
-      {/* slight multiply keeps it calm while letting the nebula read clearly */}
-      <meshBasicMaterial map={tex} color="#b6b6c0" side={THREE.BackSide} />
-    </mesh>
-  );
-}
+type Warmup = {
+  queued: boolean;
+  pending: THREE.Texture[];
+  compiling: boolean;
+  compiled: boolean;
+  shownAt: number;
+  announced: boolean;
+};
 
-/** Visible sun: a bright core plus an additive radial glow sprite. */
-function Sun() {
-  const glow = useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const g = c.getContext("2d")!;
-    const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grd.addColorStop(0, "rgba(255,244,222,1)");
-    grd.addColorStop(0.22, "rgba(255,205,150,0.85)");
-    grd.addColorStop(0.5, "rgba(250,140,80,0.28)");
-    grd.addColorStop(1, "rgba(250,110,67,0)");
-    g.fillStyle = grd;
-    g.fillRect(0, 0, 256, 256);
-    return new THREE.CanvasTexture(c);
-  }, []);
-  // A faint, distant sun — barely a warm haze in the corner. No flare.
+type ContentsProps = {
+  variant: SceneVariant;
+  load: Promise<HeroTextures>;
+  progress?: MotionValue<number>;
+  onReady: () => void;
+};
+
+function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
+  const loaded = use(load);
+  const root = useRef<THREE.Group>(null);
+  const frame = useRef<GlobeFrame>(createGlobeFrame());
+  const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false });
+
+  // Queue the first set for one-per-frame GPU uploads.
+  useEffect(() => {
+    warm.current.pending = [...Object.values(loaded.globe), ...(loaded.backdrop ? [loaded.backdrop] : [])];
+    warm.current.queued = true;
+  }, [loaded]);
+
+  // Warm-up: compile the programs without blocking (KHR_parallel_shader_compile), upload one
+  // texture per frame so no single frame takes the whole upload, then show the scene.
+  useFrame((state) => {
+    const w = warm.current;
+    const group = root.current;
+    if (!group || w.announced) return;
+    if (!w.compiling) {
+      w.compiling = true;
+      state.gl
+        .compileAsync(group, state.camera, state.scene)
+        .catch(() => undefined)
+        .then(() => {
+          w.compiled = true;
+        });
+    }
+    const next = w.pending.shift();
+    if (next) {
+      state.gl.initTexture(next);
+      releaseSource(next);
+      return;
+    }
+    if (!w.queued || !w.compiled) return;
+    if (!group.visible) {
+      group.visible = true;
+      w.shownAt = state.clock.elapsedTime;
+      return;
+    }
+    if (state.clock.elapsedTime <= w.shownAt) return;
+    w.announced = true;
+    onReady();
+  });
+
+  // Per-frame driver, called by the Globe before it applies the frame.
+  const drive = (f: GlobeFrame) => {
+    const [sx, sy, sz] = variant === "cinematic" ? CINEMATIC_SUN : MOBILE_SUN;
+    f.sun.set(sx, sy, sz);
+  };
+
+  const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;
   return (
-    <group position={SUN_POS}>
-      <mesh>
-        <sphereGeometry args={[0.45, 24, 24]} />
-        <meshBasicMaterial color="#ffe9cf" toneMapped={false} />
-      </mesh>
-      <sprite scale={[5, 5, 1]}>
-        <spriteMaterial
-          map={glow}
-          transparent
-          opacity={0.45}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </sprite>
+    <group ref={root} visible={false}>
+      {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} />}
+      {variant === "cinematic" && progress ? <Rig progress={progress}>{globeNode}</Rig> : <group scale={MOBILE_RADIUS}>{globeNode}</group>}
     </group>
   );
 }
 
-/** FPV mouse-look: camera flies/looks around the globe following the cursor. */
-function FpvCamera() {
-  useFrame((state, delta) => {
-    const { camera, pointer } = state;
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, pointer.x * 1.7, 3, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, pointer.y * 1.1, 3, delta);
-    camera.lookAt(0, 0, 0);
+/**
+ * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop and the scroll beats.
+ * Phones and tablets ("mobile"): the 1k globe alone.
+ */
+export default function EarthScene({ variant, active, progress, onReady, onLost }: EarthSceneProps) {
+  const [load] = useState(() => {
+    const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", { backdrop: variant === "cinematic" });
+    // A failed load surfaces through use() → SceneBoundary; this only marks the rejection handled.
+    promise.catch(() => undefined);
+    return promise;
   });
-  return null;
-}
 
-export default function EarthScene({
-  progress,
-  dpr = [1, 2],
-  active = true,
-}: {
-  progress: MotionValue<number>;
-  dpr?: [number, number];
-  active?: boolean;
-}) {
   return (
     <Canvas
-      camera={{ position: [0, 0, 6.2], fov: 38 }}
-      dpr={dpr}
+      camera={{ position: [0, 0, CAMERA_Z], fov: CAMERA_FOV }}
+      dpr={variant === "cinematic" ? [1, 2] : [1, 1.5]}
       frameloop={active ? "always" : "never"}
-      gl={{ antialias: true, alpha: true }}
+      gl={{ antialias: true, alpha: true, powerPreference: variant === "cinematic" ? "high-performance" : "default" }}
       onCreated={({ gl }) => {
-        gl.toneMappingExposure = 1.2;
+        // ACES Filmic with sRGB output, as before: deep space blacks and a warm roll-off for the
+        // over-bright city lights. Textures: colour maps sRGB, data maps linear.
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = EXPOSURE;
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.domElement.addEventListener("webglcontextlost", onLost, { once: true });
       }}
       className="!absolute inset-0"
     >
-      {/* key light from front-left (aligned with the sun's screen position) */}
-      <directionalLight
-        position={LIGHT_POS.toArray()}
-        intensity={3.6}
-        color="#fff4e8"
-      />
-      <directionalLight position={[6, -2, 3]} intensity={0.4} color="#9bbcff" />
-      <ambientLight intensity={0.18} />
-
       <Suspense fallback={null}>
-        {/* real 3D star field — parallaxes with the FPV camera for true depth.
-            Inside Suspense so it appears with the scene, not over the poster's
-            baked-in stars while the model loads. */}
-        <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
-        <Galaxy />
-        <Sun />
-        <Rig progress={progress}>
-          <Earth />
-          <Atmosphere progress={progress} />
-        </Rig>
+        <SceneContents variant={variant} load={load} progress={progress} onReady={onReady} />
       </Suspense>
-
-      <FpvCamera />
     </Canvas>
   );
 }
-
-useGLTF.preload(MODEL, "/draco/");

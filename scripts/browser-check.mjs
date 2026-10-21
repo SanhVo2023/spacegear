@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
+import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
@@ -38,6 +39,36 @@ async function hiddenText(page) {
   });
 }
 
+// Screenshot of the hero globe's canvas alone (the copy, scrim and hint layers hidden), cropped to a
+// region given in fractions of the canvas, downsampled to 96×64 RGB.
+async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }) {
+  const toggle = hide => page.evaluate(hide => {
+    for (const el of document.querySelectorAll("#home .sticky > :not(.hero-scene)")) {
+      if (hide) el.style.setProperty("visibility", "hidden"); else el.style.removeProperty("visibility");
+    }
+  }, hide);
+  await toggle(true);
+  const png = await page.locator("#home .hero-scene canvas").screenshot();
+  await toggle(false);
+  const image = sharp(png);
+  const { width, height } = await image.metadata();
+  return image
+    .extract({ left: Math.round(width * region.x), top: Math.round(height * region.y), width: Math.round(width * region.w), height: Math.round(height * region.h) })
+    .removeAlpha().resize(96, 64, { fit: "fill" }).raw().toBuffer();
+}
+// Mean and spread of luminance, and the number of distinct colours (4 bits per channel).
+function pixelStats(data) {
+  let sum = 0, squares = 0;
+  const colours = new Set();
+  for (let i = 0; i < data.length; i += 3) {
+    const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    sum += luma; squares += luma * luma;
+    colours.add(`${data[i] >> 4},${data[i + 1] >> 4},${data[i + 2] >> 4}`);
+  }
+  const n = data.length / 3, mean = sum / n;
+  return { mean: Math.round(mean), stdev: Math.round(Math.sqrt(Math.max(0, squares / n - mean * mean))), distinct: colours.size };
+}
+
 // Records CSP violations and blocked-texture errors on every page and route a context opens.
 // Each page pushes its securitypolicyviolation events to window.__csp and reports them through a
 // binding, so events survive navigation; the console catches what the browser itself logs (also without JS).
@@ -53,7 +84,7 @@ async function watchCsp(context) {
       window.__csp.push(entry);
       window.__cspReport?.(entry);
     });
-    // Counts decoded image bitmaps; three's GLTF loader decodes the globe's embedded textures this way.
+    // Counts decoded image bitmaps; the globe's texture loader decodes its WebP maps this way.
     window.__bitmaps = [];
     const decode = window.createImageBitmap;
     if (decode) window.createImageBitmap = (...args) => decode.apply(window, args).then(bitmap => { window.__bitmaps.push({ w: bitmap.width, h: bitmap.height }); return bitmap; });
@@ -76,6 +107,9 @@ try {
     const page = await context.newPage(), errors = [], requests = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("request", request => requests.push(request.url()));
+    // three.js reports shader compile and link failures as console errors starting with "THREE.".
+    const shaderErrors = [];
+    page.on("console", message => { if (message.type() === "error" && /THREE\./.test(message.text())) shaderErrors.push(message.text().slice(0, 300)); });
     await page.addInitScript(() => {
       window.__audit = { cls: 0, lcp: 0, longTasks: 0, rafRequests: 0 };
       const originalRaf = window.requestAnimationFrame;
@@ -87,15 +121,18 @@ try {
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
-    const models = requests.filter(url => /\.glb(?:$|\?)/.test(url));
-    if (profile.width < 1024 || profile.reducedMotion || profile.javaScriptEnabled === false) assert.equal(models.length, 0, `${profile.name}: no model`);
     if (profile.name === "desktop") {
-      assert.equal(models.length, 1, "desktop enhancement loads one model");
-      // The globe's textures are embedded in the model and fetched as blob: URLs; the CSP must let them load.
-      await page.waitForFunction(() => window.__bitmaps.some(b => b.w >= 512), null, { timeout: 20000 }).catch(() => {});
+      // The globe streams same-origin WebP maps (fetch + createImageBitmap) under the shipped CSP.
+      await page.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
+      await page.waitForTimeout(900); // the canvas's 0.6 s fade-in over the poster
       assert.deepEqual(cspProblems, [], "desktop /: the globe loads without CSP violations or texture errors");
-      assert.ok(await page.evaluate(() => window.__bitmaps.some(b => b.w >= 512)), "desktop /: the globe's embedded textures decode");
-      report.interactions.push("desktop globe textures decode under the shipped CSP");
+      assert.deepEqual(shaderErrors, [], "desktop /: the globe's shaders compile");
+      assert.ok(await page.evaluate(() => window.__bitmaps.some(b => b.w === 2048)), "desktop /: the 2k maps decode");
+      const textures = requests.filter(url => url.includes("/textures/earth/"));
+      assert.ok(textures.length >= 5 && textures.every(url => url.includes("/textures/earth/2k/")), `desktop: the first frame uses the 2k set (${textures.join(", ")})`);
+      const pixels = pixelStats(await globeCapture(page));
+      assert.ok(pixels.stdev > 10 && pixels.distinct > 40, `desktop: the globe renders non-uniform pixels (${JSON.stringify(pixels)})`);
+      report.interactions.push(`desktop globe renders its 2k maps under the shipped CSP (${JSON.stringify(pixels)})`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
@@ -133,12 +170,20 @@ try {
     await page.waitForTimeout(100);
     await page.screenshot({ path: `artifacts/${profile.name}.png`, fullPage: false });
     assert.deepEqual(errors, [], `${profile.name}: console errors`);
+    // No GLB or Draco file is ever requested; reduced motion and no-JS load no globe textures at all.
+    const forbidden = requests.filter(url => /\.glb(?:$|\?)|\/draco\//.test(url));
+    assert.deepEqual(forbidden, [], `${profile.name}: no GLB or Draco request`);
+    const textureRequests = requests.filter(url => url.includes("/textures/earth/"));
+    if (profile.reducedMotion || profile.javaScriptEnabled === false) assert.deepEqual(textureRequests, [], `${profile.name}: no globe textures`);
     const metrics = await page.evaluate(() => ({
       ...window.__audit,
       resourceBytes: performance.getEntriesByType("resource").reduce((sum, entry) => sum + entry.encodedBodySize, 0),
       jsBytes: performance.getEntriesByType("resource").filter(entry => entry.initiatorType === "script").reduce((sum, entry) => sum + entry.encodedBodySize, 0),
     }));
-    report.profiles.push({ name: profile.name, models: models.length, ...metrics });
+    // Layout stability is now gated, not only recorded: the hero's static → cinematic and poster →
+    // canvas swaps must not shift content (unset without JavaScript).
+    assert.ok(!(metrics.cls >= 0.05), `${profile.name}: cumulative layout shift ${metrics.cls}`);
+    report.profiles.push({ name: profile.name, textures: textureRequests.length, ...metrics });
     if (profile.name === "desktop") {
       // The curtain footer is fixed behind the content; tabbing into it must bring it into view.
       await page.evaluate(() => {
@@ -274,9 +319,9 @@ try {
   report.interactions.push("all 12 routes: actual text bounds fit 320px, including long service headings");
 
   const fallbackPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const fallbackErrors = [], fallbackModels = [];
+  const fallbackErrors = [], fallbackDownloads = [];
   fallbackPage.on("pageerror", error => fallbackErrors.push(error.message));
-  fallbackPage.on("request", request => { if (/\.glb(?:$|\?)/.test(request.url())) fallbackModels.push(request.url()); });
+  fallbackPage.on("request", request => { if (/\.glb(?:$|\?)|\/draco\/|\/textures\/earth\//.test(request.url())) fallbackDownloads.push(request.url()); });
   // Every WebGL flavour (webgl, webgl2, experimental-webgl) fails to create a context.
   await fallbackPage.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -288,9 +333,9 @@ try {
   assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
   assert.deepEqual(fallbackErrors, [], "webgl-fallback: no page errors");
-  assert.deepEqual(fallbackModels, [], "webgl-fallback: no model download");
+  assert.deepEqual(fallbackDownloads, [], "webgl-fallback: no model, decoder or texture download");
   await fallbackPage.close();
-  report.interactions.push("failed WebGL retains headline, poster and CTA, without errors or the model download");
+  report.interactions.push("failed WebGL retains headline, poster and CTA, without errors or any globe download");
 
   // Exercise the real form component with isolated verification and endpoint fixtures.
   // No inquiry or email leaves the local test browser.

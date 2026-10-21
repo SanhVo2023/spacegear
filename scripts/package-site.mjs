@@ -9,7 +9,9 @@ if(process.env.SITE_MODE==="production") {
 }
 await fs.mkdir(target,{recursive:true});
 const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms"];
-const assets=["apple-icon.png","icon.svg","favicon.ico","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","models/earth-hq.glb","seo/og.png","draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"];
+// The hero globe's texture tiers (scripts/build-globe-textures.mjs): 1k phones, 2k desktop first frame, 4k streamed.
+const globeTextures=["1k","2k","4k"].flatMap(tier=>["day","night","normal","spec","clouds"].map(map=>`textures/earth/${tier}/${map}.webp`));
+const assets=["apple-icon.png","icon.svg","favicon.ico","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","models/earth-hq.glb","seo/og.png","draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js",...globeTextures];
 const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|__next\..*\.txt)$/.test(name));
 for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});

@@ -13,6 +13,7 @@ import Link from "next/link";
 import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
+import { hasWebGL2 } from "@/components/globe/device";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
 // 3D scene is client-only (WebGL) — load without SSR.
@@ -35,13 +36,14 @@ function eligible() {
 const noop = () => () => {};
 
 /**
- * If the scene throws (model/texture loader or runtime error), drop the canvas
- * and keep the poster + copy on screen. WebGL context creation is checked
+ * If the scene throws (texture loader, shader or runtime error), drop the canvas
+ * and keep the poster + copy on screen. WebGL2 context creation is checked
  * before mounting (R3F creates the renderer outside React's error handling).
  */
-class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class SceneBoundary extends Component<{ children: ReactNode; onError?: () => void }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError?.(); }
   render() { return this.state.failed ? null : this.props.children; }
 }
 
@@ -150,16 +152,16 @@ export default function OrbitalCinematic() {
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
   const [ready, setReady] = useState(false);
   const [active, setActive] = useState(true);
+  const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   const progress = useMotionValue(0);
+  const fail = () => setGlobe("failed");
 
   // Mount the WebGL scene when the browser is idle, after the copy has painted,
   // and only while the hero is on screen (a reload mid-page fetches nothing).
   useEffect(() => {
-    if (!cinematic || !active || ready) return;
+    if (!cinematic || !active || ready || globe === "failed") return;
     const enable = () => {
-      const gl = document.createElement("canvas").getContext("webgl2");
-      if (!gl) return; // keep the poster; skip the 6.3 MB model
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      if (!hasWebGL2()) return; // keep the poster; fetch no textures
       setReady(true);
     };
     if ("requestIdleCallback" in window) {
@@ -168,7 +170,7 @@ export default function OrbitalCinematic() {
     }
     const timer = setTimeout(enable, 0);
     return () => clearTimeout(timer);
-  }, [cinematic, active, ready]);
+  }, [cinematic, active, ready, globe]);
 
   // Manual scroll scrubber from the section's own rect; pause rendering offscreen.
   useEffect(() => {
@@ -255,14 +257,14 @@ export default function OrbitalCinematic() {
           <img src="/images/hero-poster.webp" alt="" width={1440} height={900} className="h-full w-full object-cover" />
         </div>
 
-        {/* the 3D scene supplies the galaxy, sun and earth */}
-        {ready && (
-          <div className="hero-scene absolute inset-0" aria-hidden>
-            <SceneBoundary>
-              <EarthScene progress={progress} active={active} />
+        {/* the 3D scene supplies the galaxy, sun and earth; it fades in over the poster (globals.css) */}
+        <div className="hero-scene absolute inset-0" data-globe={globe} aria-hidden>
+          {ready && globe !== "failed" && (
+            <SceneBoundary onError={fail}>
+              <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe("ready")} onLost={fail} />
             </SceneBoundary>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* legibility scrim for the statement beat */}
         <Choreo progress={progress} opacity={[[0.5, 0.62], [0, 0.55]]} className="pointer-events-none absolute inset-0 bg-[#0f0f12]" />

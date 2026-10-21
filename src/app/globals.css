@@ -274,5 +274,10 @@ html { scroll-padding-top: 88px; }
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }
 
+/* The hero globe canvas (EarthScene.tsx) fades in over the poster once its first textured frame
+   has rendered (data-globe="ready"). */
+.hero-scene { opacity: 0; transition: opacity 0.6s cubic-bezier(0.44, 0, 0.56, 1); }
+.hero-scene[data-globe="ready"] { opacity: 1; }
+
 /* FAQ question focus ring stays inside its rounded, overflow-hidden card. */
 .faq-item > summary:focus-visible { outline-offset: -3px; border-radius: 0.75rem; }

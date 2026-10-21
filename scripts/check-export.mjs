@@ -22,8 +22,8 @@ const srcSets=/(?:srcSet|srcset|imageSrcSet|imagesrcset)="([^"]*)"/g;
 const socialImage=/<meta\b[^>]*\b(?:property="og:image"|name="twitter:image")[^>]*>/g;
 async function scanRefs(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanRefs(file);else if(entry.name.endsWith(".html")){const html=await fs.readFile(file,"utf8"),from=path.relative(root,file);for(const m of html.matchAll(localAsset))await need(m[1],from);for(const m of html.matchAll(srcSets))for(const candidate of m[1].split(",")){const url=candidate.trim().split(/\s+/)[0].replace(/[?#].*$/,"");if(/^\/(?:images|models|draco|seo)\//.test(url))await need(url,from);}for(const m of html.matchAll(socialImage)){const content=m[0].match(/\bcontent="([^"]*)"/)?.[1];if(!content)continue;const url=new URL(content.replaceAll("&amp;","&"));if(url.origin==="https://spacegear.tech")await need(url.pathname,from);}}}}
 await scanRefs(root);
-// Assets referenced only from JS chunks (the globe model, section art) and the Draco decoder files must ship too.
-const chunkAsset=/"(\/(?:images|models)\/[A-Za-z0-9_./-]+\.(?:glb|webp|png|jpe?g|svg|avif))"/g;
+// Assets referenced only from JS chunks (the globe texture tiers, section art) and the Draco decoder files must ship too.
+const chunkAsset=/"(\/(?:images|models|textures)\/[A-Za-z0-9_./-]+\.(?:glb|webp|png|jpe?g|svg|avif))"/g;
 async function scanChunks(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanChunks(file);else if(entry.name.endsWith(".js"))for(const m of (await fs.readFile(file,"utf8")).matchAll(chunkAsset))await need(m[1],path.relative(root,file));}}
 await scanChunks(path.join(root,"_next/static/chunks")).catch(()=>errors.push("Missing JS chunks: _next/static/chunks"));
 for(const file of ["draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"])await fs.access(path.join(root,file)).catch(()=>errors.push(`Missing Draco decoder file: ${file}`));
