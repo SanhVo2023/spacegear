@@ -3347,15 +3347,23 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   |---|---|---|
   | `script-src` | `'self'` | The vendored bundle and the chunks it loads next to itself. Sveltia needs no `unsafe-eval` or `unsafe-inline`. |
   | `style-src` | `'self' 'unsafe-inline'` | Sveltia injects its styles at run time. |
-  | `font-src` | `'self' https://cdn.jsdelivr.net/fontsource/` | The bundle's `@font-face` rules load its UI and icon fonts from Fontsource on jsDelivr. |
+  | `font-src` | `'self'` and the three Fontsource files on jsDelivr, each by its full URL (`…/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2`, `…/noto-mono@5.3.0/latin-400-normal.woff2`, `…/source-sans-3:vf@5.3.0/latin-wght-normal.woff2`) | The bundle's `@font-face` rules load its UI and icon fonts from these files and no others. A source with a path and no trailing slash allows that one file. |
   | `img-src` | `'self' data: blob:` | Previews of new uploads and inline icons. |
   | `connect-src` | `'self' blob: data:` | The configuration and local files. Two optional requests are blocked on purpose: the update check to unpkg.com, and the GitHub status check (`https://www.githubstatus.com/api/v2/status.json`), which Sveltia makes on the sign-in screen because the backend is GitHub. Both fail quietly, and 0.230.1 has no setting to turn the status check off. |
   | `media-src`, `frame-src`, `manifest-src` | `'self' blob:`, `blob:`, `'self' blob:` | As in Sveltia's CSP guide. |
   | `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'none'`, `'self'`, `'self'`, `'none'` | Hardening, as on the site. |
 
-  Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The site's own CSP is unchanged; `public/_headers` removes it for `/admin/*` only.
+  Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The site's own CSP is unchanged; `public/_headers` removes it for `/admin/*` only. The policy is pinned twice: in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the build's export check fail when they differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
 
-  To upgrade Sveltia: in `SVELTIA` in `scripts/vendor-sveltia.mjs`, set `version`, `tarball` and `integrity` from `npm view @sveltia/cms@<version> dist.tarball dist.integrity` (a release at least 14 days old) and empty `files`. Run `npm run cms:vendor`, review what it extracted, copy the hashes from `scripts/sveltia-cms.lock.json` into `SVELTIA.files` (the second pin), then run `npm test` and `npm run test:browser`. Check the release notes for new CSP needs.
+  #### Uploads are sandboxed
+
+  `public/_headers` also has a `/uploads/*` rule. It replaces the site CSP with `default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox` and sends `X-Content-Type-Options: nosniff` once.
+  - An image on a page is unaffected: an `<img>` element ignores the headers of the image it loads, and the page's own CSP allows images from the site.
+  - Opened on its own (a link, or a typed address), an upload is a sandboxed document. It runs no script, loads nothing but images from the site, and is never read as any type other than its own. That covers a file that only looks like an image, for example an HTML/PNG polyglot.
+  - A missing upload's 404 page is shown unstyled under the same rule.
+  - The export check (`UPLOADS_CSP` in `scripts/lib/headers.mjs`) and `npm run test:browser` both enforce the rule.
+
+  To upgrade Sveltia: in `SVELTIA` in `scripts/vendor-sveltia.mjs`, set `version`, `tarball` and `integrity` from `npm view @sveltia/cms@<version> dist.tarball dist.integrity` (a release at least 14 days old) and empty `files`. Run `npm run cms:vendor`, review what it extracted, copy the hashes from `scripts/sveltia-cms.lock.json` into `SVELTIA.files` (the second pin), then run `npm test` and `npm run test:browser`. If the new bundle names other font files, `npm test` lists them: put them in `font-src` in `public/_headers` and in `ADMIN_FONTS` in `scripts/lib/headers.mjs`. Check the release notes for new CSP needs.
 
   ### Edit from GitHub (later)
 
@@ -3366,7 +3374,13 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `GET /api/auth?provider=github&site_id=…&scope=repo`: create a random state, store it in an `HttpOnly; Secure; SameSite=Lax` cookie for 10 minutes and redirect to `https://github.com/login/oauth/authorize?client_id=…&scope=repo&state=…`.
      - `GET /api/auth/callback?code=…&state=…`: compare the state with the cookie, exchange the code at `https://github.com/login/oauth/access_token` (POST, `Accept: application/json`) and return a small HTML page. It posts `authorizing:github` to `window.opener`, and when the CMS answers from `https://spacegear.tech` it replies `authorization:github:success:{"provider":"github","token":"…"}` to that origin only. Give the page its own CSP header with a hash for its inline script: `_headers` rules do not apply to Worker responses.
   3. **`public/admin/config.yml`:** add `base_url: https://spacegear.tech` and `auth_endpoint: api/auth` under `backend`.
-  4. **Admin CSP:** add `https://api.github.com https://www.githubstatus.com` to `connect-src` and `https://avatars.githubusercontent.com` to `img-src`; update `tests/admin.test.mjs` and the `/admin/` check in `scripts/browser-check.mjs`.
+  4. **Admin CSP:** add `https://api.github.com https://www.githubstatus.com` to `connect-src`, and `https://avatars.githubusercontent.com` (the avatars host) to `img-src`. Change it in all of these places:
+     - `public/_headers`;
+     - `ADMIN_CSP` in `scripts/lib/headers.mjs`;
+     - the `connect-src` assertions in `tests/admin.test.mjs` and `tests/headers.test.mjs`;
+     - `TOLERATED` in `scripts/admin-check.mjs` (the GitHub status check is then allowed, no longer blocked).
+
+     Sveltia signs in through a popup window, so `form-action` stays `'self'`. Do not use `auth_type: pkce`: Sveltia 0.230.1 itself says PKCE is not supported with GitHub (`github_pkce_unsupported`).
   5. **Cloudflare Workers Builds:** connect the repository and the `main` branch; build command `npm run build:production` with the production variables from [the release runbook](docs/operations/cloudflare-release.md); deploy command `npx wrangler deploy --env production`. Every CMS save is a commit, so it triggers a build; a content error fails the build and the live site keeps the previous version.
   6. **Optional:** protect `/admin/*` with Cloudflare Access. The CMS cannot write without a GitHub login, but Access also hides the page.
   ````
@@ -3392,6 +3406,8 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - **`src/lib/content.ts` is rewritten.** If Part 1 changed or added copy there (for example intro text), port the change into the matching `content/*.json` file, extend `content-model.ts` and `config.yml` if a field was added, then update `tests/fixtures/content-v1.json` (and `content-v1.d.ts` for a new export) for that deliberate change only, and record it under "Amendments". `npm test` (round-trip and mirror tests) shows exactly what is missing.
 - **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
 - **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module. `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` (Task 10) shows no conflict.
+- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
+- **The CMS browser check caches the three admin fonts** in `artifacts/cms-fonts/` (gitignored). In a checkout without that folder, the first `test:browser` fetches them once from jsDelivr. With no network and no cache, the check fails and says so.
 - **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
   - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. If Part 1 rewords that message, update the prefix.
   - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
@@ -3953,6 +3969,56 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `check:seo` passes, and `test:browser` passes twice.
      - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` shows no conflict. Five files are changed on both sides and merge cleanly: `package.json`, `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs` and `src/app/globals.css`.
   9. **For Task 11:** the README's admin CSP section should also describe the `/uploads/*` rule (sandbox, `nosniff`, and why a site `<img>` is unaffected). Step 9's manual check in Chrome is still needed.
+- **Task 10 review round** (`0ee6147`, `7b87e3b`, `fc24404`). It supersedes items 2, 4 and 6 of the Task 10 entry above where they differ. The reviewer's probes are in `scratchpad/t10-review/`. Adapted copies are in `artifacts/t10/`: `review-mutate.mjs` with `review-code-mutants.mjs`, `mirror-live.mjs` and `font-probes.mjs`.
+  1. **The production header gate failed open** (Important).
+     - **The fault:** if the `/admin/*` rule lost its `Content-Security-Policy` line but kept `! Content-Security-Policy`, the admin policy was `undefined`, its checks were skipped, and check-export passed. `/admin/` would have shipped with no CSP.
+     - **The fix:** `scripts/lib/headers.mjs` now exports `ADMIN_CSP` (next to `UPLOADS_CSP`), `ADMIN_HEADERS` and `UPLOADS_HEADERS`. Every `/admin/` path must get exactly `ADMIN_HEADERS`: the CSP, `X-Robots-Tag`, `X-Content-Type-Options` and `X-Frame-Options`, each once. Every `/uploads/` path must get exactly `UPLOADS_HEADERS` (CSP, `nosniff`, `X-Frame-Options`). Both also need every other header `/*` sets, unchanged.
+     - The directive-by-directive admin checks are gone; the exact pin covers them. `tests/admin.test.mjs` requires the `/admin/*` rule to equal `ADMIN_CSP`.
+     - **The reviewer's survivors are all red now, in both `npm test` and check-export:** admin CSP line deleted, `form-action` dropped, `worker-src blob:` added, `font-src` widened to all of jsDelivr, uploads `X-Frame-Options` dropped. So is the `default-src` plus jsDelivr mutant.
+     - **Mutation table** (`artifacts/t10/review-mutate.mjs`, run in a project copy with `public/_headers` in CRLF as in the reviewer's run; only H8's swap and the code mutants were adapted, because the text they targeted changed):
+       - H1 to H18 (header mutants): red in `npm test` and red in check-export, every one.
+       - M1 to M9 (simulator code mutants): red in `npm test`.
+         - M1 (sets before removals) and M5 (case-sensitive removals) are also red in check-export.
+         - The rest (M2 to M4, M6 to M9) are green there, as expected: a bug in the simulator itself does not show when it reads a correct file. `npm test` catches them by comparing with Cloudflare's own code.
+         - M1 to M5 are the reviewer's; M6 to M9 are new: no wildcard check, headers kept after a refused path, paths not normalised, placeholders in values not replaced.
+  2. **`font-src` names three files** (minor 1).
+     - The value is `'self'` plus `https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2`, `…/noto-mono@5.3.0/latin-400-normal.woff2` and `…/source-sans-3:vf@5.3.0/latin-wght-normal.woff2`.
+     - `:` and `@` are valid path characters in a CSP host-source (RFC 3986 `pchar`), so nothing is percent-encoded. Chromium logs no CSP parse warning (the browser check now fails on one), and all three fonts load.
+     - `ADMIN_FONTS` holds the list, and `tests/admin.test.mjs` requires it to equal the Fontsource URLs found in the vendored bundle. So an upgrade that changes the fonts fails `npm test` and names them.
+  3. **Fonts in the browser check** (minor 2).
+     - A route on `https://cdn.jsdelivr.net/fontsource/fonts/**` serves each file from `artifacts/cms-fonts/<sha256 of the URL>.woff2`. When a file is not cached yet, it is fetched once with `route.fetch()`, checked to be WOFF2 and stored; a damaged cached file is fetched again.
+     - With neither cache nor network, the check fails: "the CMS fonts are neither in artifacts/cms-fonts/ nor reachable on jsDelivr …".
+     - Every font face the bundle declares is loaded, Noto Mono included, which the collection screen does not use. The requested font URLs must equal `ADMIN_FONTS` exactly.
+     - **Probes:**
+       - A planted `font-src 'self'`, with the route and the cache in place, still fails: "every font face … loads under the admin CSP (Source Sans 3 error, Noto Mono error, Material Symbols Outlined error)". The CSP is enforced before the request reaches the route.
+       - A browser behind a dead proxy, with no cache, fails with the explicit message.
+  4. **Wrangler's path rules** (minor 3).
+     - The reader now does what wrangler does:
+       - it refuses two `*`, `*` with `:splat`, a port, and a scheme other than https;
+       - after a refused path it skips the header lines until the next path;
+       - it normalises a path as wrangler's `extractPathname` does (`/a b/../c/*?q#h` is `/c/*`);
+       - it keeps wrangler's messages and order;
+       - it stops at 100 rules.
+     - **Matching** builds the asset worker's pattern, named groups included: a placeholder name used twice does not compile, so that rule never applies and is reported. `:name` and `:splat` in header values are replaced by what they matched.
+     - A rule for one host is reported, because it applies on that host only.
+     - **`tests/headers.test.mjs`** runs wrangler's own `parseHeaders` and `constructHeaders` and the asset worker's `attachCustomHeaders` from `node_modules` in a vm (`tests/helpers/wrangler-headers.mjs`). It compares rules, invalid lines and the headers of 35 paths on five texts (the real file, the preview form, an edge-case file, 102 rules, and the reviewer's synthetic set). All agree.
+     - **Live:** a wrangler preview (port 8799, through `wt.sh`, stopped afterwards) on `dist/_headers` plus the edge-case file agreed on 24 paths (0 mismatches; `content-encoding` is transport, not `_headers`). Wrangler reported "Parsed 16 valid header rules" and "Found 10 invalid header rules"; the reader has 15 rules (those 16 with the repeated `/ok` merged into one) and 10 invalid lines.
+  5. `admin-check.mjs` counts `ADMIN_FILES.length` (minor 4).
+  6. **A linked folder in `/admin/`** is reported once, and the files under it are no longer also reported missing (minor 5). Test: `public/admin/sveltia` as a junction gives exactly one problem.
+  7. **The Task 11 text** now names `scripts/lib/headers.mjs` (`ADMIN_CSP`), `public/_headers`, the two tests and `TOLERATED` for the later GitHub CSP. It carries the reviewer's note on GitHub sign-in: popup, `form-action` unaffected, no `auth_type: pkce` (Sveltia 0.230.1 says PKCE is not supported with GitHub). It describes the `/uploads/*` rule, the exact `font-src` and the font step of an upgrade.
+  8. **Found on the way: a race in the uploads check.**
+     - On a preview that had just started, the check added its `<img>` to `<main>` while React was still hydrating, which is React error 418 (a hydration mismatch). It showed as a page error once.
+     - The check now waits until `<main>`'s last element carries React's fiber key.
+     - A probe confirms the cause: adding the node at DOMContentLoaded gives 418, and after the wait it does not. Two runs right after a preview restart passed.
+  9. **Results:**
+     - Lint and typecheck clean. `npm test`: 220 tests, 218 pass, 2 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+     - Rebuild, run with this entry in place:
+       - `Admin shipped: 5 files.`, `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+       - All 19 chunks byte-identical.
+       - `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+     - `check:seo` passes.
+     - `test:browser` passes twice: once with the font cache removed (the fonts came from the network) and once with it in place (from the cache).
+     - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`: no conflict.
 
 ## Risks and open questions
 
