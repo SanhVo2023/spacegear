@@ -68,6 +68,8 @@ export type LoadOptions = { manager?: THREE.LoadingManager; onProgress?: (fracti
 /**
  * Fetches every entry with THREE.FileLoader (byte progress from the response stream; the manifest's
  * sizes weight it), decodes it and wraps it in a texture. Progress: 90% bytes, 10% decoding.
+ * If any map fails, the other downloads are aborted, the maps that did load are released, and the
+ * first error is rethrown, so a failed set never leaves decoded bitmaps behind.
  */
 export async function loadTextureSet<K extends string>(entries: TextureEntry<K>[], { manager = new THREE.LoadingManager(), onProgress }: LoadOptions = {}): Promise<Record<K, THREE.Texture>> {
   const expected = entries.reduce((sum, entry) => sum + entry.bytes, 0) || 1;
@@ -79,21 +81,27 @@ export async function loadTextureSet<K extends string>(entries: TextureEntry<K>[
     onProgress?.(0.9 * (bytes / expected) + (0.1 * decoded) / entries.length);
   };
   const loader = new THREE.FileLoader<Blob>(manager).setResponseType("blob");
-  const pairs = await Promise.all(
-    entries.map(async (entry) => {
-      const blob = await loader.loadAsync(entry.url, (event) => {
-        received.set(entry.key, event.loaded);
-        report();
-      });
-      received.set(entry.key, entry.bytes);
+  const tasks = entries.map(async (entry) => {
+    const blob = await loader.loadAsync(entry.url, (event) => {
+      received.set(entry.key, event.loaded);
       report();
-      const texture = toTexture(entry.kind, await decode(blob));
-      decoded += 1;
-      report();
-      return [entry.key, texture] as const;
-    }),
-  );
-  return Object.fromEntries(pairs) as Record<K, THREE.Texture>;
+    });
+    received.set(entry.key, entry.bytes);
+    report();
+    const texture = toTexture(entry.kind, await decode(blob));
+    decoded += 1;
+    report();
+    return [entry.key, texture] as const;
+  });
+  try {
+    return Object.fromEntries(await Promise.all(tasks)) as Record<K, THREE.Texture>;
+  } catch (error) {
+    manager.abort();
+    for (const result of await Promise.allSettled(tasks)) {
+      if (result.status === "fulfilled") freeTexture(result.value[1]);
+    }
+    throw error;
+  }
 }
 
 /** The hero's first set: the globe tier plus, on desktop, the galaxy backdrop. */
@@ -109,6 +117,12 @@ export function releaseSource(texture: THREE.Texture): void {
   if (typeof ImageBitmap !== "undefined" && data instanceof ImageBitmap) data.close();
 }
 
+/** Closes the decoded copy (if it is still open) and frees the GPU texture. */
+function freeTexture(texture: THREE.Texture): void {
+  releaseSource(texture);
+  texture.dispose();
+}
+
 export function disposeTextureSet(set: Record<string, THREE.Texture>): void {
-  for (const texture of Object.values(set)) texture.dispose();
+  for (const texture of Object.values(set)) freeTexture(texture);
 }

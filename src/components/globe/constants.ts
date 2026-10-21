@@ -11,9 +11,10 @@ export const AXIAL_TILT = 0.41;
 /**
  * Spin about the axis at mount. rotation.y = -(λ + 90°) turns longitude λ toward +Z; the extra -21°
  * allows for the opening frame, where the camera sees the off-centre globe about 21° off-axis.
- * West Africa and Europe face the reader at the first beat.
+ * The final +0.45 rad turns the Atlantic off Mauritania under the ocean glint. West Africa faces
+ * the reader at the first beat.
  */
-export const INITIAL_SPIN = (-(10 + 90 + 21) * Math.PI) / 180;
+export const INITIAL_SPIN = (-(10 + 90 + 21) * Math.PI) / 180 + 0.45;
 /** rad/s, the previous scene's rate. */
 export const IDLE_SPIN = 0.035;
 /** rad/s on top of the surface spin. */

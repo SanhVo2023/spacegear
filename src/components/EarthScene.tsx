@@ -134,7 +134,7 @@ export default function EarthScene({ variant, active, progress, onReady, onLost 
   return (
     <Canvas
       camera={{ position: [0, 0, CAMERA_Z], fov: CAMERA_FOV }}
-      dpr={variant === "cinematic" ? [1, 2] : [1, 1.5]}
+      dpr={variant === "cinematic" ? [1, 1.75] : [1, 1.5]}
       frameloop={active ? "always" : "never"}
       gl={{ antialias: true, alpha: true, powerPreference: variant === "cinematic" ? "high-performance" : "default" }}
       onCreated={({ gl }) => {
@@ -143,7 +143,15 @@ export default function EarthScene({ variant, active, progress, onReady, onLost 
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = EXPOSURE;
         gl.outputColorSpace = THREE.SRGBColorSpace;
-        gl.domElement.addEventListener("webglcontextlost", onLost, { once: true });
+        // R3F force-loses the context 500 ms after the Canvas unmounts; only a loss while the canvas
+        // is still on the page is a real failure.
+        const canvas = gl.domElement;
+        canvas.addEventListener("webglcontextlost", () => { if (canvas.isConnected) onLost(); }, { once: true });
+        // A shader that fails to compile or link drops the canvas and keeps the poster.
+        gl.debug.onShaderError = (context, program, vertexShader, fragmentShader) => {
+          console.error("THREE.WebGLProgram: shader error", context.getProgramInfoLog(program), context.getShaderInfoLog(vertexShader), context.getShaderInfoLog(fragmentShader));
+          onLost();
+        };
       }}
       className="!absolute inset-0"
     >

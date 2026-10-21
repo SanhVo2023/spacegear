@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 
-const { createGlobeMaterials, applyGlobeTextures } = await import("../src/components/globe/materials.ts");
+const { LOOK, createGlobeMaterials, applyGlobeTextures } = await import("../src/components/globe/materials.ts");
 const { BACKDROP_ENTRY, globeEntries } = await import("../src/components/globe/textures.ts");
 
 const MAPS = ["day", "night", "normal", "spec", "clouds"];
@@ -38,6 +38,31 @@ test("a new tier is rebound in place", () => {
   for (const [uniform, key] of [["uDay", "day"], ["uNight", "night"], ["uNormal", "normal"], ["uSpec", "spec"], ["uClouds", "clouds"]]) {
     assert.equal(materials.earth.uniforms[uniform].value, second[key], uniform);
   }
+});
+
+test("the ocean glint is two lobes whose shape and strength come from LOOK", () => {
+  const { earth } = createGlobeMaterials(fakeSet());
+  const u = earth.uniforms;
+  assert.deepEqual(
+    [u.uGlintExp.value, u.uGlintGain.value, u.uSheenExp.value, u.uSheenGain.value],
+    [LOOK.glintExponent, LOOK.glintGain, LOOK.sheenExponent, LOOK.sheenGain],
+  );
+  assert.ok(u.uSunColor.value.equals(new THREE.Color(LOOK.sunColor).multiplyScalar(LOOK.sunIntensity)), "sun colour × LOOK.sunIntensity");
+  assert.match(earth.fragmentShader, /uGlintGain \* pow\(nh, uGlintExp\) \+ uSheenGain \* pow\(nh, uSheenExp\)/);
+  assert.doesNotMatch(earth.fragmentShader, /140\.0|\* 0\.7;/, "no hard-coded glint exponent or gain");
+});
+
+test("the earth shader builds its tangent frame per fragment and decodes relief without bias", () => {
+  const { earth } = createGlobeMaterials(fakeSet());
+  // East and north from the spin axis at each fragment: no interpolated east/north/cos(latitude) varyings.
+  assert.match(earth.vertexShader, /vAxisW = normalize\(mat3\(modelMatrix\) \* vec3\(0\.0, 1\.0, 0\.0\)\)/);
+  assert.match(earth.fragmentShader, /vec3 east = cross\(vAxisW, n0\);[\s\S]*float cosLat = length\(east\);[\s\S]*vec3 north = cross\(n0, east\);/);
+  assert.doesNotMatch(`${earth.vertexShader}\n${earth.fragmentShader}`, /vEastW|vNorthW|vCosLat/);
+  // The encoder (scripts/build-globe-textures.mjs) stores flat as 128 in both channels, × NORMAL_GAIN.
+  assert.match(earth.fragmentShader, /\.rg \* 255\.0 - 128\.0\) \/ \(127\.5 \* uNormalGain\)/);
+  // Relief never lights the night side, and the twilight band still shows over dark oceans.
+  assert.match(earth.fragmentShader, /max\(dot\(n, sun\), 0\.0\) \* smoothstep\(-0\.04, 0\.02, sunDot\)/);
+  assert.match(earth.fragmentShader, /\(albedo \+ 0\.04\) \* uTwilight \* twilight \* uTwilightGain/);
 });
 
 test("no shader raises a possibly negative number to a power", () => {

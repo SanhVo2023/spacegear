@@ -9,7 +9,7 @@ import type { GlobeTextureSet } from "./textures";
  */
 export const LOOK = {
   sunColor: "#fff4e8",
-  sunIntensity: 1.75,
+  sunIntensity: 1.3,
   twilight: "#fa6e43",
   twilightGain: 0.38,
   city: "#ffb46b",
@@ -19,6 +19,11 @@ export const LOOK = {
   relief: 3,
   cloudShadow: 0.45,
   nightAmbient: 0.0125,
+  /** Ocean specular: a tight sun glint plus a broad, faint sheen (Blinn-Phong exponents and gains). */
+  glintExponent: 700,
+  glintGain: 0.7,
+  sheenExponent: 40,
+  sheenGain: 0.055,
 } as const;
 
 export type GlobeMaterials = { earth: THREE.ShaderMaterial };
@@ -48,6 +53,10 @@ export function createGlobeMaterials(textures: GlobeTextureSet): GlobeMaterials 
       uCloudOffset: { value: 0 },
       uCloudShadow: { value: LOOK.cloudShadow },
       uNightAmbient: { value: LOOK.nightAmbient },
+      uGlintExp: { value: LOOK.glintExponent },
+      uGlintGain: { value: LOOK.glintGain },
+      uSheenExp: { value: LOOK.sheenExponent },
+      uSheenGain: { value: LOOK.sheenGain },
     },
   });
   return { earth };

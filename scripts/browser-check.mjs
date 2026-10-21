@@ -234,6 +234,18 @@ try {
       assert.ok(await deep.evaluate(() => Math.abs(document.getElementById("pricing").getBoundingClientRect().top) < 200), "desktop: deep link to #pricing must land on the section");
       await deep.close();
       report.interactions.push("desktop deep link to #pricing lands on the section after hydration");
+
+      // Crossing the 1024 px breakpoint unmounts the scene (R3F force-loses its context 500 ms later)
+      // and a return remounts it: the globe must come back rather than stay "failed".
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.setViewportSize({ width: 900, height: profile.height });
+      await page.waitForSelector("#home .hero-scene", { state: "detached" });
+      await page.waitForTimeout(1200);
+      await page.setViewportSize({ width: profile.width, height: profile.height });
+      await page.waitForFunction(() => ["ready", "failed"].includes(document.querySelector("#home .hero-scene")?.dataset.globe), null, { timeout: 45000 });
+      assert.equal(await page.locator("#home .hero-scene").getAttribute("data-globe"), "ready", "desktop: the globe recovers after the viewport crosses 1024 px and back");
+      assert.deepEqual(shaderErrors, [], "desktop /: the remounted globe's shaders compile");
+      report.interactions.push("desktop globe remounts and reaches ready after a resize below 1024 px and back");
     }
     // Runs last so the home-page assertions above keep their original timing.
     if (profile.javaScriptEnabled === false || profile.reducedMotion) {

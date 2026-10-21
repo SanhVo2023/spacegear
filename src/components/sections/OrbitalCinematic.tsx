@@ -48,6 +48,44 @@ class SceneBoundary extends Component<{ children: ReactNode; onError?: () => voi
 }
 
 /**
+ * The cinematic hero's WebGL layer. It exists only in the cinematic branch, so leaving that branch
+ * (a resize below 1024 px, reduced motion turned on) discards its state, and a return mounts a fresh
+ * scene that fades in over the poster again.
+ */
+function HeroScene({ progress, active }: { progress: MotionValue<number>; active: boolean }) {
+  const [ready, setReady] = useState(false);
+  const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
+  const fail = () => setGlobe("failed");
+
+  // Mount the WebGL scene when the browser is idle, after the copy has painted,
+  // and only while the hero is on screen (a reload mid-page fetches nothing).
+  useEffect(() => {
+    if (!active || ready || globe === "failed") return;
+    const enable = () => {
+      if (!hasWebGL2()) return; // keep the poster; fetch no textures
+      setReady(true);
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(enable, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(enable, 0);
+    return () => clearTimeout(timer);
+  }, [active, ready, globe]);
+
+  // The canvas fades in over the poster once its first textured frame has rendered (globals.css).
+  return (
+    <div className="hero-scene absolute inset-0" data-globe={globe} aria-hidden>
+      {ready && globe !== "failed" && (
+        <SceneBoundary onError={fail}>
+          <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe("ready")} onLost={fail} />
+        </SceneBoundary>
+      )}
+    </div>
+  );
+}
+
+/**
  * Scroll-driven layer. It receives the shared `progress` MotionValue as a PROP
  * and runs its own useTransform — the same pattern the word-fill uses, which
  * keeps the bindings live.
@@ -150,27 +188,8 @@ export default function OrbitalCinematic() {
   const outerRef = useRef<HTMLElement | null>(null);
   const cinematic = useSyncExternalStore(subscribe, eligible, () => false);
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
-  const [ready, setReady] = useState(false);
   const [active, setActive] = useState(true);
-  const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   const progress = useMotionValue(0);
-  const fail = () => setGlobe("failed");
-
-  // Mount the WebGL scene when the browser is idle, after the copy has painted,
-  // and only while the hero is on screen (a reload mid-page fetches nothing).
-  useEffect(() => {
-    if (!cinematic || !active || ready || globe === "failed") return;
-    const enable = () => {
-      if (!hasWebGL2()) return; // keep the poster; fetch no textures
-      setReady(true);
-    };
-    if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(enable, { timeout: 2000 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const timer = setTimeout(enable, 0);
-    return () => clearTimeout(timer);
-  }, [cinematic, active, ready, globe]);
 
   // Manual scroll scrubber from the section's own rect; pause rendering offscreen.
   useEffect(() => {
@@ -257,14 +276,8 @@ export default function OrbitalCinematic() {
           <img src="/images/hero-poster.webp" alt="" width={1440} height={900} className="h-full w-full object-cover" />
         </div>
 
-        {/* the 3D scene supplies the galaxy, sun and earth; it fades in over the poster (globals.css) */}
-        <div className="hero-scene absolute inset-0" data-globe={globe} aria-hidden>
-          {ready && globe !== "failed" && (
-            <SceneBoundary onError={fail}>
-              <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe("ready")} onLost={fail} />
-            </SceneBoundary>
-          )}
-        </div>
+        {/* the 3D scene supplies the galaxy, sun and earth */}
+        <HeroScene progress={progress} active={active} />
 
         {/* legibility scrim for the statement beat */}
         <Choreo progress={progress} opacity={[[0.5, 0.62], [0, 0.55]]} className="pointer-events-none absolute inset-0 bg-[#0f0f12]" />

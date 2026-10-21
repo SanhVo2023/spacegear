@@ -5,8 +5,9 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 
-// The visible sun: a faint warm haze upper-left behind the globe, as in the previous scene.
-const SUN_POSITION: [number, number, number] = [-9, 5.5, -26];
+// The visible sun: a faint warm haze in the upper-left corner, behind the globe. Placed high and wide
+// enough that the disc stays clear of the hero copy on common desktop viewports.
+const SUN_POSITION: [number, number, number] = [-20, 12.5, -26];
 
 function sunGlow(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -22,7 +23,7 @@ function sunGlow(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-/** Galaxy sphere, 3D stars and the visible sun (moved here unchanged from the previous EarthScene). */
+/** Galaxy sphere, 3D stars and the visible sun (moved here from the previous EarthScene). */
 export default function Backdrop({ galaxy }: { galaxy: THREE.Texture }) {
   const sky = useRef<THREE.Mesh>(null);
   const glow = useMemo(() => sunGlow(), []);
@@ -44,7 +45,7 @@ export default function Backdrop({ galaxy }: { galaxy: THREE.Texture }) {
           <sphereGeometry args={[0.45, 24, 24]} />
           <meshBasicMaterial color="#ffe9cf" toneMapped={false} />
         </mesh>
-        <sprite scale={[5, 5, 1]}>
+        <sprite scale={[9, 9, 1]}>
           <spriteMaterial map={glow} transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
         </sprite>
       </group>
