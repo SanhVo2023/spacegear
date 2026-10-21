@@ -34,10 +34,14 @@ export type EarthSceneProps = {
 const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
 const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
 
-/** canStream4k for this page: a hardware GPU with 4096 px textures, enough memory, a fast connection. */
+/**
+ * canStream4k for this page: a desktop with a mouse or trackpad, a hardware GPU with 4096 px textures,
+ * enough memory and a fast connection.
+ */
 function streams4k(gl: THREE.WebGLRenderer): boolean {
   return canStream4k({
     viewportWidth: window.innerWidth,
+    finePointer: window.matchMedia("(pointer: fine) and (hover: hover)").matches,
     ...readNavigatorFacts(),
     maxTextureSize: gl.capabilities.maxTextureSize,
     renderer: rendererName(gl.getContext()),

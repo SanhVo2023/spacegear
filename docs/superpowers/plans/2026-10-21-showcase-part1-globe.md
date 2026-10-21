@@ -5283,3 +5283,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `stepDrag` assigns velocity only when `Number.isFinite`.
   - Add a test that 60 Hz and 144 Hz release velocities agree within about 2 % after a steady drag.
 - **Task 9 is high priority.** Until the poster is recaptured, first paint shows the OLD GLB poster: dark, blotchy, with the sun behind the headline.
+- **Task 7 rule amended after the Task 8 review (2026-10-22): the 4k stream needs a fine pointer.**
+  - **Why:** an iPad in landscape (≥ 1024 px) passed `canStream4k`: an Apple GPU, no `deviceMemory`, no `effectiveType`. It then downloaded the 2.08 MiB 4k set, possibly over cellular, and held about 150 MiB of GPU memory, for little visible gain on a touch screen.
+  - **Rule:** `GpuEnv` gains `finePointer`, read in `EarthScene` from `matchMedia("(pointer: fine) and (hover: hover)")`, and `canStream4k` requires it. A tablet in landscape keeps the cinematic hero and its 2k set; it still plays the intro (`INTRO_QUERY` is unchanged).
+  - **Checks:** a unit test (a coarse pointer, an iPad in landscape, a Mac with an Apple GPU) and `coarseLandscapeCheck` in `scripts/globe-stream.mjs`: a 1024×768 touch context with the fake GTX and 8 GB shows the cinematic hero, requests no 4k map and keeps the `2k` tier. The capable-desktop scenario asserts its fine pointer as a precondition.

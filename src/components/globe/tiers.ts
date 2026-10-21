@@ -19,6 +19,8 @@ export function chooseHeroMode(env: DeviceEnv): HeroMode {
 
 export type GpuEnv = {
   viewportWidth: number;
+  /** A mouse or trackpad: `(pointer: fine) and (hover: hover)`. */
+  finePointer: boolean;
   saveData: boolean;
   effectiveType?: string;
   deviceMemory?: number;
@@ -29,9 +31,13 @@ export type GpuEnv = {
 /** Software rasterisers (headless SwiftShader, llvmpipe, Microsoft Basic Render) stay on 2k. */
 const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render/i;
 
-/** The 4k set (≈2.1 MB download, ≈120 MB of GPU memory) streams after idle only on capable desktops. */
+/**
+ * The 4k set (≈2.1 MB download, ≈150 MB of GPU memory after the swap) streams after idle only on capable
+ * desktops. A fine pointer is required: a tablet in landscape (≥ 1024 px, an Apple GPU, no deviceMemory)
+ * would otherwise pass, for little visible gain on a touch screen and possibly over cellular.
+ */
 export function canStream4k(env: GpuEnv): boolean {
-  if (env.viewportWidth < 1024 || env.saveData) return false;
+  if (env.viewportWidth < 1024 || !env.finePointer || env.saveData) return false;
   // Written as !(>=) so an unknown (NaN) texture limit fails too.
   if (!(env.maxTextureSize >= 4096) || SOFTWARE_RENDERER.test(env.renderer)) return false;
   if (env.effectiveType && /^(slow-2g|2g|3g)$/.test(env.effectiveType)) return false;

@@ -251,8 +251,12 @@ test("the hero mode follows the spec's device table", () => {
 });
 
 test("the 4k set streams only to capable desktops with a hardware GPU", () => {
-  const gpu = { viewportWidth: 1440, saveData: false, maxTextureSize: 16384, renderer: "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)" };
+  const gpu = { viewportWidth: 1440, finePointer: true, saveData: false, maxTextureSize: 16384, renderer: "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)" };
   assert.equal(tiers.canStream4k(gpu), true);
+  // A touch screen at a desktop width (an iPad in landscape: an Apple GPU, no deviceMemory) keeps 2k.
+  assert.equal(tiers.canStream4k({ ...gpu, finePointer: false }), false, "a coarse pointer never streams 4k");
+  assert.equal(tiers.canStream4k({ ...gpu, viewportWidth: 1180, finePointer: false, renderer: "Apple GPU" }), false, "an iPad in landscape keeps 2k");
+  assert.equal(tiers.canStream4k({ ...gpu, renderer: "Apple GPU" }), true, "a Mac with an Apple GPU streams 4k");
   assert.equal(tiers.canStream4k({ ...gpu, deviceMemory: 8, effectiveType: "4g" }), true);
   assert.equal(tiers.canStream4k({ ...gpu, deviceMemory: 4 }), false);
   assert.equal(tiers.canStream4k({ ...gpu, saveData: true }), false);

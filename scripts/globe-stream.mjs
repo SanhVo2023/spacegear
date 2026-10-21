@@ -436,6 +436,34 @@ export async function failedStream(page, { watchMs }) {
 }
 
 /**
+ * A tablet in landscape (1024×768, touch, a coarse pointer) that reports a capable GPU and 8 GB of memory:
+ * the cinematic hero shows with its 2k set, but the 4k set never streams, because canStream4k needs a fine
+ * pointer. A repeat view in the session (no intro), so a stream would start STREAM_SETTLE_SECONDS after
+ * the first frame plus an idle callback: the page is watched for `watchMs` after the first frame.
+ */
+export async function coarseLandscapeCheck(browser, base, { watchMs }) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true });
+  try {
+    await context.addInitScript(fakeGpu, CAPABLE_DESKTOP);
+    await context.addInitScript(() => sessionStorage.setItem("spacegear:intro-seen", "1"));
+    const page = await context.newPage();
+    const problems = watchProblems(page);
+    const textures = [];
+    page.on("request", (request) => { if (request.url().includes("/textures/earth/")) textures.push(new URL(request.url()).pathname); });
+    await page.goto(base, { waitUntil: "domcontentloaded" });
+    const pointer = await page.evaluate(() => ({ width: innerWidth, fine: matchMedia("(pointer: fine) and (hover: hover)").matches, coarse: matchMedia("(pointer: coarse)").matches }));
+    assert.deepEqual(pointer, { width: 1024, fine: false, coarse: true }, "tablet landscape: a 1024 px touch screen with a coarse pointer (precondition)");
+    await page.waitForSelector(`${SCENE}[data-globe="ready"]`, { timeout: 45000 });
+    await page.waitForTimeout(watchMs);
+    const facts = { tier: await tierOf(page), textures2k: textures.filter((url) => url.includes("/2k/")).length, textures4k: textures.filter((url) => url.includes("/4k/")), problems };
+    assert.deepEqual(facts, { tier: "2k", textures2k: 5, textures4k: [], problems: [] }, `tablet landscape (reported as ${CAPABLE_GPU}, 8 GB): the cinematic hero keeps its 2k set and never streams 4k on a coarse pointer (watched ${watchMs} ms)`);
+    return { ...facts, watchMs };
+  } finally {
+    await context.close();
+  }
+}
+
+/**
  * The 4k streaming checks on one page that reports a capable desktop (1440×1000): an intro visit
  * (then the hero scrolled away and back, then a lost context), a repeat visit that pauses mid-stream,
  * and a repeat visit whose stream fails. `watchCsp` and `heroLogScript` are browser-check.mjs's;
@@ -461,6 +489,7 @@ export async function streamingCheck(browser, base, { watchCsp, heroLogScript, r
     };
     const stream = await timed("intro visit", async () => {
       await page.goto(base, { waitUntil: "domcontentloaded" });
+      assert.ok(await page.evaluate(() => matchMedia("(pointer: fine) and (hover: hover)").matches), "capable desktop: a mouse, which the 4k rule requires (precondition)");
       return { ...(await introVisit(page, { revealEndMs })), realRenderer: await page.evaluate(() => window.__realRenderer?.() ?? null) };
     });
     const resumeLuma = await timed("scroll away and back", () => checkResumeLit(page));

@@ -4,7 +4,7 @@ import { build } from "esbuild";
 import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
-import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, fakeGpu, streamingCheck } from "./globe-stream.mjs";
+import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -766,6 +766,9 @@ try {
   const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS, settleMs: STREAM_SETTLE_MS, retryWatchMs: RETRY_WATCH_MS });
   report.stream = stream.summary;
   report.interactions.push(stream.line);
+  // A tablet in landscape gets the cinematic hero but never the 4k set (canStream4k needs a fine pointer).
+  const coarse = await coarseLandscapeCheck(browser, base, { watchMs: STREAM_SETTLE_MS + RETRY_WATCH_MS });
+  report.interactions.push(`tablet landscape (1024×768, touch, reported as a capable GPU): the cinematic hero keeps 2k and requests no 4k map within ${coarse.watchMs} ms of its first frame`);
 
   // Phones that cannot afford the globe keep the galaxy and fetch no globe texture: too little memory,
   // Save-Data, no WebGL2, reduced motion, no JavaScript. Each reports a capable GPU otherwise.
