@@ -4,8 +4,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { FORBIDDEN, contentFiles, findForbidden, scanContentTree } from "../scripts/lib/honesty.mjs";
-import { publicText, readContentInput } from "./helpers/content.mjs";
+import { contentFiles, findForbidden, scanContentTree, scanExports, scannedText } from "../scripts/lib/honesty.mjs";
+import { readContentInput } from "./helpers/content.mjs";
 
 const content = await import("../src/lib/content.ts");
 const { buildContent } = await import("../src/lib/content-model.ts");
@@ -17,8 +17,52 @@ test("every public content export exists", () => {
 });
 
 test("public content makes no unverified claims", () => {
-  const text = publicText(content);
-  for (const [pattern, what] of FORBIDDEN) assert.doesNotMatch(text, pattern, `content contains ${what}`);
+  assert.deepEqual(scanExports(content), []);
+});
+
+// Claims the scan must catch in ordinary copy (from the Task 6 review), and copy it must let through.
+const CLAIMS = [
+  "From ＄499 a month", "900 dollars", "900 pounds", "from 5k", "₫20,000,000", "20.000.000 đồng", "Price: 499", "₹9,999", "CHF 900",
+  "hourly rate of 120", "＄４９９", "$４９９", "$​499", "$­499", "Trusted by 200 clients", "200 customers", "40% faster delivery",
+  "10× ROI", "ten times faster", "tripled conversion", "1M users", "Hundreds of clients", "100 projects delivered", "a decade of experience",
+  "Since 2012", "Founded in 2015", "15yrs", "over ten years", "Offices in London and Singapore", "Our Hanoi office", "Headquartered in Saigon",
+  "As seen in Forbes", "Google Cloud Partner", "Delivered in 2 weeks", "launch in 30 days", "within 48 hours", "Award-winning agency",
+  "rated 4.9/5", "5-star reviews", "#1 AI consultancy", "4-6 weeks",
+];
+const ORDINARY = [
+  "Digital transformation and AI consulting, from strategy to working systems.", "Step 01", "Phase 2", "Two weeks of discovery",
+  "ISO 27001", "GDPR Article 6(1)(f)", "Next.js 16", "© 2026 spacegear.tech", "We reply within two working days.", "A 3-step process",
+  "24/7 support", "Version 2.0", "Top 10 risks", "Plan for 2027", "Pricing is agreed per engagement", "No fixed price list", "back-office automation",
+  "Data is stored in the EU", "Cloudflare Workers", "we partner with your team", "3 engagements: assess, build, improve", "under 16",
+  "a featured engagement", "Pricing is based in part on scope", "We work with one team at a time", "Pick one of three engagements",
+];
+
+test("every probe claim is caught in ordinary copy, including look-alike characters", () => {
+  for (const claim of CLAIMS) assert.notDeepEqual(findForbidden(claim, "content/faqs/x.json"), [], claim);
+});
+
+test("ordinary copy passes", () => {
+  for (const text of ORDINARY) assert.deepEqual(findForbidden(text, "content/faqs/x.json"), [], text);
+});
+
+test("scoped rules: the illustrative dashboard may show figures, the legal pages may state periods and name processors", () => {
+  for (const where of ["content/measure.json", "MEASURE"]) assert.deepEqual(findForbidden("62% · 12m → 2m · 99.1%", where), [], where);
+  assert.notDeepEqual(findForbidden("62% faster", "FAQS"), [], "percentages are refused everywhere else");
+  const retention = "We keep records for 2 years, and closed inquiries within 90 days.";
+  assert.deepEqual(findForbidden(retention, "content/legal/terms.md"), []);
+  assert.notDeepEqual(findForbidden(retention, "content/faqs/x.json"), [], "outside the legal pages it reads as a claim");
+  assert.deepEqual(findForbidden("Inquiries are stored with Amazon Web Services (AWS).", "content/legal/privacy.md"), []);
+  // Every processor the legal pages name passes in any file.
+  const legal = ["privacy", "terms"].map((page) => fs.readFileSync(`content/legal/${page}.md`, "utf8")).join("\n");
+  const processors = [...new Set(legal.match(/Cloudflare(?: [A-Z][a-z]+)*/g))];
+  assert.ok(processors.length >= 3, processors.join(", "));
+  for (const name of processors) assert.deepEqual(findForbidden(name, "content/faqs/x.json"), [], name);
+});
+
+test("a JSON escape cannot hide a claim from the file scan", () => {
+  assert.deepEqual(findForbidden('{"quote":"Saved us \\u0024200k."}', "content/testimonials/a.json"), [], "the raw text alone hides it");
+  assert.notDeepEqual(findForbidden(scannedText("content/testimonials/a.json", '{"quote":"Saved us \\u0024200k."}'), "content/testimonials/a.json"), []);
+  assert.equal(scannedText("content/legal/terms.md", "## A\n\n\\u0024"), "## A\n\n\\u0024", "Markdown is scanned as written");
 });
 
 test("no file under content/ makes an unverified claim, including fields the site does not render", () => {
@@ -36,7 +80,7 @@ test("a price written into a content entry fails both scans (temporary copy, rea
     fs.writeFileSync(path.join(root, planted), JSON.stringify(entry, null, 2));
     assert.ok(scanContentTree(root).some((problem) => problem.startsWith(`${planted}: a price`)), "the file scan flags it");
     const built = buildContent(readContentInput(root));
-    assert.ok(findForbidden(publicText(built)).some((problem) => problem.startsWith("a price")), "the loaded-content scan flags it");
+    assert.ok(scanExports(built).some((problem) => problem.startsWith("FAQS: a price")), "the loaded-content scan flags it");
     assert.equal(fs.existsSync(planted), false, "the real content tree is untouched");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -77,7 +121,7 @@ test("check-content passes the committed content and lists every problem by file
     result = run();
     assert.equal(result.status, 1);
     assert.match(result.stderr, /^Content check failed\. Fix these problems:$/m);
-    for (const problem of ['content contains a price ("$4")', 'forbidden claim in content/faqs/what-we-do.json: a price ("$4")']) {
+    for (const problem of ['forbidden claim in export FAQS: a price ("$4")', 'forbidden claim in content/faqs/what-we-do.json: a price ("$4")']) {
       assert.ok(listed(result).includes(problem), `${problem}\n${result.stderr}`);
     }
 

@@ -24,6 +24,3 @@ export function readContentInput(root = ".") {
   ]));
   return input;
 }
-
-/** The exported values (not functions) of a content module or a buildContent() result, as one string. */
-export const publicText = (content) => JSON.stringify(Object.entries(content).filter(([, value]) => typeof value !== "function").map(([, value]) => value));

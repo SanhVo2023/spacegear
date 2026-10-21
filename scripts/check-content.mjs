@@ -9,7 +9,7 @@ import { parseContent } from "../src/lib/content-schema.ts";
 import { siteSchema } from "../src/lib/content-model.ts";
 import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
-import { findForbidden, scanContentTree } from "./lib/honesty.mjs";
+import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
 const errors = [];
 // Node names a broken JSON import (or a missing entry) by its absolute path: print it from ROOT.
@@ -46,9 +46,9 @@ if (content) {
     if (!service.summary || !service.buyerProblem || !service.deliverables.length || !service.faqs.length) errors.push(`incomplete service: ${service.slug}`);
   }
   if (CASE_STUDIES.some((study) => study.published && !study.approved)) errors.push("unverified published case study");
-  // Honesty: no invented prices, metrics, press, scale or offices in the loaded copy...
-  const values = Object.entries(content).filter(([, value]) => typeof value !== "function").map(([, value]) => value);
-  for (const problem of findForbidden(JSON.stringify(values))) errors.push(`content contains ${problem}`);
+  // Honesty (scripts/lib/honesty.mjs): no invented prices, clients, results, offices, press or
+  // timelines in any loaded export (each scanned on its own, for the scoped rules)...
+  for (const problem of scanExports(content)) errors.push(`forbidden claim in export ${problem}`);
 }
 // ...or in any file under content/, including fields the site does not render.
 await attempt(() => { for (const problem of scanContentTree(ROOT)) errors.push(`forbidden claim in ${problem}`); });
