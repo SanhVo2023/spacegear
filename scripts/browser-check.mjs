@@ -16,12 +16,23 @@ assert.ok(homeHeaders.has("x-content-type-options"), "/ serves X-Content-Type-Op
 // (intro-store.ts) and the delay of the pure-CSS failsafe (globals.css).
 const introSource = await fs.readFile(new URL("../src/components/globe/intro-store.ts", import.meta.url), "utf8");
 const introConstant = name => Number(introSource.match(new RegExp(`export const ${name} = (\\d+);`))?.[1]);
-const INTRO = { loadCap: introConstant("INTRO_LOAD_CAP_MS"), extraCap: introConstant("INTRO_EXTRA_CAP_MS"), reveal: introConstant("INTRO_REVEAL_MS") };
+const INTRO = { loadCap: introConstant("INTRO_LOAD_CAP_MS"), extraCap: introConstant("INTRO_EXTRA_CAP_MS"), hold: introConstant("INTRO_HOLD_MS"), reveal: introConstant("INTRO_REVEAL_MS") };
 const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
 INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
 const browser = await launchBrowser();
 const report = { testedAt: new Date().toISOString(), base, browser: browser.version(), profiles: [], interactions: [] };
 await fs.mkdir("artifacts", { recursive: true });
+
+// Intro and globe state changes with timestamps from navigation start (data-intro on <html>, data-globe
+// on the hero scene). Observing the document catches the inline gate's change to <html> during parsing.
+function heroLogScript() {
+  const now = performance.now.bind(performance);
+  window.__heroLog = [];
+  new MutationObserver(records => { for (const r of records) window.__heroLog.push({ attr: r.attributeName, value: r.target.getAttribute(r.attributeName), t: now() }); })
+    .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe"] });
+}
+// Holds a route for `ms` before letting it through (slow textures or scripts).
+const late = ms => async route => { await new Promise(resolve => setTimeout(resolve, ms)); await route.continue().catch(() => {}); };
 
 // The hero headline: every word in its own mask, risen into place and unclipped; the plain text.
 const heroWords = page => page.evaluate(() => {
@@ -76,6 +87,15 @@ const heldCopy = page => page.evaluate(() => [...document.querySelectorAll("#hom
   // Motion ends the entrance on blur(0px); the CSS end states use none.
   return !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(style.transform) || !["none", "blur(0px)"].includes(style.filter);
 }).map(el => el.textContent.trim().slice(0, 40)));
+// Polls heldCopy until the hero copy is fully released (or the timeout passes) and returns the last result.
+async function releasedCopy(page, timeout = 6000) {
+  let held = await heldCopy(page);
+  for (const start = Date.now(); held.length && Date.now() - start < timeout;) {
+    await page.waitForTimeout(200);
+    held = await heldCopy(page);
+  }
+  return held;
+}
 
 // Scrolls the page down and back up in steps (so in-view and lazy content gets
 // its chance to appear), then returns the start of every rendered text that is
@@ -181,12 +201,15 @@ try {
     const page = await context.newPage(), errors = [], requests = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("request", request => requests.push(request.url()));
+    // React reports a hydration mismatch in production as minified error #418, #423 or #425: as an
+    // uncaught page error (reportError) or, when it recovers, on the console. Both channels count.
+    const HYDRATION = /hydrat|error #4(18|23|25)\b/i;
+    const hydrationErrors = [];
+    page.on("pageerror", error => { if (HYDRATION.test(error.message)) hydrationErrors.push(error.message.slice(0, 300)); });
+    page.on("console", message => { if (message.type() === "error" && HYDRATION.test(message.text())) hydrationErrors.push(message.text().slice(0, 300)); });
     // three.js reports shader compile and link failures as console errors starting with "THREE.".
     const shaderErrors = [];
     page.on("console", message => { if (message.type() === "error" && /THREE\./.test(message.text())) shaderErrors.push(message.text().slice(0, 300)); });
-    // React reports a hydration mismatch as a recoverable console error (minified #418, #423, #425 in production).
-    const hydrationErrors = [];
-    page.on("console", message => { if (message.type() === "error" && /hydrat|error #4(18|23|25)\b/i.test(message.text())) hydrationErrors.push(message.text().slice(0, 300)); });
     await page.addInitScript(() => {
       window.__audit = { cls: 0, lcp: 0, lcpElement: null, longTasks: 0, longestTask: 0, rafRequests: 0 };
       const originalRaf = window.requestAnimationFrame;
@@ -201,12 +224,8 @@ try {
       new PerformanceObserver(list => {
         for (const e of list.getEntries()) { window.__audit.longTasks++; window.__audit.longestTask = Math.max(window.__audit.longestTask, Math.round(e.duration)); }
       }).observe({ type: "longtask", buffered: true });
-      // Intro and globe state changes with timestamps (data-intro on <html>, data-globe on the hero scene).
-      // Observing the document catches the inline gate's change to <html> during parsing.
-      window.__heroLog = [];
-      new MutationObserver(records => { for (const r of records) window.__heroLog.push({ attr: r.attributeName, value: r.target.getAttribute(r.attributeName), t: performance.now() }); })
-        .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe"] });
     });
+    await page.addInitScript(heroLogScript);
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
@@ -333,17 +352,17 @@ try {
       // Any input ends the intro at once. Tab lands on the skip link, which shows above the overlay with its focus ring.
       const skipPage = await context.newPage(); // a new tab is a new session: the intro plays
       // Hold the textures so the intro is still loading when the key is pressed.
-      await skipPage.route("**/textures/earth/**", async route => { await new Promise(resolve => setTimeout(resolve, 3000)); await route.continue().catch(() => {}); });
+      await skipPage.route("**/textures/earth/**", late(3000));
       await skipPage.goto(base, { waitUntil: "domcontentloaded" });
       await skipPage.waitForSelector("#home .hero-scene", { state: "attached", timeout: 30000 }); // hydrated: the overlay listens for input
       const loading = await overlayState(skipPage);
       assert.ok(loading.intro === "play" && loading.display === "flex", `desktop: the intro is still loading (precondition for the skip check: ${JSON.stringify(loading)})`);
-      // The overlay is never read out (the counter is aria-hidden), holds nothing focusable, never takes
-      // pointer events and sits outside main.
+      // The overlay is never read out (the counter is aria-hidden), holds nothing focusable and sits
+      // outside main. While loading it takes pointer presses itself (see the click checks below).
       assert.deepEqual(await skipPage.evaluate(() => {
         const overlay = document.querySelector(".intro-overlay");
         return { ariaHidden: overlay.getAttribute("aria-hidden"), focusable: overlay.querySelectorAll("a, button, input, select, textarea, [tabindex]").length, pointerEvents: getComputedStyle(overlay).pointerEvents, inMain: Boolean(overlay.closest("main")) };
-      }), { ariaHidden: "true", focusable: 0, pointerEvents: "none", inMain: false }, "desktop: the intro overlay is hidden from assistive technology and cannot take focus or clicks");
+      }), { ariaHidden: "true", focusable: 0, pointerEvents: "auto", inMain: false }, "desktop: the intro overlay is hidden from assistive technology, cannot take focus and takes the presses aimed at it");
       await skipPage.keyboard.press("Tab");
       const skipped = await overlayState(skipPage);
       assert.ok(skipped.intro === "done" && skipped.display === "none", `desktop: a key press ends the intro at once (${JSON.stringify(skipped)})`);
@@ -354,14 +373,43 @@ try {
         return { skipLink: el.matches(".skip-link"), focusVisible: el.matches(":focus-visible"), outline: getComputedStyle(el).outlineStyle, onTop: Boolean(top && (top === el || el.contains(top))) };
       });
       assert.deepEqual(skipFocus, { skipLink: true, focusVisible: true, outline: "solid", onTop: true }, "desktop: Tab during the intro focuses the visible skip link");
-      await skipPage.waitForTimeout(1800); // the copy rises once the intro has ended
-      assert.deepEqual(await heldCopy(skipPage), [], "desktop: a skipped intro releases the hero copy");
+      assert.deepEqual(await releasedCopy(skipPage), [], "desktop: a skipped intro releases the hero copy");
       await skipPage.close();
       report.interactions.push("desktop intro: Tab ends it at once and focuses the visible skip link; the copy is released");
 
+      // A press on the black overlay ends the intro but never activates what lies hidden under it: the
+      // hero CTA, the nav's Contact link or the corner card. A deliberate click afterwards still works.
+      const spots = [];
+      for (const target of ["hero CTA", "nav Contact", "corner card"]) {
+        const clickPage = await context.newPage();
+        await clickPage.route("**/textures/earth/**", late(8000));
+        await clickPage.goto(base, { waitUntil: "domcontentloaded" });
+        await clickPage.waitForSelector("#home .hero-scene", { state: "attached", timeout: 30000 }); // hydrated
+        const spot = await clickPage.evaluate(which => {
+          const el = which === "hero CTA" ? document.querySelector('#home .hero-copy a[href="/contact/"]')
+            : which === "nav Contact" ? [...document.querySelectorAll("header a")].find(a => a.textContent.trim() === "Contact")
+            : document.querySelector('#home a[href="/services/applied-ai/"]');
+          const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+          return { x, y, href: el.getAttribute("href"), covered: Boolean(document.elementFromPoint(x, y)?.closest(".intro-overlay")) };
+        }, target);
+        const before = await overlayState(clickPage);
+        assert.ok(before.intro === "play" && spot.covered, `desktop: the overlay covers the ${target} while the intro loads (precondition: ${JSON.stringify({ before, spot })})`);
+        const url = clickPage.url();
+        await clickPage.mouse.click(spot.x, spot.y);
+        await clickPage.waitForTimeout(800);
+        const after = await overlayState(clickPage);
+        assert.ok(clickPage.url() === url && after.intro === "done", `desktop: a click on the overlay over the ${target} ends the intro without following ${spot.href} (${JSON.stringify({ url: clickPage.url(), after })})`);
+        if (target === "hero CTA") {
+          await Promise.all([clickPage.waitForURL("**/contact/", { timeout: 10000 }), clickPage.locator('#home .hero-copy a[href="/contact/"]').click()]);
+        }
+        spots.push(`${target} ${spot.href}`);
+        await clickPage.close();
+      }
+      report.interactions.push(`desktop intro: a click on the overlay over the ${spots.join(", ")} ends it without navigating; the next deliberate click on the CTA navigates`);
+
       // Pure-CSS failsafe: when the overlay's script never runs, the overlay hides itself and the held
       // hero copy shows after the failsafe delay.
-      assert.ok(INTRO.failsafe > INTRO.loadCap + INTRO.reveal, `the CSS failsafe (${INTRO.failsafe} ms) waits out the load cap plus the reveal`);
+      assert.ok(INTRO.failsafe > INTRO.loadCap + INTRO.hold + INTRO.reveal, `the CSS failsafe (${INTRO.failsafe} ms) waits out the load cap, the hold and the reveal`);
       const deadPage = await context.newPage();
       await deadPage.route("**/_next/static/**", route => (route.request().resourceType() === "script" ? route.abort() : route.continue()));
       await deadPage.goto(base, { waitUntil: "load" });
@@ -375,6 +423,28 @@ try {
       assert.deepEqual((await heroWords(deadPage)).unsettled, [], "failsafe: the headline words stand in place without JavaScript");
       await deadPage.close();
       report.interactions.push(`desktop intro failsafe: with the scripts blocked the overlay hides and the copy shows after ${INTRO.failsafe} ms`);
+
+      // Slow textures and late hydration: the load cap still counts from navigation start, so the page
+      // reveals at the cap, before the globe is ready; the globe that arrives afterwards fades in lit,
+      // over the poster, rather than waiting black for a reveal that has already happened.
+      const slowPage = await context.newPage();
+      await slowPage.addInitScript(heroLogScript);
+      await slowPage.route(/\/textures\/earth\/|\/images\/galaxy\.webp/, late(8000));
+      await slowPage.route("**/_next/static/**", route => (route.request().resourceType() === "script" ? late(1500)(route) : route.continue()));
+      await slowPage.goto(base, { waitUntil: "domcontentloaded" });
+      await slowPage.waitForFunction(() => window.__heroLog.some(entry => entry.attr === "data-intro" && entry.value === "done"), null, { timeout: 30000 });
+      const slowLog = await slowPage.evaluate(() => window.__heroLog);
+      const slowAt = (attr, value) => slowLog.find(entry => entry.attr === attr && entry.value === value)?.t;
+      const slowTiming = JSON.stringify({ play: slowAt("data-intro", "play"), reveal: slowAt("data-intro", "reveal"), done: slowAt("data-intro", "done"), ready: slowAt("data-globe", "ready") ?? null });
+      assert.equal(slowAt("data-globe", "ready"), undefined, `desktop slow load: the textures are still loading at the reveal (precondition: ${slowTiming})`);
+      assert.ok(slowAt("data-intro", "reveal") <= INTRO.loadCap + 200, `desktop slow load: the page reveals at the load cap, counted from navigation start (${slowTiming})`);
+      assert.ok(slowAt("data-intro", "done") <= INTRO.loadCap + INTRO.reveal + 300, `desktop slow load: the overlay is gone within the load cap plus the reveal (${slowTiming})`);
+      await slowPage.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
+      await slowPage.waitForTimeout(1200); // the canvas's fade-in over the poster
+      const lateGlobe = pixelStats(await globeCapture(slowPage));
+      assert.ok(lateGlobe.mean > 40 && lateGlobe.stdev > 10, `desktop slow load: a globe ready after the reveal is lit, not left black (${JSON.stringify(lateGlobe)})`);
+      await slowPage.close();
+      report.interactions.push(`desktop slow load (textures +8 s, scripts +1.5 s): reveal at the load cap, globe lit after a late ready (${slowTiming}, ${JSON.stringify(lateGlobe)})`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
@@ -420,8 +490,8 @@ try {
     assert.equal(await page.getByRole("heading", { level: 1, name: words.text, exact: true }).count(), 1, `${profile.name}: the headline's accessible name is the whole sentence`);
     assert.deepEqual(await headingTree(context, page), { name: words.text, roles: ["StaticText"] }, `${profile.name}: Chrome exposes the headline as one heading of plain text, with no group per word`);
     await page.screenshot({ path: `artifacts/${profile.name}.png`, fullPage: false });
-    assert.deepEqual(errors, [], `${profile.name}: console errors`);
     assert.deepEqual(hydrationErrors, [], `${profile.name}: React hydrates without a mismatch (the intro gate edits <html> before hydration)`);
+    assert.deepEqual(errors, [], `${profile.name}: console errors`);
     // No GLB or Draco file is ever requested; reduced motion and no-JS load no globe textures at all.
     const forbidden = requests.filter(url => /\.glb(?:$|\?)|\/draco\//.test(url));
     assert.deepEqual(forbidden, [], `${profile.name}: no GLB or Draco request`);
