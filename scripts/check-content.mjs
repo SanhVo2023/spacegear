@@ -3,6 +3,7 @@
 // problem is printed in one list that names the file, the field or line, and the fix; then the
 // script exits 1. Paths resolve from the project folder (ROOT), wherever the command runs.
 import fs from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import path from "node:path";
 import { validatePublication } from "../src/lib/publication.ts";
 import { parseContent } from "../src/lib/content-schema.ts";
@@ -10,17 +11,34 @@ import { siteSchema } from "../src/lib/content-model.ts";
 import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
+import { pathsFromRoot } from "./lib/project-path.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
 const errors = [];
 // Node names a broken JSON import (or a missing entry) by its absolute path: print it from ROOT.
-// Windows paths are case-insensitive, so the match is too.
-const projectPath = new RegExp(`${ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\s'":]*)`, process.platform === "win32" ? "gi" : "g");
-const fromRoot = (message) => message.replace(projectPath, (_, rest) => rest.replaceAll("\\", "/"));
-/** Errors that describe the content (a file to fix), not a bug in the code. */
-const isContentError = (error) => error instanceof SyntaxError || ["ERR_MODULE_NOT_FOUND", "ENOENT"].includes(error?.code);
+const fromRoot = pathsFromRoot(ROOT);
+/**
+ * Errors that describe the content (a file to fix), not a bug in the code: a missing file or
+ * entry, or a syntax error in a content file. A syntax error in code (src/lib/content.ts, a
+ * JSON.parse in a script) keeps its stack.
+ */
+const isContentError = (error) => ["ERR_MODULE_NOT_FOUND", "ENOENT"].includes(error?.code)
+  || (error instanceof SyntaxError && fromRoot(error.message).startsWith("content/"));
+/** The module under src/lib/ that does not parse: Node's TypeScript syntax error does not name it. */
+function unparsableModule() {
+  const dir = path.join(ROOT, "src", "lib");
+  for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".ts")).sort()) {
+    try {
+      stripTypeScriptTypes(fs.readFileSync(path.join(dir, name), "utf8"));
+    } catch {
+      return `src/lib/${name}`;
+    }
+  }
+  return "";
+}
 /**
  * Runs one check. A content error adds its list of problems (ContentError, LegalPageError) or its
- * message (broken JSON, missing file); anything else is a bug in the code and keeps its stack.
+ * message (broken JSON, missing file); anything else is a bug in the code and keeps its stack,
+ * prefixed with the file when Node does not name it.
  */
 async function attempt(run) {
   try {
@@ -28,7 +46,10 @@ async function attempt(run) {
   } catch (error) {
     if (Array.isArray(error?.issues)) errors.push(...error.issues);
     else if (isContentError(error)) errors.push(fromRoot(error.message));
-    else errors.push(error instanceof Error && error.stack ? error.stack : String(error));
+    else {
+      const file = error?.code === "ERR_INVALID_TYPESCRIPT_SYNTAX" ? unparsableModule() : "";
+      errors.push(`${file ? `${file}: ` : ""}${error instanceof Error && error.stack ? error.stack : String(error)}`);
+    }
     return undefined;
   }
 }

@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { contentFiles, findForbidden, scanContentTree, scanExports, scanFile } from "../scripts/lib/honesty.mjs";
+import { pathsFromRoot } from "../scripts/lib/project-path.mjs";
 import { readContentInput } from "./helpers/content.mjs";
 
 const content = await import("../src/lib/content.ts");
@@ -247,7 +248,32 @@ test("check-content passes the committed content and lists every problem by file
     assert.ok(listed(result).includes("TypeError: boom"), result.stderr);
     assert.match(result.stderr, /^\s+at legalSections /m, "the stack is printed");
 
+    // A syntax error in code is a bug too: its stack, and the file Node does not name. (The broken
+    // entry from above would fail the import first, so it is put back.)
+    fs.copyFileSync("content/faqs/who-we-work-with.json", path.join(root, "content/faqs/who-we-work-with.json"));
+    const loader = path.join(root, "src/lib/content.ts");
+    const original = fs.readFileSync(loader, "utf8");
+    fs.writeFileSync(loader, `${original}\nexport const broken = ;\n`);
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).some((problem) => problem.startsWith("src/lib/content.ts: SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]")), result.stderr);
+    assert.match(result.stderr, /^\s+at parseTypeScript /m, "the stack is printed");
+    // So is a SyntaxError that code throws (a JSON.parse of a literal): the stack names the file.
+    // First in the module body, so it runs before the content checks there.
+    fs.writeFileSync(loader, `export const parsed = JSON.parse("{not json");\n${original}`);
+    result = run();
+    assert.equal(result.status, 1);
+    assert.ok(listed(result).some((problem) => problem.startsWith("SyntaxError: ")), result.stderr);
+    assert.match(result.stderr, /^\s+at .*src\/lib\/content\.ts:\d+/m, "the stack names the file");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("paths under the project print from it, case-insensitively on Windows only", () => {
+  const windows = pathsFromRoot("C:\\Work\\Site\\", "win32");
+  assert.equal(windows("ENOENT: open 'c:\\work\\site\\content\\home.json'"), "ENOENT: open 'content/home.json'");
+  const posix = pathsFromRoot("/work/site/", "linux");
+  assert.equal(posix("ENOENT: open '/work/site/content/home.json'"), "ENOENT: open 'content/home.json'");
+  assert.equal(posix("ENOENT: open '/Work/Site/content/home.json'"), "ENOENT: open '/Work/Site/content/home.json'", "POSIX paths keep their case");
 });
 
 test("hero copy keeps the original four-line headline rhythm", () => {
