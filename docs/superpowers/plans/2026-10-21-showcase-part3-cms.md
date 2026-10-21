@@ -3376,6 +3376,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge.
   2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. Expect identical: Part 3 is output-neutral and Task 8 is deferred.
   3. Keep that baseline for the remaining work.
+- **The format-2 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, after the Task 6 review). The copy that step 1 runs from `artifacts/` is therefore format 2: it compares the markup plus the resolved RSC tree and writes a `.format` marker. A format-1 folder (no marker) is refused by `compare`, so save the pre-merge baseline with that copy, not with an older one.
 
 ## Amendments made during execution
 
@@ -3440,6 +3441,57 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   7. **Ordering test.** It reads the moved FAQ's question from the input instead of the literal.
 
   The two Task 3 test files now hold 21 tests (14 before). The content files and the generated index are unchanged.
+- **Task 6** (`3617bed` for the Task 5 parser follow-ups, `22eda15` for Task 6; review follow-ups `b387688`, `a73e8d0`, `0a39f83`). These committed files supersede Task 6's code blocks: `scripts/lib/honesty.mjs`, `scripts/check-content.mjs`, `scripts/html-snapshot.mjs`, `tests/content.test.mjs`, `tests/html-snapshot.test.mjs`.
+  1. **Legal parser** (`3617bed`, `0a39f83`):
+     - a `## ` line starts a block even without a blank line before it. The split uses the `m` flag, so `$` means end of line;
+     - each problem names the file, the line and the character in context. Every problem is listed in `LegalPageError.issues`;
+     - an empty heading reports "the heading is empty". `#` is refused in heading text, and `~~` joins the refused inline syntax;
+     - a bare `-`, `=` or `1.` line is refused too;
+     - "start the page with a heading" is reported once;
+     - `INLINE_SYNTAX` is exported, and the signature is `legalSections(page, root = process.cwd())`;
+     - a leading byte order mark is ignored, and the context excerpt never splits a surrogate pair.
+  2. **Task 6 carry items** (`22eda15`):
+     - `tests/content.test.mjs` held 18 tests, not 17: an extra test runs `check-content` on a temporary copy, from a folder without `content/`;
+     - `check-content` runs every check and prints one list (`Content check failed. Fix these problems:`), then exits 1;
+     - it validates `content/site.json` with `siteSchema` and the legal pages, uses `ROOT` throughout, and prints Node's absolute paths from the project folder;
+     - `buildContent` refuses work tiles that repeat a slug (`Work.tsx` keys tiles by slug) and testimonials that repeat the carousel's `name|company` key;
+     - "no engagement is featured" is skipped when an entry's file has no true/false `featured`.
+  3. **The +622 B chunk split.** The uniqueness checks added about 0.6 KB to `content-model.ts`, which ships in the client bundle.
+     - Turbopack split the root layout's 46,857 B chunk into 11,687 B + 35,792 B. The export went from 155 files to 156.
+     - The layout gained one async `["$","script","script-N",…]` element, and React outlined the RSC rows differently, so the row ids shifted.
+     - The format-1 snapshot reported all 15 pages changed. The markup and the resolved React tree were identical.
+  4. **New gate: format 2** (`b387688`). `html-snapshot.mjs` compares, for each page:
+     - the HTML with only the `self.__next_f.push([1,"…"])` scripts removed. JSON-LD, the RSC bootstrap, the noModule polyfill and the chunk tags stay;
+     - the RSC tree, resolved from row 0. Text rows are decoded by UTF-8 byte length; `I`/`HL`/`HC`/`E`/`W`/`D` rows and hints are read; `$<hex>`, `$L`, `$@`, `$W`, `$Q` and path references are resolved; cycles are marked by depth; client references are reduced to the export name and async flag; only exact layout chunk-script elements are dropped.
+
+     Unknown reference forms, missing rows and unknown row tags throw.
+
+     Proof of the gate:
+     - the synthetic plant tests in `tests/html-snapshot.test.mjs` (8 tests);
+     - 10 reviewer plants on real pages (RSC text, markup attributes, HTML-only and RSC-only JSON-LD, an I-row export name, an HL hint, an RSC className, a chunk-script prop, the noModule script). All were caught.
+
+     Baseline migration:
+     - `artifacts/html-baseline` was renamed to `artifacts/html-baseline-v1`. It is format 1 and normalized: the build ID, the I-row ids and the chunk names were masked, so it could not be converted.
+     - `f1224a3` was rebuilt in a detached checkout; the branch was not moved. That build compared identical to v1 under format 1, 15 pages. Its format-2 snapshot is `artifacts/html-baseline-t5`.
+     - The HEAD build compared identical to it under format 2, 15 pages. Only then was `artifacts/html-baseline` saved from HEAD in format 2.
+
+     Later tasks that touch client code must rebuild and compare. The expected result is still `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+  5. **Honesty coverage** (`a73e8d0`):
+     - **Folding:** text is folded before scanning (NFKC, then `[­​-‍⁠﻿]` removed).
+     - **Decoded JSON:** JSON files are scanned raw and decoded (`scannedText`).
+     - **New patterns:** the reviewer's set (`proposal.mjs`), plus `pounds` and a Unicode-bounded `đồng`. It covers currencies, rates, k/M figures, client and scale counts, percentages, multipliers, founding years and decades, offices, press, partner tiers, ratings and awards, and delivery timelines.
+     - **Scopes:**
+       - the `%` and k/M rules skip `content/measure.json` and `MEASURE`;
+       - the experience and timeline rules skip `content/legal/`;
+       - the `AWS` rule skips `content/legal/`, so a listed processor passes.
+     - **Per-export scan:** loaded content is scanned export by export (`scanExports`). `check-content` prints `forbidden claim in export <NAME>: …` and `forbidden claim in <file>: …`.
+     - **Tests:** all 41 probe claims are caught; 26 ordinary phrases pass; the real tree and the exports have zero hits; the Cloudflare processors named in the legal pages pass in any file.
+     - **Still not caught:** HTML entities such as `&#36;` (React renders them as text, and the legal parser refuses entities) and a literal backslash-u text.
+  6. **Review minors** (`0a39f83`):
+     - `check-content` keeps the stack of a genuine code bug. These stay bare: `issues` lists, `SyntaxError` (a broken `site.json` now throws one), `ERR_MODULE_NOT_FOUND` and `ENOENT`;
+     - the index's refused entry names are an `EntryNameError` with `issues`;
+     - `fromRoot` is case-insensitive on win32.
+  7. **Test counts:** 94 before Task 6, then 107 (`22eda15`), 115 (`b387688`), 119 (`a73e8d0`) and 121 (`0a39f83`).
 
 ## Risks and open questions
 
