@@ -342,6 +342,10 @@ try {
   await formPage.waitForFunction(() => document.activeElement?.getAttribute("role") === "status");
   report.interactions.push("actual form: expired challenge, 503, lost response, input retention, stable retry key, success reset and focus");
   await formPage.close();
+  // >>> CMS (showcase Part 3): /admin/ and /uploads/ headers, the uploads sandbox, and the vendored CMS
+  // booting under its own CSP (scripts/admin-check.mjs).
+  report.interactions.push(...await (await import("./admin-check.mjs")).cmsChecks(browser, base, routes));
+  // <<< CMS
   await fs.writeFile("artifacts/browser-report.json", JSON.stringify(report, null, 2));
   console.log(`Browser checks passed: ${report.profiles.length} profiles; navigation, no-JS/reduced-motion, responsive layout and form recovery.`);
   console.log("Timing measurements are unthrottled local lab observations, not Lighthouse scores or field Core Web Vitals.");

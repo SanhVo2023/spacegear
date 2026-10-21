@@ -48,6 +48,15 @@ try {
     assert.ok(data.og); assets.add(new URL(data.og).pathname);
     report.push({ route, title: data.title, status: response.status(), schemaBlocks: data.jsonLd.length });
   }
+  // >>> CMS (showcase Part 3): /admin/ is for editors only: never in the sitemap, never linked, always noindex.
+  // robots.txt does not disallow it on purpose: a crawler must fetch /admin/ to see its noindex.
+  assert.ok(!routes.some(route => route.startsWith("/admin")), "the sitemap must not list /admin/");
+  assert.ok(![...links].some(link => link.startsWith("/admin")), "no page may link to /admin/");
+  const admin = await fetch(new URL("/admin/", base));
+  assert.equal(admin.status, 200, "/admin/ is served");
+  assert.equal(admin.headers.get("x-robots-tag"), "noindex, nofollow", "/admin/ sends X-Robots-Tag: noindex, nofollow (once) in every publication mode");
+  assert.match(await admin.text(), /<meta name="robots" content="noindex/, "/admin/ carries a robots noindex meta tag");
+  // <<< CMS
   for (const path of [...links, ...assets]) assert.equal((await fetch(new URL(path, base))).status, 200, `broken resource ${path}`);
   for (const route of ["/unknown-page/", "/labs/old-demo/", "/work/old-demo/", "/api/unknown"])
     assert.equal((await fetch(new URL(route, base))).status, 404, `missing route ${route}`);
