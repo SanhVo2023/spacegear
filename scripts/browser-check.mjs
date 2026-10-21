@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { build } from "esbuild";
 import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
+import { canvasShot, dragTurn } from "./globe-drag.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -40,21 +41,14 @@ async function hiddenText(page) {
 }
 
 // Screenshot of the hero globe's canvas alone (the copy, scrim and hint layers hidden), cropped to a
-// region given in fractions of the canvas, downsampled to 96×64 RGB (or to `size`).
-async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }, [sizeW, sizeH] = [96, 64]) {
-  const toggle = hide => page.evaluate(hide => {
-    for (const el of document.querySelectorAll("#home .sticky > :not(.hero-scene)")) {
-      if (hide) el.style.setProperty("visibility", "hidden"); else el.style.removeProperty("visibility");
-    }
-  }, hide);
-  await toggle(true);
-  const png = await page.locator("#home .hero-scene canvas").screenshot();
-  await toggle(false);
+// region given in fractions of the canvas, downsampled to 96×64 RGB.
+async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }) {
+  const png = await canvasShot(page);
   const image = sharp(png);
   const { width, height } = await image.metadata();
   return image
     .extract({ left: Math.round(width * region.x), top: Math.round(height * region.y), width: Math.round(width * region.w), height: Math.round(height * region.h) })
-    .removeAlpha().resize(sizeW, sizeH, { fit: "fill" }).raw().toBuffer();
+    .removeAlpha().resize(96, 64, { fit: "fill" }).raw().toBuffer();
 }
 // Mean and spread of luminance, and the number of distinct colours (4 bits per channel).
 function pixelStats(data) {
@@ -86,12 +80,6 @@ async function settledStats(page, region, timeout = 30000) {
     previous = next;
   }
   throw new Error(`the hero globe did not settle within ${timeout} ms (${JSON.stringify(previous)})`);
-}
-
-function meanDifference(a, b) {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
-  return sum / a.length;
 }
 
 // Records CSP violations and blocked-texture errors on every page and route a context opens.
@@ -184,29 +172,54 @@ try {
       assert.equal(await scene.getAttribute("data-cursor"), "Drag", "desktop: the globe offers a Drag cursor label");
       assert.equal(await scene.evaluate(el => getComputedStyle(el).touchAction), "auto", "desktop: the globe never blocks touch scrolling");
       assert.ok(await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches), "desktop: the test browser reports a fine pointer (drag is fine-pointer only)");
-      // A canvas capture takes about 0.5 s in software WebGL, long enough for the idle spin to carry the
-      // cloud detail across several 96×64 samples. So compare on a coarse 6×4 grid, where the idle spin
-      // moves the surface by a fraction of a cell while a drag turns whole continents out of view. The
-      // idle pair spans more wall-clock time than the drag sequence, so the comparison stays conservative.
-      const COARSE = [6, 4];
-      const idleA = await globeCapture(page, undefined, COARSE);
-      await page.waitForTimeout(700);
-      const idleB = await globeCapture(page, undefined, COARSE);
+      // A slow, held 8° drag turns the surface the way the pointer moved: left, then right, each
+      // measured against an idle sequence with the same timing (scripts/globe-drag.mjs).
       const scrollBefore = await page.evaluate(() => window.scrollY);
-      await page.mouse.move(1000, 520);
-      await page.mouse.down();
-      const dragging = await scene.evaluate(el => el.hasAttribute("data-dragging"));
-      for (let i = 1; i <= 12; i++) await page.mouse.move(1000 - i * 40, 520);
-      await page.mouse.up();
-      const released = await scene.evaluate(el => !el.hasAttribute("data-dragging"));
-      await page.waitForTimeout(250);
-      const dragged = await globeCapture(page, undefined, COARSE);
-      assert.equal(dragging, true, "desktop: pressing on the globe starts a drag");
-      assert.equal(released, true, "desktop: releasing the mouse ends the drag");
+      const turn = await dragTurn(page);
+      const shifts = `left ${turn.inducedLeft} px, right ${turn.inducedRight} px; idle drift ${turn.idle.shift} px`;
+      assert.ok(turn.left.pressed && turn.left.held && turn.right.pressed && turn.right.held, "desktop: pressing on the globe starts a drag that lasts until release");
+      assert.equal(await scene.evaluate(el => el.hasAttribute("data-dragging")), false, "desktop: releasing the mouse ends the drag");
       assert.equal(await page.evaluate(() => window.scrollY), scrollBefore, "desktop: dragging the globe does not scroll the page");
-      const idleChange = meanDifference(idleA, idleB), dragChange = meanDifference(idleB, dragged);
-      assert.ok(dragChange > Math.max(4, idleChange * 3), `desktop: dragging spins the globe (drag ${dragChange.toFixed(1)}, idle ${idleChange.toFixed(1)})`);
-      report.interactions.push(`desktop globe drag spins it without scrolling the page (drag ${dragChange.toFixed(1)}, idle ${idleChange.toFixed(1)})`);
+      assert.ok(turn.inducedLeft < -60 && turn.inducedRight > 60, `desktop: dragging turns the globe's surface with the pointer (${shifts})`);
+      report.interactions.push(`desktop globe drag turns the surface with the pointer without scrolling the page (${shifts})`);
+
+      // A release the page never sees (window blur, a release outside the window) still ends the drag.
+      await page.evaluate(() => addEventListener("pointerdown", e => { window.__pointerId = e.pointerId; }, { capture: true }));
+      const isDragging = () => scene.evaluate(el => el.hasAttribute("data-dragging"));
+      await page.mouse.move(1100, 600);
+      await page.mouse.down();
+      await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+      assert.equal(await isDragging(), false, "desktop: a window blur ends a drag");
+      await page.mouse.up();
+      await page.mouse.down();
+      assert.equal(await isDragging(), true, "desktop: a press after a missed release starts a new drag");
+      await page.evaluate(() => document.querySelector("#home .hero-scene").dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: window.__pointerId, pointerType: "mouse", buttons: 0, clientX: 900, clientY: 600 })));
+      assert.equal(await isDragging(), false, "desktop: a move with the button up ends a drag whose release was missed");
+      await page.mouse.up();
+
+      // Dragging across the hero copy selects no text.
+      const headline = await page.locator("#home h1").boundingBox();
+      await page.mouse.move(headline.x + headline.width + 40, headline.y + headline.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(headline.x + 10, headline.y + headline.height / 2, { steps: 8 });
+      await page.mouse.up();
+      assert.equal(await page.evaluate(() => String(getSelection())), "", "desktop: dragging the globe across the hero copy selects no text");
+
+      // A click on the globe moves focus like a click anywhere else: a keyboard-opened dropdown closes.
+      const services = () => page.evaluate(() => {
+        const item = [...document.querySelectorAll("header li.group")].find(li => li.querySelector("a")?.textContent.includes("Services"));
+        return { focused: item.contains(document.activeElement), visibility: getComputedStyle(item.querySelector(":scope > div")).visibility };
+      });
+      await page.mouse.move(1100, 600);
+      await page.locator("header a").first().focus();
+      for (let i = 0; i < 8 && !(await services()).focused; i++) await page.keyboard.press("Tab");
+      await page.waitForTimeout(300);
+      assert.deepEqual(await services(), { focused: true, visibility: "visible" }, "desktop: Tab opens the Services dropdown (precondition for the globe click)");
+      await page.mouse.click(1100, 600);
+      await page.waitForTimeout(400);
+      assert.equal(await page.evaluate(() => document.activeElement === document.body), true, "desktop: a click on the globe moves focus off the nav");
+      assert.equal((await services()).visibility, "hidden", "desktop: a click on the globe closes a keyboard-opened dropdown");
+      report.interactions.push("desktop globe: a missed release ends the drag, a drag selects no text and a click moves focus");
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
