@@ -3376,7 +3376,10 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge.
   2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. Expect identical: Part 3 is output-neutral and Task 8 is deferred.
   3. Keep that baseline for the remaining work.
-- **The format-2 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, after the Task 6 review). The copy that step 1 runs from `artifacts/` is therefore format 2: it compares the markup plus the resolved RSC tree and writes a `.format` marker. A format-1 folder (no marker) is refused by `compare`, so save the pre-merge baseline with that copy, not with an older one.
+- **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
+  - The copy that step 1 runs from `artifacts/` is therefore format 3. It compares the markup plus the resolved RSC tree, keeps client module ids, and writes a `.format` marker.
+  - `compare` refuses format-1 folders (no marker) and format-2 folders, so save the pre-merge baseline with that copy, not with an older one.
+  - If the post-merge compare reports only changed `"$module"` ids (a client module that moved), re-run it with `--loose-client-ids` to triage. Then re-save the baseline once the moved modules are explained.
 
 ## Amendments made during execution
 
@@ -3441,7 +3444,10 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   7. **Ordering test.** It reads the moved FAQ's question from the input instead of the literal.
 
   The two Task 3 test files now hold 21 tests (14 before). The content files and the generated index are unchanged.
-- **Task 6** (`3617bed` for the Task 5 parser follow-ups, `22eda15` for Task 6; review follow-ups `b387688`, `a73e8d0`, `0a39f83`). These committed files supersede Task 6's code blocks: `scripts/lib/honesty.mjs`, `scripts/check-content.mjs`, `scripts/html-snapshot.mjs`, `tests/content.test.mjs`, `tests/html-snapshot.test.mjs`.
+- **Task 6** (`3617bed` for the Task 5 parser follow-ups, `22eda15` for Task 6; review follow-ups `b387688`, `a73e8d0`, `0a39f83`; Task 6b fix round `33545bc`, `e51c260`, `b55a995`). These committed files supersede Task 6's code blocks:
+  - `scripts/lib/honesty.mjs`, `scripts/check-content.mjs`, `scripts/lib/project-path.mjs`, `scripts/html-snapshot.mjs`;
+  - `tests/content.test.mjs`, `tests/html-snapshot.test.mjs`;
+  - from `0a39f83`: `src/lib/content-model.ts`, `src/lib/legal-markdown.ts`, `scripts/build-content-index.mjs`, `tests/legal.test.mjs` and `tests/content-loader.test.mjs`.
   1. **Legal parser** (`3617bed`, `0a39f83`):
      - a `## ` line starts a block even without a blank line before it. The split uses the `m` flag, so `$` means end of line;
      - each problem names the file, the line and the character in context. Every problem is listed in `LegalPageError.issues`;
@@ -3462,9 +3468,14 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - The format-1 snapshot reported all 15 pages changed. The markup and the resolved React tree were identical.
   4. **New gate: format 2** (`b387688`). `html-snapshot.mjs` compares, for each page:
      - the HTML with only the `self.__next_f.push([1,"…"])` scripts removed. JSON-LD, the RSC bootstrap, the noModule polyfill and the chunk tags stay;
-     - the RSC tree, resolved from row 0. Text rows are decoded by UTF-8 byte length; `I`/`HL`/`HC`/`E`/`W`/`D` rows and hints are read; `$<hex>`, `$L`, `$@`, `$W`, `$Q` and path references are resolved; cycles are marked by depth; client references are reduced to the export name and async flag; only exact layout chunk-script elements are dropped.
+     - the RSC tree, resolved from row 0. Text rows are decoded by UTF-8 byte length; `I`/`HL`/`HC`/`E`/`W`/`D` rows and hints are read; `$<hex>`, `$L`, `$@`, `$W` and `$Q` references are resolved; client references are reduced to the export name and async flag; only exact layout chunk-script elements are dropped.
 
      Unknown reference forms, missing rows and unknown row tags throw.
+
+     **Corrected in format 3 (item 8):**
+     - Format 2 walked path references (`$<hex>:k:k`) by raw array keys, so React's own form `"$0:props:children:0:props:data"` threw.
+     - It also marked any reference into a row that was being resolved as a cycle, so two same-row references to different targets compared equal.
+     - Format 3 resolves paths the way React writes them and marks a cycle only for a containing value.
 
      Proof of the gate:
      - the synthetic plant tests in `tests/html-snapshot.test.mjs` (8 tests);
@@ -3477,8 +3488,8 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
      Later tasks that touch client code must rebuild and compare. The expected result is still `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
   5. **Honesty coverage** (`a73e8d0`):
-     - **Folding:** text is folded before scanning (NFKC, then `[­​-‍⁠﻿]` removed).
-     - **Decoded JSON:** JSON files are scanned raw and decoded (`scannedText`).
+     - **Folding:** text is folded before scanning: NFKC, then the class `[\u{AD}\u{200B}-\u{200D}\u{2060}\u{FEFF}]` removed. The Task 6b round replaced the class with `\p{Cf}` plus U+034F (item 8).
+     - **Decoded JSON:** JSON files were scanned raw and decoded (`scannedText`, `JSON.stringify(JSON.parse(src))`). That kept `\n`, `\t` and `\r` as escapes. Item 8 replaces it with a field-by-field scan of the decoded values.
      - **New patterns:** the reviewer's set (`proposal.mjs`), plus `pounds` and a Unicode-bounded `đồng`. It covers currencies, rates, k/M figures, client and scale counts, percentages, multipliers, founding years and decades, offices, press, partner tiers, ratings and awards, and delivery timelines.
      - **Scopes:**
        - the `%` and k/M rules skip `content/measure.json` and `MEASURE`;
@@ -3492,6 +3503,54 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - the index's refused entry names are an `EntryNameError` with `issues`;
      - `fromRoot` is case-insensitive on win32.
   7. **Test counts:** 94 before Task 6, then 107 (`22eda15`), 115 (`b387688`), 119 (`a73e8d0`) and 121 (`0a39f83`).
+  8. **Task 6b fix round** (after the second review; each fix turned the reviewer's probe in `scratchpad/t6b-review/` green).
+     - **HTML snapshot format 3** (`33545bc`):
+       - **Path references** are resolved as React's Flight server writes them:
+         - `type`/`key`/`props`/`_owner` name items 1–4 of an `["$",…]` element;
+         - a path that walks through another reference follows that reference, with its own path, first;
+         - a path through a `$W`/`$Q`/`$@` value throws.
+       - **Cycles:** a reference is a cycle only when its row and path contain the value being resolved. Any other reference, also one into the same row, is resolved from the row's raw value.
+       - **Client identity:** client references keep their module id (`"$module"`). `compare --loose-client-ids` drops the ids and warns; it is for triaging a module that moved, for example at the merge.
+       - **Other changes:** hints are sorted (by their masked form); the build ID is the page's own row-0 `"b"`, and `.next/BUILD_ID` is not read; the dead `I[…]` and escaped chunk-list masks are gone, since the first one also masked markup text.
+       - **Format refusal:** `compare` refuses format-1 and format-2 folders.
+       - **Tests:** React's real dedupe output, from Next's compiled Flight server inside the test; same-row targets differ; cycles; inner references; both client-swap probes; hint order; markup `I[42,`; the CLI flags. The reviewer's `plants.mjs` gives 0 wrong results, its blind-spot probes are now caught, and `normalize-all.mjs` gives 0 throws.
+     - **Baseline chain:**
+       1. The reviewer's rebuild of `962ceb8` in `dist/` was confirmed identical to `html-baseline` (renamed `artifacts/html-baseline-v2`) and to `html-baseline-t5` under the saved format-2 script.
+       2. The format-3 `artifacts/html-baseline` was saved from that same `dist/`.
+       3. After the fixes, the rebuild compared identical under format 3, 15 pages.
+
+       The site output did not change in this round.
+     - **Honesty** (`e51c260`):
+       - **Decoded fields:** JSON files and exports are scanned as decoded string values, field by field, and problems name their field. Escaped line breaks and tabs no longer hide claims. Object keys are not scanned, because every schema has fixed field names.
+       - **Figure groups:** every object with a `value`, `unit`, `label` or `score` is also read as one text: `<value><unit> <score> <label> <scoreLabel> <sub> <title> <note> <tag>`. The real `HOME.stats` ("05 Core services", "03 Ways to engage") pass.
+       - **ReDoS:** `(?<![\w.,])` lookbehinds and bounded quantifiers make every pattern linear. The reviewer's 1 MB shapes take 46–73 ms each (before: 8–19 s at 100 KB); 18 more shapes for the new rules take ≤ 73 ms. A 200 KB regression test runs in `npm test`.
+       - **False positives fixed:**
+         - a "per X" price needs a number;
+         - "hundreds/thousands/millions of" needs a client noun;
+         - narrow exclusions for "decades-old", "HQ audio", "Our #1 rule", "100% of the code/IP/work" and "4K display".
+       - **Scopes:**
+         - in `measure.json` and `MEASURE`, only the figure fields (`FIGURE_FIELD`) skip the `%` and k/M rules;
+         - in `content/legal/`, only the "N years" and generic period rules and the bare `AWS` rule skip. Founding years, decades, delivery promises ("We deliver every project within 2 weeks") and partner tiers stay refused there.
+       - **Folding:** NFKC, then `\p{Cf}` and U+034F are removed. Invisible characters in source are written as `\u{…}` escapes.
+       - **New patterns, each with positive and negative tests:**
+         - star ratings;
+         - ISO/SOC certifications (a bare "ISO 27001" passes);
+         - "Fortune N";
+         - N-hour/N-day turnarounds;
+         - spelled-out client and team counts;
+         - client results ("Client satisfaction"), which also closes the dashboard's figure-plus-label gap.
+     - **check-content** (`b55a995`):
+       - a `SyntaxError` is a content problem only when its message names a `content/` file;
+       - a TypeScript syntax error in code keeps its stack and names the `src/lib` module that does not parse (Node's error does not name it);
+       - `pathsFromRoot` (`scripts/lib/project-path.mjs`) takes the platform, and a test covers case folding.
+     - **Known limitations (documented, not fixed):**
+       - Vietnamese phrasing: the site is English-only today; revisit when Vietnamese copy is planned;
+       - look-alike letters (Cyrillic "Ѕince") and non-ASCII digits (Arabic-Indic "٤٩٩");
+       - HTML entities such as `&#36;`;
+       - a literal backslash-u text;
+       - a claim split over list items (`["Since", "2012"]`);
+       - copy in JSON keys (refused by the schemas anyway).
+     - **Test counts:** 126 after `33545bc`, 130 after `b55a995`.
 
 ## Risks and open questions
 
