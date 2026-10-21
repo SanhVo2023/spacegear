@@ -57,7 +57,7 @@ function syntaxProblems(text: string, pattern: RegExp, where: string, hint: stri
 
 export function parseLegalMarkdown(source: string, file: string): LegalSection[] {
   // A byte order mark would hide the front matter.
-  const normalized = source.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const normalized = source.replace(/^\u{FEFF}/u, "").replace(/\r\n?/g, "\n");
   const frontMatter = FRONT_MATTER.exec(normalized)?.[0] ?? "";
   const rest = normalized.slice(frontMatter.length);
   const body = rest.trim();

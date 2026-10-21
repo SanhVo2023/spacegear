@@ -133,8 +133,8 @@ test("heading, block and placement problems say what to change", () => {
 
 test("a byte order mark before the front matter or the first heading is ignored", () => {
   const expected = [{ heading: "A", paragraphs: ["Text"] }];
-  assert.deepEqual(parseLegalMarkdown("﻿---\ntitle: x\n---\n## A\n\nText", "x.md"), expected);
-  assert.deepEqual(parseLegalMarkdown("﻿## A\n\nText", "x.md"), expected);
+  assert.deepEqual(parseLegalMarkdown("\u{FEFF}---\ntitle: x\n---\n## A\n\nText", "x.md"), expected);
+  assert.deepEqual(parseLegalMarkdown("\u{FEFF}## A\n\nText", "x.md"), expected);
 });
 
 test("the context around a problem never splits a surrogate pair", () => {

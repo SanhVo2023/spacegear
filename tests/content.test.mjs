@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { contentFiles, findForbidden, scanContentTree, scanExports, scannedText } from "../scripts/lib/honesty.mjs";
+import { contentFiles, findForbidden, scanContentTree, scanExports, scanFile } from "../scripts/lib/honesty.mjs";
 import { readContentInput } from "./helpers/content.mjs";
 
 const content = await import("../src/lib/content.ts");
@@ -20,14 +20,25 @@ test("public content makes no unverified claims", () => {
   assert.deepEqual(scanExports(content), []);
 });
 
-// Claims the scan must catch in ordinary copy (from the Task 6 review), and copy it must let through.
+// Claims the scan must catch in ordinary copy (from the Task 6 reviews), and copy it must let through.
 const CLAIMS = [
+  // Prices, also written with look-alike or invisible characters.
   "From ＄499 a month", "900 dollars", "900 pounds", "from 5k", "₫20,000,000", "20.000.000 đồng", "Price: 499", "₹9,999", "CHF 900",
-  "hourly rate of 120", "＄４９９", "$４９９", "$​499", "$­499", "Trusted by 200 clients", "200 customers", "40% faster delivery",
-  "10× ROI", "ten times faster", "tripled conversion", "1M users", "Hundreds of clients", "100 projects delivered", "a decade of experience",
-  "Since 2012", "Founded in 2015", "15yrs", "over ten years", "Offices in London and Singapore", "Our Hanoi office", "Headquartered in Saigon",
-  "As seen in Forbes", "Google Cloud Partner", "Delivered in 2 weeks", "launch in 30 days", "within 48 hours", "Award-winning agency",
-  "rated 4.9/5", "5-star reviews", "#1 AI consultancy", "4-6 weeks",
+  "hourly rate of 120", "499 per month", "49 a month", "49/mo", "＄４９９", "$４９９", "$\u{200B}499", "$\u{AD}499", "$\u{200E}499",
+  "$\u{202A}499", "$\u{2061}499", "$\u{34F}499", "$\u{180E}499", "$\t499", "$\n499",
+  // Clients, scale and results.
+  "Trusted by 200 clients", "Trusted by 200\nclients", "200 customers", "40% faster delivery", "10× ROI", "ten times faster",
+  "tripled conversion", "1M users", "Hundreds of clients", "dozens of enterprise clients", "100 projects delivered", "two hundred clients",
+  "a team of thirty engineers", "trusted by Fortune 500", "98% Client satisfaction",
+  // Experience and offices.
+  "a decade of experience", "Since 2012", "Founded in 2015", "since the 1990s", "15yrs", "over ten years", "Offices in London and Singapore",
+  "Our Hanoi office", "Headquartered in Saigon", "Our HQ in Hanoi",
+  // Press, partners, ratings, awards and certifications.
+  "As seen in Forbes", "Featured in TechCrunch", "Google Cloud Partner", "We are an AWS Advanced Tier Partner", "Award-winning agency",
+  "rated 4.9/5", "5-star reviews", "#1 AI consultancy", "4.9★", "4.9 stars", "★★★★★", "ISO 27001 certified", "SOC 2 Type II", "SOC 2 certified",
+  // Delivery timelines.
+  "Delivered in 2 weeks", "launch in 30 days", "within 48 hours", "4-6 weeks", "We deliver every project within 2 weeks", "delivered in two weeks",
+  "48-hour turnaround", "24h turnaround",
 ];
 const ORDINARY = [
   "Digital transformation and AI consulting, from strategy to working systems.", "Step 01", "Phase 2", "Two weeks of discovery",
@@ -35,34 +46,99 @@ const ORDINARY = [
   "24/7 support", "Version 2.0", "Top 10 risks", "Plan for 2027", "Pricing is agreed per engagement", "No fixed price list", "back-office automation",
   "Data is stored in the EU", "Cloudflare Workers", "we partner with your team", "3 engagements: assess, build, improve", "under 16",
   "a featured engagement", "Pricing is based in part on scope", "We work with one team at a time", "Pick one of three engagements",
+  // False positives found in the Task 6b review.
+  "One team per project", "access per user", "One review per sprint", "thousands of documents", "millions of records",
+  "decades-old systems", "HQ audio", "Our #1 rule", "You own 100% of the code", "4K display",
+  // Near misses of the optional patterns.
+  "a North Star metric", "Star schema", "We help you prepare for SOC 2", "Fortune favours the prepared", "a quick turnaround on feedback",
+  "two teams review each release", "Leave your name and email and we’ll take you to a short brief.",
 ];
 
-test("every probe claim is caught in ordinary copy, including look-alike characters", () => {
-  for (const claim of CLAIMS) assert.notDeepEqual(findForbidden(claim, "content/faqs/x.json"), [], claim);
+test("every probe claim is caught in ordinary copy, including look-alike and invisible characters", () => {
+  for (const claim of CLAIMS) assert.notDeepEqual(findForbidden(claim, "content/faqs/x.json"), [], JSON.stringify(claim));
 });
 
 test("ordinary copy passes", () => {
   for (const text of ORDINARY) assert.deepEqual(findForbidden(text, "content/faqs/x.json"), [], text);
 });
 
-test("scoped rules: the illustrative dashboard may show figures, the legal pages may state periods and name processors", () => {
-  for (const where of ["content/measure.json", "MEASURE"]) assert.deepEqual(findForbidden("62% · 12m → 2m · 99.1%", where), [], where);
+test("the sample dashboard may show figures in its figure fields only", () => {
+  const measure = JSON.parse(fs.readFileSync("content/measure.json", "utf8"));
+  assert.deepEqual(scanFile("content/measure.json", JSON.stringify(measure)), [], "the real dashboard passes");
+  assert.deepEqual(findForbidden("62%", "content/measure.json", "workflow.center"), []);
+  assert.deepEqual(findForbidden("12m → 2m", "MEASURE", "stages[0].detail"), []);
+  const edited = {
+    ...measure,
+    ticker: ["Clients see 40% savings", ...measure.ticker.slice(1)],
+    cta: { ...measure.cta, label: "Used by 2M people" },
+    coverage: { ...measure.coverage, label: "Client satisfaction" },
+  };
+  const expected = [
+    'ticker[0]: a result figure ("40%")',
+    'cta: a price or scale figure ("2M")', // the { label, href } group, reported once
+    'coverage: a client result claim ("Client satisfaction")',
+  ];
+  for (const problem of expected) assert.ok(scanFile("content/measure.json", JSON.stringify(edited)).includes(problem), problem);
+  for (const problem of expected) assert.ok(scanExports({ MEASURE: edited }).includes(`MEASURE.${problem}`), `MEASURE.${problem}`);
   assert.notDeepEqual(findForbidden("62% faster", "FAQS"), [], "percentages are refused everywhere else");
-  const retention = "We keep records for 2 years, and closed inquiries within 90 days.";
-  assert.deepEqual(findForbidden(retention, "content/legal/terms.md"), []);
-  assert.notDeepEqual(findForbidden(retention, "content/faqs/x.json"), [], "outside the legal pages it reads as a claim");
-  assert.deepEqual(findForbidden("Inquiries are stored with Amazon Web Services (AWS).", "content/legal/privacy.md"), []);
+});
+
+test("the legal pages may state periods and name processors, but not founding years, promises or partner tiers", () => {
+  const legal = "content/legal/terms.md";
+  for (const text of ["We keep records for 2 years.", "Closed inquiries are deleted within 90 days.", "Notice is given at least 30 days in advance.", "Inquiries are stored with Amazon Web Services (AWS)."]) {
+    assert.deepEqual(findForbidden(text, legal), [], text);
+  }
+  assert.notDeepEqual(findForbidden("We keep records for 2 years.", "content/faqs/x.json"), [], "outside the legal pages a period reads as a claim");
+  for (const text of ["spacegear has served clients since 2012", "a decade of experience", "We deliver every project within 2 weeks", "We are an AWS Advanced Tier Partner"]) {
+    assert.notDeepEqual(findForbidden(text, legal), [], text);
+  }
   // Every processor the legal pages name passes in any file.
-  const legal = ["privacy", "terms"].map((page) => fs.readFileSync(`content/legal/${page}.md`, "utf8")).join("\n");
-  const processors = [...new Set(legal.match(/Cloudflare(?: [A-Z][a-z]+)*/g))];
+  const pages = ["privacy", "terms"].map((page) => fs.readFileSync(`content/legal/${page}.md`, "utf8")).join("\n");
+  const processors = [...new Set(pages.match(/Cloudflare(?: [A-Z][a-z]+)*/g))];
   assert.ok(processors.length >= 3, processors.join(", "));
   for (const name of processors) assert.deepEqual(findForbidden(name, "content/faqs/x.json"), [], name);
 });
 
-test("a JSON escape cannot hide a claim from the file scan", () => {
-  assert.deepEqual(findForbidden('{"quote":"Saved us \\u0024200k."}', "content/testimonials/a.json"), [], "the raw text alone hides it");
-  assert.notDeepEqual(findForbidden(scannedText("content/testimonials/a.json", '{"quote":"Saved us \\u0024200k."}'), "content/testimonials/a.json"), []);
-  assert.equal(scannedText("content/legal/terms.md", "## A\n\n\\u0024"), "## A\n\n\\u0024", "Markdown is scanned as written");
+test("JSON files and exports are scanned as decoded values: escapes, line breaks and tabs hide nothing", () => {
+  const file = "content/faqs/x.json";
+  assert.deepEqual(scanFile(file, '{"answer":"Saved us \\u0024200k."}'), ['answer: a price ("$2")', 'answer: a price or scale figure ("200k")']);
+  assert.deepEqual(scanFile(file, '{"answer":"Trusted by 200\\nclients."}'), ['answer: a client or scale claim ("200\\nclients")']);
+  assert.deepEqual(scanFile(file, '{"answer":"From $\\t499"}'), ['answer: a price ("$\\t4")']);
+  assert.deepEqual(scanExports({ FAQS: [{ question: "Q?", answer: "Trusted by 200\nclients" }], HOME: { statement: "From $\n499" } }), [
+    'FAQS[0].answer: a client or scale claim ("200\\nclients")',
+    'HOME.statement: a price ("$\\n4")',
+  ]);
+  assert.deepEqual(scanFile(file, '{"answer":'), [], "a file that does not parse is left to the loader");
+  assert.deepEqual(scanFile("content/legal/terms.md", "## A\n\n\\u0024"), [], "Markdown is scanned as written");
+});
+
+test("a figure split over value, unit and label fields is read as one claim, and the real stats pass", () => {
+  const home = JSON.parse(fs.readFileSync("content/home.json", "utf8"));
+  assert.deepEqual(scanFile("content/home.json", JSON.stringify(home)), [], `real stats: ${JSON.stringify(home.stats)}`);
+  assert.deepEqual(scanExports({ HOME: content.HOME }), []);
+  const cases = [
+    [{ value: "200", unit: "", label: "Clients served", sub: "Since the start" }, 'stats[0]: a client or scale claim ("200 Clients")'],
+    [{ value: "98", unit: "%", label: "Client satisfaction", sub: "Across projects" }, 'stats[0]: a client result claim ("Client satisfaction")'],
+    [{ value: "98", unit: "%", label: "Satisfaction", sub: "Across projects" }, 'stats[0]: a result figure ("98%")'],
+    [{ value: "12", unit: "", label: "Years in business", sub: "Founded long ago" }, 'stats[0]: an experience claim ("12 Years")'],
+  ];
+  for (const [stat, problem] of cases) {
+    const edited = { ...home, stats: [stat, home.stats[1]] };
+    assert.ok(scanFile("content/home.json", JSON.stringify(edited)).includes(problem), `${problem} in ${JSON.stringify(scanFile("content/home.json", JSON.stringify(edited)))}`);
+    assert.ok(scanExports({ HOME: edited }).includes(`HOME.${problem}`), `HOME.${problem}`);
+  }
+});
+
+test("no pattern is slow on long pathological input", () => {
+  const n = 200_000;
+  const inputs = [
+    `1${" ".repeat(n)}x`, `${"1,".repeat(n / 2)}x`, `${"1.".repeat(n / 2)}x`, `${"1".repeat(n)}x`, `in${" ".repeat(n)}x`,
+    `Google ${"a".repeat(n)}`, `price${" ".repeat(n)}x`, `deliver ${"a ".repeat(n / 2)}`, "1 per ".repeat(n / 6), "two-three ".repeat(n / 10),
+  ];
+  const start = performance.now();
+  for (const text of inputs) findForbidden(text, "content/faqs/x.json");
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 3000, `${inputs.length} inputs of ${n} characters took ${elapsed.toFixed(0)} ms`);
 });
 
 test("no file under content/ makes an unverified claim, including fields the site does not render", () => {
@@ -78,9 +154,9 @@ test("a price written into a content entry fails both scans (temporary copy, rea
     fs.cpSync("content", path.join(root, "content"), { recursive: true });
     const entry = { question: "What does it cost?", answer: "Packages start at $499 per month.", order: 99 };
     fs.writeFileSync(path.join(root, planted), JSON.stringify(entry, null, 2));
-    assert.ok(scanContentTree(root).some((problem) => problem.startsWith(`${planted}: a price`)), "the file scan flags it");
+    assert.ok(scanContentTree(root).some((problem) => problem.startsWith(`${planted}: answer: a price`)), "the file scan flags it");
     const built = buildContent(readContentInput(root));
-    assert.ok(scanExports(built).some((problem) => problem.startsWith("FAQS: a price")), "the loaded-content scan flags it");
+    assert.ok(scanExports(built).some((problem) => /^FAQS\[\d+\]\.answer: a price/.test(problem)), "the loaded-content scan flags it");
     assert.equal(fs.existsSync(planted), false, "the real content tree is untouched");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -121,7 +197,7 @@ test("check-content passes the committed content and lists every problem by file
     result = run();
     assert.equal(result.status, 1);
     assert.match(result.stderr, /^Content check failed\. Fix these problems:$/m);
-    for (const problem of ['forbidden claim in export FAQS: a price ("$4")', 'forbidden claim in content/faqs/what-we-do.json: a price ("$4")']) {
+    for (const problem of ['forbidden claim in export FAQS[0].answer: a price ("$4")', 'forbidden claim in content/faqs/what-we-do.json: answer: a price ("$4")']) {
       assert.ok(listed(result).includes(problem), `${problem}\n${result.stderr}`);
     }
 
@@ -140,7 +216,7 @@ test("check-content passes the committed content and lists every problem by file
       "content/home.json: cta.label: required",
       "content/site.json: socialProfiles[0]: use a full https:// profile address",
       `content/legal/terms.md, line ${termsLine}: "_" in "…ite to legal_team@example…": write the text without * _ \` < > [ ] \\ | ~~ or &…;`,
-      'forbidden claim in content/faqs/what-we-do.json: a price ("$4")',
+      'forbidden claim in content/faqs/what-we-do.json: answer: a price ("$4")',
     ]) assert.ok(listed(result).includes(problem), `${problem}\n${result.stderr}`);
 
     // A file that is not valid JSON is named from the project folder.
@@ -170,6 +246,7 @@ test("check-content passes the committed content and lists every problem by file
     assert.equal(result.status, 1);
     assert.ok(listed(result).includes("TypeError: boom"), result.stderr);
     assert.match(result.stderr, /^\s+at legalSections /m, "the stack is printed");
+
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
