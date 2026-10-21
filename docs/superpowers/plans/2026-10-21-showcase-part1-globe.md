@@ -5245,3 +5245,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   2. Add a pure-CSS failsafe, so a JS failure can never leave the page black: `html[data-intro="play"] .intro-overlay { animation: intro-failsafe 0s linear 6s forwards } @keyframes intro-failsafe { to { visibility: hidden; opacity: 0 } }`. It stops applying once the attribute leaves "play".
   3. The gate also skips the intro when `navigator.connection.effectiveType` is slow-2g, 2g or 3g, consistent with `canStream4k`. Add this to the Task 2 literal if it is not there yet.
   4. Task 6's browser check must assert that the overlay is gone within `INTRO_LOAD_CAP_MS` plus the reveal time of navigation start, and that the failsafe hides it when the overlay script never runs. For the second check, block the JS chunks with `page.route` in one test.
+- **Task 3 review fixes (look and robustness).** The committed files are the reference.
+  - **Glint:** two lobes driven by uniforms. `LOOK.glintExponent`/`glintGain`/`sheenExponent`/`sheenGain` start at 700/0.7/40/0.055.
+  - **Sun:** `LOOK.sunIntensity` is 1.3. `SUN_POSITION` is `[-20, 12.5, -26]` with sprite scale 9, so the disc stays out of the hero copy.
+  - `INITIAL_SPIN` is +0.45 rad, so the glint shows in the opening frame.
+  - The twilight stays visible over the ocean.
+  - The polar tangent frame is computed per fragment.
+  - The relief Lambert term is gated by the smooth terminator, and the normal decode is unbiased.
+  - Shader errors reach the fallback through `gl.debug.onShaderError`.
+  - A context loss only counts when the canvas is still connected, so R3F's own unmount is no longer a "failure". The hero scene recovers when it remounts.
+  - The loader closes every bitmap: `disposeTextureSet` calls `releaseSource`, and a failed set releases its fulfilled maps and aborts the manager.
+  - DPR is capped at 1.75.
+- **Later tasks that "Replace the whole of" a file must not drop these fixes.** This covers `EarthScene.tsx` (Tasks 4–7), `materials.ts` and `Globe.tsx` (Task 4), and `Backdrop.tsx` (Task 5).
+  - Treat each such block as the target behaviour for that task's new features. Apply it as edits on top of the committed file and keep every Task 3 review fix listed above.
+  - The look constants live in `LOOK`/`constants.ts`; never re-hard-code them in GLSL.
+  - Each later task's real-GPU step may tune only `LOOK` and the constants.
+- **Task 3's real-GPU check** judges orientation, colour, seams, the glint and the sun position only. The blotch-free look is judged after Task 4, because the cloud-shadow terms need the cloud shell.
