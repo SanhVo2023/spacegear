@@ -17,6 +17,10 @@
 //   reserved and nothing can collide. package-site ships them next to the originals, under
 //   /uploads/. A manifest records each original's content hash; a variant is current only while
 //   the hash matches. GIFs get no variants and ship as they are, so an animation keeps playing.
+// - No upload may carry location data (GPS in its EXIF or XMP metadata): originals ship as they
+//   are. The CMS re-encodes JPEG, PNG, AVIF and HEIC uploads, which drops metadata, but keeps GIF
+//   and WebP as they are (so animations survive), and a file can also be added outside the CMS.
+// - A name the site cannot show gets rename advice with a suggested name (renameAdvice).
 import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
@@ -54,6 +58,65 @@ export const cachedVariant = (cacheDir, rel, width) => path.join(cacheDir, "file
 export function variantOriginal(rel) {
   const match = /^(.+)\.w(?:640|1280)\.webp$/.exec(rel);
   return match && UPLOAD_PATH.test(match[1]) && RASTER.test(match[1]) ? match[1] : null;
+}
+
+let sharpModule;
+/** sharp, loaded only when an image has to be read (and set not to keep files open: Windows locks them). */
+export async function loadSharp() {
+  if (!sharpModule) {
+    sharpModule = (await import("sharp")).default;
+    sharpModule.cache(false);
+  }
+  return sharpModule;
+}
+
+const DEVICE_NAME = /^(?:con|prn|aux|nul|com\d|lpt\d)$/;
+const NAME_RULE = "upload names use lowercase letters, digits, - and _ only, in folders too, with a lowercase extension, and are not a Windows device name such as con or nul";
+
+/** A folder or file stem cut down to the upload rules: accents dropped, lowercase, other characters as "-". */
+function cleanName(part) {
+  const cleaned = part.normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/g, "i").toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+  if (!cleaned) return "image";
+  return DEVICE_NAME.test(cleaned) ? `${cleaned}-1` : cleaned;
+}
+
+/** A name close to `rel` (below uploads/, with an image extension) that UPLOAD_PATH accepts. */
+export function suggestedUploadName(rel) {
+  const folders = rel.split("/");
+  const file = folders.pop();
+  const dot = file.lastIndexOf(".");
+  return [...folders.map(cleanName), `${cleanName(file.slice(0, dot))}.${file.slice(dot + 1).toLowerCase()}`].join("/");
+}
+
+/** What in `rel` breaks the name rules, in words an editor can act on. */
+function nameFaults(rel) {
+  const faults = new Set();
+  const others = new Set();
+  const segments = rel.split("/");
+  segments.forEach((segment, index) => {
+    const dot = index === segments.length - 1 ? segment.lastIndexOf(".") : -1;
+    const stem = dot > 0 ? segment.slice(0, dot) : segment;
+    if (/[A-Z]/.test(dot > 0 ? segment.slice(dot + 1) : "")) faults.add("capital letters");
+    const device = stem.split(".")[0].toLowerCase();
+    if (DEVICE_NAME.test(device)) others.add(`"${device}", a Windows device name`);
+    for (const char of stem) {
+      if (/[a-z0-9_-]/.test(char)) continue;
+      if (/[A-Z]/.test(char)) faults.add("capital letters");
+      else if (char === " ") faults.add("spaces");
+      else if (char === ".") others.add('"." before the extension');
+      else if (char === "ı") others.add('"ı", the dotless i that a Turkish-language browser writes for I');
+      else if (/[\p{C}\p{Z}]/u.test(char)) others.add(`U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`);
+      else others.add(`"${char}"`);
+    }
+  });
+  return [...faults, ...others];
+}
+
+/** The advice for an upload name UPLOAD_PATH refuses: a suggested name, the rule, and what to change. */
+export function renameAdvice(rel) {
+  const faults = nameFaults(rel);
+  return `rename it, for example to ${suggestedUploadName(rel)}: ${NAME_RULE}${faults.length ? ` (not allowed here: ${faults.join(", ")})` : ""}`;
 }
 
 export const LINK_PROBLEM = "is a link (symbolic link or junction); uploads must be regular files: remove it and upload the file itself";
@@ -264,8 +327,85 @@ export function uploadProblems(dir, { label = "public/uploads", variants = false
       if (!names.has(original)) problems.push(`${at(rel)}: is a variant of ${original}, which is not there`);
       else if (!SIGNATURES.webp.matches(readHead(file))) problems.push(`${at(rel)}: is not a real WebP image`);
     } else if (!UPLOAD_EXTENSIONS.includes(extension)) problems.push(`${at(rel)}: only .webp, .png, .jpg, .jpeg, .avif and .gif images can be uploaded (SVG and other files are refused): remove it`);
-    else if (!UPLOAD_PATH.test(rel)) problems.push(`${at(rel)}: rename it: upload names use lowercase letters, digits, - and _ only, in folders too, with a lowercase extension, and are not a Windows device name such as con or nul`);
+    else if (!UPLOAD_PATH.test(rel)) problems.push(`${at(rel)}: ${renameAdvice(rel)}`);
     else if (!SIGNATURES[extension].matches(readHead(file))) problems.push(`${at(rel)}: is not a real ${SIGNATURES[extension].name} image: export it again, or fix its extension`);
+  }
+  return problems.sort();
+}
+
+const GPS_IFD_POINTER = 0x8825;
+const GPS_VERSION_ID = 0x0000;
+
+/**
+ * Whether an EXIF block has location data: a GPS section with any tag but its version. The block
+ * is what sharp's metadata() returns: "Exif\0\0" and a TIFF header, or (PNG) the TIFF header alone.
+ * Returns true, false, or null when the block cannot be read.
+ */
+export function exifHasGps(exif) {
+  const tiff = exif.subarray(0, 6).toString("latin1") === "Exif\0\0" ? exif.subarray(6) : exif;
+  if (tiff.length < 8) return null;
+  const order = tiff.toString("latin1", 0, 2);
+  if (order !== "II" && order !== "MM") return null;
+  const little = order === "II";
+  const u16 = (at) => (little ? tiff.readUInt16LE(at) : tiff.readUInt16BE(at));
+  const u32 = (at) => (little ? tiff.readUInt32LE(at) : tiff.readUInt32BE(at));
+  if (u16(2) !== 42) return null;
+  /** The tags of the IFD at `offset` (each with its 4-byte value), or null when it does not fit. */
+  const entries = (offset) => {
+    if (offset + 2 > tiff.length) return null;
+    const count = u16(offset);
+    if (offset + 2 + count * 12 > tiff.length) return null;
+    return Array.from({ length: count }, (_, index) => ({ tag: u16(offset + 2 + index * 12), value: u32(offset + 10 + index * 12) }));
+  };
+  const ifd0 = entries(u32(4));
+  if (!ifd0) return null;
+  const pointer = ifd0.find(({ tag }) => tag === GPS_IFD_POINTER);
+  if (!pointer) return false;
+  const gps = entries(pointer.value);
+  return gps === null ? null : gps.some(({ tag }) => tag !== GPS_VERSION_ID);
+}
+
+const EXIF_NAMESPACE = /xmlns:([\w.-]+)\s*=\s*["']http:\/\/ns\.adobe\.com\/exif\/1\.0\/["']/g;
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+
+/** Whether XMP text has location data: an exif:GPS… property other than GPSVersionID, under any prefix bound to the EXIF namespace. */
+export function xmpHasGps(xmp) {
+  const prefixes = new Set(["exif", ...[...xmp.matchAll(EXIF_NAMESPACE)].map(([, prefix]) => prefix)]);
+  return [...prefixes].some((prefix) => new RegExp(String.raw`(?<![\w.:-])${escapeRegExp(prefix)}:GPS(?!VersionID\b)\w+`).test(xmp));
+}
+
+/**
+ * Uploads that carry location data, which would ship with them: GPS in the EXIF or XMP metadata
+ * that sharp reads (WebP, PNG, JPEG, AVIF), or in the XMP packet of a GIF, which sharp does not
+ * read and which sits in the file as plain text. Only files that are what their extension says
+ * are read (uploadProblems lists the others); dotfiles are skipped, as they never ship. An image
+ * whose metadata cannot be read is listed too, since it could hide location data. Sorted.
+ */
+export async function locationProblems(dir, { label = "public/uploads" } = {}) {
+  const listing = listUploads(dir);
+  if (!listing) return [];
+  const problems = [];
+  const found = (rel, where) => problems.push(`${label}/${rel}: contains location data (GPS in its ${where} metadata), which would be published with the image: re-export it without location data and upload it again`);
+  for (const { file, rel } of listing.files) {
+    const extension = path.extname(rel).slice(1).toLowerCase();
+    if (!UPLOAD_EXTENSIONS.includes(extension) || !SIGNATURES[extension].matches(readHead(file))) continue;
+    // Read into memory: sharp cannot open long paths on Windows.
+    const bytes = fs.readFileSync(file);
+    if (extension === "gif") {
+      if (xmpHasGps(bytes.toString("latin1"))) found(rel, "XMP");
+      continue;
+    }
+    let metadata;
+    try {
+      metadata = await (await loadSharp())(bytes, { limitInputPixels: false }).metadata();
+    } catch {
+      problems.push(`${label}/${rel}: cannot be read as an image, so it may hide location data: export it again and upload it again`);
+      continue;
+    }
+    const exif = metadata.exif ? exifHasGps(metadata.exif) : false;
+    if (exif === null) problems.push(`${label}/${rel}: has EXIF metadata that cannot be read, so it may hide location data: re-export it without metadata and upload it again`);
+    else if (exif) found(rel, "EXIF");
+    else if (metadata.xmp && xmpHasGps(metadata.xmp.toString("utf8"))) found(rel, "XMP");
   }
   return problems.sort();
 }

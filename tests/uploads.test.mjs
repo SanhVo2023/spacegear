@@ -11,6 +11,7 @@ import sharp from "sharp";
 import { buildUploadVariants, cacheFolderProblem, cachedVariant, variantFile, writeVariant, WIDTHS } from "../scripts/build-upload-variants.mjs";
 import { imageReferenceProblems, missingImageFiles, referencedImages } from "../scripts/lib/content-assets.mjs";
 import { existsExact, LOCAL_REF, wrongCaseReferences } from "../scripts/lib/exact-paths.mjs";
+import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
 import { RASTER, SITE_IMAGE_PATH, UPLOAD_EXTENSIONS, UPLOAD_PATH, UPLOAD_REF, VARIANT, readManifest, shipUploads, uploadProblems, variantOriginal } from "../scripts/lib/uploads.mjs";
 
 const { contentImage, UPLOAD_WIDTHS } = await import("../src/lib/content-images.ts");
@@ -516,7 +517,7 @@ test("only images may sit in public/uploads/: SVG, HTML, other files, links and 
     fs.mkdirSync(path.join(root, "elsewhere"));
     fs.symlinkSync(path.join(root, "elsewhere"), path.join(uploads, "linked"), "junction");
     const problems = uploadProblems(uploads);
-    const rename = "rename it: upload names use lowercase letters, digits, - and _ only, in folders too, with a lowercase extension, and are not a Windows device name such as con or nul";
+    const rename = "rename it, for example to a-jpg-w640.webp: upload names use lowercase letters, digits, - and _ only, in folders too, with a lowercase extension, and are not a Windows device name such as con or nul (not allowed here: \".\" before the extension)";
     const notImage = "only .webp, .png, .jpg, .jpeg, .avif and .gif images can be uploaded (SVG and other files are refused): remove it";
     assert.deepEqual(problems, [
       `public/uploads/a.jpg.w640.webp: ${rename}`,
@@ -722,8 +723,10 @@ test("content may not point at a generated variant, a name the site cannot serve
 });
 
 // check-content runs on a temporary copy of what it reads, as in tests/content.test.mjs.
+// check-content reads upload metadata with sharp, so this temporary project sits inside the
+// repository, where sharp resolves from node_modules (tests/helpers/project-temp.mjs).
 test("check-content refuses SVG and HTML uploads, variant references and missing variants, and passes real uploads", async () => {
-  const root = tempDir();
+  const root = projectTempDir("check-uploads-");
   try {
     for (const dir of ["content", "src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
@@ -765,5 +768,5 @@ test("check-content refuses SVG and HTML uploads, variant references and missing
     result = run();
     assert.equal(result.status, 1);
     assert.ok(listed(result).some((problem) => /^content\/faq-card\.json: img: use a lowercase file name/.test(problem)), result.stderr);
-  } finally { remove(root); }
+  } finally { removeProjectTemp(root); }
 });

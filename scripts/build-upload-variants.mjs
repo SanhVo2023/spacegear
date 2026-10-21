@@ -31,7 +31,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { pathsFromRoot } from "./lib/project-path.mjs";
-import { CACHE_DIR, LINK_PROBLEM, RASTER, RECIPE, UPLOADS_DIR, UPLOAD_PATH, WIDTHS, cachedVariant, flattenedAnimation, hardLinkProblem, hashFile, isRecordedVariant, isRegularFile, listUploads, readManifest, variantFile } from "./lib/uploads.mjs";
+import { CACHE_DIR, LINK_PROBLEM, RASTER, RECIPE, UPLOADS_DIR, UPLOAD_PATH, WIDTHS, cachedVariant, flattenedAnimation, hardLinkProblem, hashFile, isRecordedVariant, isRegularFile, listUploads, loadSharp, readManifest, variantFile } from "./lib/uploads.mjs";
 
 export { CACHE_DIR, RASTER, UPLOADS_DIR, VARIANT, WIDTHS, cachedVariant, variantFile, variantFiles } from "./lib/uploads.mjs";
 /** The project folder (the parent of scripts/), wherever the command runs from. */
@@ -47,15 +47,6 @@ const sha1 = (buffer) => crypto.createHash("sha1").update(buffer).digest("hex");
 const TEMPORARY = /^\..+\.\d+\.tmp$/;
 /** A problem with one upload, reported with its file name. */
 class UploadError extends Error {}
-
-let sharpModule;
-async function loadSharp() {
-  if (!sharpModule) {
-    sharpModule = (await import("sharp")).default;
-    sharpModule.cache(false); // do not keep uploads open (Windows locks open files)
-  }
-  return sharpModule;
-}
 
 /**
  * Why the cache cannot be used, or "": the cache folder, and every folder between it and the

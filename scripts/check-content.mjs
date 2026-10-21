@@ -13,7 +13,7 @@ import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 import { imageReferenceProblems, missingImageFiles } from "./lib/content-assets.mjs";
 import { pathsFromRoot } from "./lib/project-path.mjs";
-import { CACHE_DIR, uploadProblems } from "./lib/uploads.mjs";
+import { CACHE_DIR, locationProblems, uploadProblems } from "./lib/uploads.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
 const errors = [];
 // Node names a broken JSON import (or a missing entry) by its absolute path: print it from ROOT.
@@ -92,6 +92,9 @@ if (content) {
 // Only images may sit in public/uploads/ (no SVG, HTML or other file, no link or hard link), with
 // names the site can show (scripts/lib/uploads.mjs). Dotfiles such as .gitkeep are exempt and never ship.
 await attempt(() => { errors.push(...uploadProblems(path.join(ROOT, "public", "uploads"))); });
+// Uploads ship as they are, so none may carry location data (GPS in its EXIF or XMP metadata).
+// The CMS re-encodes JPEG, PNG and AVIF uploads, which drops it, but keeps GIF and WebP as they are.
+await attempt(async () => { errors.push(...await locationProblems(path.join(ROOT, "public", "uploads"))); });
 // ...or in any file under content/, including fields the site does not render.
 await attempt(() => { for (const problem of scanContentTree(ROOT)) errors.push(`forbidden claim in ${problem}`); });
 // `next build` always inlines NODE_ENV=production; sample mode exists only under `next dev`.
