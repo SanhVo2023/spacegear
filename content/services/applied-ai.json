@@ -1,0 +1,32 @@
+{
+  "slug": "applied-ai",
+  "name": "Applied AI & Deep Learning",
+  "shortName": "Applied AI",
+  "category": "Delivery",
+  "image": "/images/suite/neural-net.webp",
+  "summary": "Turn data and unstructured information into useful software, with evaluation and human oversight built in.",
+  "buyerProblem": "Documents, images and operational data can contain useful information that is difficult to use consistently. We build and evaluate AI systems around a specific workflow, including the cases where a person needs to take over.",
+  "deliverables": [
+    "A baseline and evaluation dataset",
+    "A prototype for document intelligence, retrieval, forecasting or vision",
+    "An integrated implementation with human review",
+    "Monitoring, limitations and operating documentation"
+  ],
+  "process": [
+    "Define the task, constraints and quality threshold.",
+    "Compare approaches against a measurable baseline.",
+    "Integrate, evaluate and prepare the system for operation."
+  ],
+  "faqs": [
+    {
+      "question": "When is deep learning appropriate?",
+      "answer": "It can help with complex patterns in text, images or other data, when enough suitable data and evaluation capacity exist. We compare it with simpler methods before choosing an approach."
+    },
+    {
+      "question": "How do you handle incorrect outputs?",
+      "answer": "Use-case design includes evaluation, quality checks where appropriate, human review, and a clear path for exceptions. No model is treated as infallible."
+    }
+  ],
+  "relatedInsightSlugs": [],
+  "order": 3
+}

@@ -17,7 +17,8 @@
     "check:export": "node scripts/check-export.mjs",
     "check:seo": "node scripts/check-seo.mjs",
     "test:browser": "node scripts/browser-check.mjs",
-    "check:fidelity": "node scripts/fidelity-compare.mjs"
+    "check:fidelity": "node scripts/fidelity-compare.mjs",
+    "content:index": "node scripts/build-content-index.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

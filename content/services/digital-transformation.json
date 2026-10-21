@@ -1,0 +1,32 @@
+{
+  "slug": "digital-transformation",
+  "name": "Digital Transformation Strategy",
+  "shortName": "Digital transformation",
+  "category": "Direction",
+  "image": "/images/suite/design-engine.webp",
+  "summary": "Find the friction. Set the priorities. Create a practical path from the way you work today to what comes next.",
+  "buyerProblem": "Digital change gets difficult when tools, processes and priorities move in different directions. We start with how work actually happens, then connect the business goals to decisions you can act on.",
+  "deliverables": [
+    "A map of your current workflows and systems",
+    "A prioritized opportunity shortlist",
+    "An implementation roadmap with owners and dependencies",
+    "Success criteria and a practical first initiative"
+  ],
+  "process": [
+    "Understand the business challenge and current workflow.",
+    "Compare improvement options, effort and dependencies.",
+    "Agree the roadmap and the first measurable step."
+  ],
+  "faqs": [
+    {
+      "question": "Do we need a transformation plan already?",
+      "answer": "No. Bring the problem you want to solve. We can start with discovery and help you decide what should change first."
+    },
+    {
+      "question": "Does transformation mean replacing everything?",
+      "answer": "No. The assessment considers what to keep, connect, improve or replace. A useful change may be a focused workflow improvement."
+    }
+  ],
+  "relatedInsightSlugs": [],
+  "order": 1
+}

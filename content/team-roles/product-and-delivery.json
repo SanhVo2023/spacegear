@@ -1,0 +1,9 @@
+{
+  "name": "Product & Delivery",
+  "role": "Build",
+  "img": "/images/suite/shield-core.webp",
+  "imgAlt": "",
+  "links": [],
+  "bio": "We turn decisions into working software in reviewable increments, with explicit scope, acceptance criteria and a rollout plan.",
+  "order": 3
+}

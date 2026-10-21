@@ -1,0 +1,21 @@
+{
+  "name": "Assess & prioritize",
+  "short": "Assess",
+  "img": "/images/suite/design-engine.webp",
+  "stage": "Direction",
+  "stageNo": "01",
+  "deliverables": [
+    "Current workflow and opportunity map",
+    "Data and integration requirements",
+    "Success criteria",
+    "Recommended first pilot"
+  ],
+  "outcomes": [
+    "A shared view of the problem",
+    "Clear, agreed priorities",
+    "Known data gaps",
+    "A practical first step"
+  ],
+  "featured": true,
+  "order": 1
+}

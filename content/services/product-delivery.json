@@ -1,0 +1,32 @@
+{
+  "slug": "product-delivery",
+  "name": "Digital Product & Platform Delivery",
+  "shortName": "Product delivery",
+  "category": "Delivery",
+  "image": "/images/suite/shield-core.webp",
+  "summary": "Carry an idea through discovery, design and engineering into software people can use and improve.",
+  "buyerProblem": "A strategy becomes useful when it reaches a working system. We connect product decisions, user experience and implementation, with explicit scope, acceptance criteria and a plan for rollout.",
+  "deliverables": [
+    "A defined problem, scope and user journey",
+    "Product design and technical architecture",
+    "A tested implementation and rollout plan",
+    "Handover, documentation and an improvement backlog"
+  ],
+  "process": [
+    "Define the users, problem and first useful release.",
+    "Design and build in reviewable increments.",
+    "Test, release and support adoption."
+  ],
+  "faqs": [
+    {
+      "question": "Can we start with an existing project?",
+      "answer": "Yes. We can review the current product, code or delivery plan and discuss the work needed to move it forward."
+    },
+    {
+      "question": "Who owns the delivered work?",
+      "answer": "Ownership, access, licensing and handover are agreed in the engagement scope before work starts. The website does not substitute for that agreement."
+    }
+  ],
+  "relatedInsightSlugs": [],
+  "order": 5
+}
