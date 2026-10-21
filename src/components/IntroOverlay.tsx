@@ -47,11 +47,13 @@ export default function IntroOverlay() {
       if (bar.current) bar.current.style.transform = `scaleX(${value / 100})`;
     };
 
-    // The click that follows a press on the overlay is cancelled once. It may land after the overlay
-    // has gone, on the link underneath (touch) or on a common ancestor (mouse); either way it must not
-    // act. Disarmed by that click, a cancelled pointer, or SWALLOW_MS after the release, so a later,
-    // deliberate click always goes through.
+    // The click that follows a primary press on the overlay is cancelled once. It may land after the
+    // overlay has gone, on the link underneath (touch) or on a common ancestor (mouse); either way it
+    // must not act. Disarmed by that click, a cancelled pointer, the next press, or SWALLOW_MS after the
+    // release, so a later, deliberate click always goes through (also after a press that never released,
+    // such as one that opened a context menu). Keyboard and scripted clicks (detail 0) are never touched.
     const swallow = (event: MouseEvent) => {
+      if (event.detail === 0) return;
       event.preventDefault();
       event.stopPropagation();
       disarm();
@@ -65,12 +67,15 @@ export default function IntroOverlay() {
       window.removeEventListener("click", swallow, true);
       window.removeEventListener("pointerup", released, true);
       window.removeEventListener("pointercancel", disarm, true);
+      window.removeEventListener("pointerdown", disarm, true);
     }
     const arm = () => {
       disarm();
       window.addEventListener("click", swallow, true);
       window.addEventListener("pointerup", released, true);
       window.addEventListener("pointercancel", disarm, true);
+      // Added while this press is being dispatched, so it first fires on the next press.
+      window.addEventListener("pointerdown", disarm, true);
     };
 
     const detach = () => {
@@ -105,7 +110,7 @@ export default function IntroOverlay() {
       finish();
     }
     function press(event: PointerEvent) {
-      if (event.target instanceof Node && overlay.current?.contains(event.target)) arm();
+      if (event.button === 0 && event.target instanceof Node && overlay.current?.contains(event.target)) arm();
       finish();
     }
     function scrolled() {

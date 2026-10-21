@@ -310,14 +310,14 @@ html[data-intro="reveal"] .intro-overlay {
   gap: 32px;
   padding: 0 32px 40px;
   background: #08080b;
-  pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
 }
-/* While loading it takes the presses people aim at a loading screen: IntroOverlay.tsx turns one into
-   a skip and cancels its click. Before hydration it simply absorbs them; the failsafe's
-   visibility: hidden lets them through again. */
-html[data-intro="play"] .intro-overlay { pointer-events: auto; clip-path: inset(0); }
+/* It takes the presses people aim at a loading screen: IntroOverlay.tsx turns one into a skip and
+   cancels its click. Before hydration it simply absorbs them; the failsafe's visibility: hidden lets
+   them through again. During the curtain lift hit-testing follows the clip-path, so only the part
+   still covered takes presses and the uncovered page is live. */
+html[data-intro="play"] .intro-overlay { clip-path: inset(0); }
 /* The exit lifts it from the bottom up, like the site's curtain. */
 html[data-intro="reveal"] .intro-overlay { clip-path: inset(0 0 100% 0); transition: clip-path 0.9s cubic-bezier(0.76, 0, 0.24, 1) 0.12s; }
 /* The counter rises out of its own clip box, like the headline words. It is wide enough for "100", so
