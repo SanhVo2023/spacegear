@@ -28,7 +28,11 @@ test("the earth material samples every map and is tone-mapped by the renderer", 
   assert.equal(earth.toneMapped, true);
   assert.equal(earth.uniforms.uNormalGain.value, 4);
   assert.match(earth.fragmentShader, /#include <tonemapping_fragment>\s*#include <colorspace_fragment>/);
-  assert.ok(earth.uniforms.uTwilight.value.equals(new THREE.Color("#fa6e43")), "brand orange twilight");
+  // The twilight input is pre-compensated for ACES Filmic, so the band renders at the brand #fa6e43.
+  assert.equal(LOOK.twilight, "#ff8240");
+  assert.ok(earth.uniforms.uTwilight.value.equals(new THREE.Color(LOOK.twilight)), "twilight colour from LOOK");
+  assert.equal(LOOK.cityGain, 4.5);
+  assert.equal(earth.uniforms.uCityGain.value, LOOK.cityGain, "city-light gain from LOOK");
 });
 
 test("a new tier is rebound in place", () => {

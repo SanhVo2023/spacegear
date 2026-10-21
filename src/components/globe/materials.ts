@@ -11,12 +11,16 @@ import type { GlobeTextureSet } from "./textures";
 export const LOOK = {
   sunColor: "#fff4e8",
   sunIntensity: 1.3,
-  twilight: "#fa6e43",
+  /**
+   * The input is pre-compensated for ACES Filmic: at the band's brightness the brand #fa6e43 renders
+   * as brick red, while #ff8240 renders at the brand hue #fa6e43.
+   */
+  twilight: "#ff8240",
   /** Twilight band: gain × (albedo luminance + floor); the floor keeps it visible over dark oceans. */
   twilightGain: 0.26,
   twilightFloor: 0.06,
   city: "#ffb46b",
-  cityGain: 3.75,
+  cityGain: 4.5,
   atmosphereDay: "#5aa2ff",
   rimGain: 0.3,
   relief: 3,

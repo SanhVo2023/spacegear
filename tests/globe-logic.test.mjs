@@ -155,6 +155,60 @@ test("a fling is capped at MAX_SPIN in both directions", () => {
   }
 });
 
+test("a NaN pointer delta or viewport width never poisons the spin, fling or pitch", () => {
+  for (const [dx, dy, width] of [[Number.NaN, 0, 1440], [10, Number.NaN, 1440], [10, 10, Number.NaN], [Infinity, -Infinity, 1440]]) {
+    const label = `dx ${dx}, dy ${dy}, width ${width}`;
+    const input = interaction.createPointerInput();
+    const state = interaction.createDragState();
+    state.velocity = 1;
+    input.dragging = true;
+    input.dx = dx;
+    input.dy = dy;
+    assert.ok(Number.isFinite(interaction.stepDrag(input, state, 1 / 60, width)), `finite spin while dragging (${label})`);
+    assert.ok(Number.isFinite(state.velocity), `finite velocity (${label})`);
+    assert.ok(Number.isFinite(state.pitchTarget) && Number.isFinite(state.pitch.value), `finite pitch (${label})`);
+    input.dragging = false;
+    input.dx = dx;
+    assert.ok(Number.isFinite(interaction.stepDrag(input, state, 1 / 60, width)), `finite spin after release (${label})`);
+    assert.ok(Number.isFinite(state.velocity), `finite coast (${label})`);
+  }
+});
+
+test("movement that lands between the last frame and the release still turns the globe", () => {
+  const input = interaction.createPointerInput();
+  const state = interaction.createDragState();
+  // A whole gesture inside one long frame: pressed, moved and released before the next frame.
+  input.dx = 144;
+  assert.ok(near(interaction.stepDrag(input, state, 1 / 60, 1440), Math.PI / 10), "the globe follows the pointer to where it was let go");
+  assert.equal(input.dx, 0, "the movement is consumed");
+  assert.equal(state.velocity, 0, "a movement no frame saw as a drag does not fling");
+});
+
+// Pointer moving steadily at `speed` px/s for `seconds`, then held still for `pause` seconds, sampled
+// once per frame at `hz`. Returns the fling velocity at the moment of release.
+function releaseVelocity(hz, { speed = 900, seconds = 0.4, pause = 0 } = {}) {
+  const input = interaction.createPointerInput();
+  const state = interaction.createDragState();
+  const h = 1 / hz;
+  input.dragging = true;
+  for (let i = 0, n = Math.round(seconds * hz); i < n; i++) {
+    input.dx = speed * h;
+    interaction.stepDrag(input, state, h, 1440);
+  }
+  for (let i = 0, n = Math.round(pause * hz); i < n; i++) interaction.stepDrag(input, state, h, 1440);
+  return state.velocity;
+}
+
+test("60 Hz and 144 Hz screens fling the globe alike", () => {
+  const steady = [releaseVelocity(60), releaseVelocity(144)];
+  const expected = (900 * constants.DRAG_RADIANS_PER_VIEWPORT) / 1440;
+  assert.ok(steady.every((v) => Math.abs(v / expected - 1) < 0.02), `a steady drag flings at the pointer's speed (${steady}, expected ${expected})`);
+  assert.ok(Math.abs(steady[0] / steady[1] - 1) < 0.02, `steady drag: 60 Hz ${steady[0]} vs 144 Hz ${steady[1]}`);
+  const paused = [releaseVelocity(60, { pause: 0.05 }), releaseVelocity(144, { pause: 0.05 })];
+  assert.ok(paused.every((v) => v > 0 && v < expected), `a pause before release slows the fling (${paused})`);
+  assert.ok(Math.abs(paused[0] / paused[1] - 1) < 0.15, `50 ms pause: 60 Hz ${paused[0]} vs 144 Hz ${paused[1]}`);
+});
+
 test("the hero mode follows the spec's device table", () => {
   const desktop = { width: 1440, reducedMotion: false, saveData: false, webgl2: true };
   assert.equal(tiers.chooseHeroMode(desktop), "cinematic");

@@ -34,26 +34,31 @@ export const createDragState = (): DragState => ({ velocity: 0, pitchTarget: 0, 
  * dragging, the globe follows the pointer; after release it keeps the release velocity and eases
  * back to the idle spin (exponential friction), never faster than MAX_SPIN. Vertical drag pitches
  * the globe, clamped, and it springs back to level on release. A NaN, negative or zero dt moves
- * nothing but the pointer-driven spin; a long one counts as 0.25 s.
+ * nothing but the pointer-driven spin; a long one counts as 0.25 s. Movement that arrives after the
+ * last frame but before the release still turns the globe (it does not fling it). A non-finite
+ * pointer delta or viewport width moves nothing and never reaches the velocity or the pitch.
  */
 export function stepDrag(input: PointerInput, state: DragState, dt: number, viewportWidth: number): number {
   const h = dt > 0 ? Math.min(dt, 0.25) : 0;
   const scale = DRAG_RADIANS_PER_VIEWPORT / Math.max(1, viewportWidth);
+  const follow = input.dx * scale;
+  const moved = Number.isFinite(follow) ? follow : 0;
   let spin: number;
   if (input.dragging) {
-    spin = input.dx * scale;
+    spin = moved;
     if (h > 0) {
       // Time-based smoothing toward this frame's pointer speed (spin / h), written so a very short
       // frame moves the estimate by at most spin / VELOCITY_SMOOTHING instead of inflating it.
       const k = 1 - Math.exp(-h / VELOCITY_SMOOTHING);
       const velocity = state.velocity + spin * (k / h) - state.velocity * k;
-      state.velocity = Math.min(MAX_SPIN, Math.max(-MAX_SPIN, velocity));
+      if (Number.isFinite(velocity)) state.velocity = Math.min(MAX_SPIN, Math.max(-MAX_SPIN, velocity));
     }
-    state.pitchTarget = Math.min(MAX_PITCH, Math.max(-MAX_PITCH, state.pitchTarget + input.dy * scale));
+    const pitch = state.pitchTarget + input.dy * scale;
+    if (Number.isFinite(pitch)) state.pitchTarget = Math.min(MAX_PITCH, Math.max(-MAX_PITCH, pitch));
   } else {
     state.velocity *= Math.exp(-DRAG_FRICTION * h);
     if (Math.abs(state.velocity) < 1e-3) state.velocity = 0;
-    spin = state.velocity * h;
+    spin = moved + state.velocity * h;
     state.pitchTarget = 0;
   }
   input.dx = 0;
