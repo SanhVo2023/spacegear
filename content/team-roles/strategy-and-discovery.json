@@ -1,9 +1,9 @@
 {
+  "order": 1,
   "name": "Strategy & Discovery",
   "role": "Direction",
   "img": "/images/suite/design-engine.webp",
   "imgAlt": "",
   "links": [],
-  "bio": "We start with how work actually happens, mapping workflows, systems and constraints so the first recommendation is grounded in your reality.",
-  "order": 1
+  "bio": "We start with how work actually happens, mapping workflows, systems and constraints so the first recommendation is grounded in your reality."
 }

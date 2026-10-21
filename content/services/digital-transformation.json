@@ -1,4 +1,5 @@
 {
+  "order": 1,
   "slug": "digital-transformation",
   "name": "Digital Transformation Strategy",
   "shortName": "Digital transformation",
@@ -27,6 +28,5 @@
       "answer": "No. The assessment considers what to keep, connect, improve or replace. A useful change may be a focused workflow improvement."
     }
   ],
-  "relatedInsightSlugs": [],
-  "order": 1
+  "relatedInsightSlugs": []
 }

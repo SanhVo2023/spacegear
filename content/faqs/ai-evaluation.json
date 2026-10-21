@@ -1,5 +1,5 @@
 {
+  "order": 5,
   "question": "How are AI solutions evaluated?",
-  "answer": "We agree what useful performance means, compare against a baseline and test relevant examples and exceptions. Human review and operating limits are designed around the use case.",
-  "order": 5
+  "answer": "We agree what useful performance means, compare against a baseline and test relevant examples and exceptions. Human review and operating limits are designed around the use case."
 }

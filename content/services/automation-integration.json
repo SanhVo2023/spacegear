@@ -1,4 +1,5 @@
 {
+  "order": 4,
   "slug": "automation-integration",
   "name": "Automation & Systems Integration",
   "shortName": "Automation & integration",
@@ -27,6 +28,5 @@
       "answer": "The design includes error handling, safe retry behavior and a way for someone to review exceptions. These paths are tested alongside successful runs."
     }
   ],
-  "relatedInsightSlugs": [],
-  "order": 4
+  "relatedInsightSlugs": []
 }

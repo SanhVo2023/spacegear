@@ -1,4 +1,5 @@
 {
+  "order": 2,
   "name": "Validate & build",
   "short": "Build",
   "img": "/images/suite/shield-core.webp",
@@ -16,6 +17,5 @@
     "Fewer manual handoffs",
     "A team ready to use it"
   ],
-  "featured": false,
-  "order": 2
+  "featured": false
 }

@@ -1,4 +1,5 @@
 {
+  "order": 3,
   "slug": "applied-ai",
   "name": "Applied AI & Deep Learning",
   "shortName": "Applied AI",
@@ -27,6 +28,5 @@
       "answer": "Use-case design includes evaluation, quality checks where appropriate, human review, and a clear path for exceptions. No model is treated as infallible."
     }
   ],
-  "relatedInsightSlugs": [],
-  "order": 3
+  "relatedInsightSlugs": []
 }

@@ -1,9 +1,9 @@
 {
+  "order": 4,
   "name": "Integration & Automation",
   "role": "Connect",
   "img": "/images/suite/scale-matrix.webp",
   "imgAlt": "",
   "links": [],
-  "bio": "We connect the tools you already use and remove repeated manual work, keeping exceptions visible and handoffs clear.",
-  "order": 4
+  "bio": "We connect the tools you already use and remove repeated manual work, keeping exceptions visible and handoffs clear."
 }

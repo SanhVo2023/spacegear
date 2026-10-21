@@ -1,4 +1,5 @@
 {
+  "order": 1,
   "name": "Assess & prioritize",
   "short": "Assess",
   "img": "/images/suite/design-engine.webp",
@@ -16,6 +17,5 @@
     "Known data gaps",
     "A practical first step"
   ],
-  "featured": true,
-  "order": 1
+  "featured": true
 }

@@ -1,4 +1,5 @@
 {
+  "order": 2,
   "slug": "ai-strategy",
   "name": "AI Strategy & Enablement",
   "shortName": "AI strategy",
@@ -27,6 +28,5 @@
       "answer": "No. Rules, better integration or a simpler workflow may be more appropriate. The recommendation follows the problem."
     }
   ],
-  "relatedInsightSlugs": [],
-  "order": 2
+  "relatedInsightSlugs": []
 }
