@@ -3390,7 +3390,8 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 ## Merge notes (for the controller, merging `feat/showcase-cms` after Part 1)
 
 - **`src/lib/content.ts` is rewritten.** If Part 1 changed or added copy there (for example intro text), port the change into the matching `content/*.json` file, extend `content-model.ts` and `config.yml` if a field was added, then update `tests/fixtures/content-v1.json` (and `content-v1.d.ts` for a new export) for that deliberate change only, and record it under "Amendments". `npm test` (round-trip and mirror tests) shows exactly what is missing.
-- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (after the `x-content-type-options` assertion, and before the report is written) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module. `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` (Task 10) shows no conflict.
 - **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
   - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. If Part 1 rewords that message, update the prefix.
   - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
@@ -3876,6 +3877,82 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.` `config.yml` is still valid against 0.230.1's schema.
      - Rebuild: `Export valid: 12 core pages, 156 files, 11.53 MiB total.` `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
      - `check:seo` and `test:browser` pass.
+- **Task 10** (`aa8da28`, `69c1037`, `cda5aaa`). These committed files supersede Task 10's code blocks: the fenced blocks in `public/_headers`, `scripts/package-site.mjs`, `scripts/check-export.mjs`, `scripts/check-seo.mjs` and `scripts/browser-check.mjs`; the new `scripts/lib/headers.mjs`, `scripts/lib/admin.mjs` and `scripts/admin-check.mjs`; and the tests. `tests/admin.test.mjs` has the plan's two header tests plus one for `/uploads/*`. The new `tests/headers.test.mjs` and `tests/admin-packaging.test.mjs` cover the two modules. `npm test` went from 204 to 216 tests (214 pass, 2 skipped: the file-symlink cases need developer mode on Windows).
+  1. **`/uploads/*` rule** (controller amendment): `! Content-Security-Policy` and `! X-Content-Type-Options`, then `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox` and `X-Content-Type-Options: nosniff`.
+     - `nosniff` is removed and set again, so it is sent once and not as `nosniff, nosniff`. The admin rule does the same with `X-Robots-Tag`.
+     - The asset worker adds custom headers to every response it makes, including the 404 page and redirects. So a missing upload's 404 also gets the sandbox policy, and `/admin` (the redirect to `/admin/`) keeps the site CSP.
+  2. **Header simulation (`scripts/lib/headers.mjs`).** It mirrors wrangler 4.151's `_headers` parser and the asset worker's `attachCustomHeaders`; the module's header comment cites both.
+     - **What the sources show:**
+       - Lines are trimmed, so indentation does not mark a header line. The plan's test parser relies on indentation; it is kept as written and agrees on this file.
+       - A repeated path keeps its first place and its last headers.
+       - Removed names keep their case, and removal ignores case.
+     - **`headerProblems`** runs on `dist/_headers` in check-export, for every shipped path plus probes (`/uploads/probe.webp`, `/admin`, `/administrator/`, `/uploadsx/` and others). It reports when:
+       - the admin or uploads rule is missing, or comes before `/*`;
+       - an `/admin/` path does not get the admin CSP alone, or `X-Robots-Tag` once;
+       - an `/uploads/` path does not get the sandbox CSP;
+       - any other path gets anything but exactly the `/*` CSP, whatever that is after Part 1;
+       - a path lacks `nosniff`;
+       - the admin CSP widens `script-src` beyond `'self'` or `connect-src` beyond `'self' blob: data:`, or allows unpkg, eval or a wildcard.
+     - The same fault on many paths is reported once, naming three of them.
+     - The browser check compares every response it fetches with the simulation, so the simulation is tested against the real asset worker.
+  3. **Shipping `/admin/`** (controller amendment; replaces Step 3's `fs.cp` from `out/admin`).
+     - `shipAdmin` copies from `public/admin/`, for the same reason `shipUploads` does: `next build` follows links when it copies `public/`.
+     - It empties `dist/admin/` first, skips dotfiles, and ships exactly `ADMIN_FILES`: `index.html`, `config.yml`, `sveltia/LICENSE.txt`, `sveltia/chunks/react-dom.js` and `sveltia/sveltia-cms.js`.
+     - It refuses the whole folder, so packaging stops and nothing is copied, for any of these:
+       - a link anywhere, dot-named ones included;
+       - a hard link or a special file;
+       - an unexpected or missing file;
+       - a vendored file whose sha256 is not in `SVELTIA.files`;
+       - an `index.html` without its robots `noindex` meta tag, or with an inline script.
+     - Log line: `Admin shipped: 5 files.`
+  4. **check-export** (replaces Step 4). `adminProblems` checks `dist/admin/` against `public/admin`: the same rules, plus nothing hidden, and the page and `config.yml` byte-equal to the committed ones. The plan's checks (files present, robots meta, no inline script, a `/admin/*` rule) are part of it and of `headerProblems`. Result: `Export valid: 12 core pages, 161 files, 13.92 MiB total.` (5 more files, 2.39 MiB more, nearly all of it the bundle).
+  5. **check-seo** as planned, with one difference: `X-Robots-Tag` must equal `noindex, nofollow` exactly, so a doubled value fails. A comment says why `robots.txt` does not disallow `/admin/`.
+  6. **browser-check** (Step 6 moved into `scripts/admin-check.mjs`, so that `browser-check.mjs` gets one fenced line; see the merge notes). The module runs three checks:
+     - **Headers.**
+       - The 12 routes and a chunk serve exactly the site CSP, and so do `/administrator/` (a 404) and the `/admin` redirect.
+       - The five `/admin/` URLs serve the admin CSP and `X-Robots-Tag` once, and the three Sveltia files have their pinned bytes.
+       - A 404 under `/uploads/` serves the sandbox CSP and `nosniff` once.
+       - Six security headers of every response equal the simulation's.
+     - **The uploads sandbox.** Fixture bytes are served under `/uploads/__browser-check/` (route-fulfilled) with the headers the preview really sends there, taken from its 404 response. Nothing is planted in `public/` or `dist/`.
+       - A site `<img>` on `/privacy/` decodes the upload (40 × 30) with no CSP violation.
+       - Opened on its own, the upload is an image document with an opaque origin (`window.origin` is `"null"`), and the image shows.
+       - These run no script or event handler: an HTML/PNG polyglot served as `image/png`, the same polyglot served as `text/html`, an SVG with a script, and the preview's own 404 page under `/uploads/` (24 scripts).
+       - Control: the same polyglot without those headers runs its handler, so the probe can see a script run.
+     - **`/admin/`** (en-US context).
+       - The page boots with no page errors.
+       - Code comes only from `/admin/sveltia/`; only `sveltia-cms.js` loads up to the collection list.
+       - Responses from other origins are Fontsource fonts only.
+       - Blocked requests must be among the two tolerated ones, compared as whole strings.
+       - "Work with Local Repository" opens an Origin Private File System copy of `content/` and `public/images/`, served to that context by a route; nothing on disk is written. The eight collections are listed, the Material Symbols font is `loaded`, and all 13 icons on screen are at most 1.5 em wide (glyphs, not words).
+       - Screenshots: `artifacts/admin.png` and `artifacts/admin-collections.png`.
+       - The icon check needs network access to `cdn.jsdelivr.net`; offline it fails, and its message says jsDelivr may be unreachable.
+  7. **Extra proofs** (throwaway scripts in `artifacts/t10/`):
+     - **Mutants.** `npm test` caught all 13 mutants of the final `admin.mjs` (6) and `headers.mjs` (7). The browser check caught 3 more: the icon font aborted, the GitHub status check not tolerated, and uploads served without the sandbox CSP.
+     - **Plants in a temporary copy of `dist/`.** check-export refused each of these:
+       - an extra file;
+       - a junction;
+       - a changed vendored byte;
+       - a changed `config.yml`;
+       - a dotfile;
+       - a loosened sandbox;
+       - a renamed admin rule;
+       - one path whose site CSP is widened.
+
+       In a temporary project, package-site refused an extra file and a junction.
+     - **End to end.** A temporary copy of `dist/` with real planted uploads was served by its own assets-only wrangler preview (port 8799, stopped afterwards; wrangler: `Parsed 5 valid header rules.`).
+       - Every planted file came back with the sandbox CSP and `nosniff`, served as `image/webp`, `image/png` or `text/html`.
+       - A site `<img>` with the variant in `srcset` rendered.
+       - Opened directly, the WebP showed with an opaque origin.
+       - The polyglot ran nothing, and neither did a planted `.html` (packaging refuses one; it existed only in the copy).
+  8. **Results:**
+     - Lint and typecheck clean. `npm test`: 216 tests, 214 pass, 2 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+     - Rebuild, run with this entry in place (Tailwind scans the plan):
+       - `Uploads shipped: 0 files.`, `Admin shipped: 5 files.`, `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+       - All 19 chunks, the stylesheet included, are byte-identical to the build before Task 10.
+       - `compare --explain-client-ids`: `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.` No id needed explaining, and the baseline was not re-saved.
+     - `check:seo` passes, and `test:browser` passes twice.
+     - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` shows no conflict. Five files are changed on both sides and merge cleanly: `package.json`, `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs` and `src/app/globals.css`.
+  9. **For Task 11:** the README's admin CSP section should also describe the `/uploads/*` rule (sandbox, `nosniff`, and why a site `<img>` is unaffected). Step 9's manual check in Chrome is still needed.
 
 ## Risks and open questions
 
