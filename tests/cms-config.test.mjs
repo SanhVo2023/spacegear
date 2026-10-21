@@ -5,7 +5,7 @@ import { load } from "js-yaml";
 
 const { contentSchemas, SINGLETON_FILES, COLLECTION_NAMES } = await import("../src/lib/content-model.ts");
 const { SERVICES } = await import("../src/lib/content.ts");
-const { INLINE_SYNTAX, parseLegalMarkdown } = await import("../src/lib/legal-markdown.ts");
+const { LEGAL_BODY_PATTERN, parseLegalMarkdown } = await import("../src/lib/legal-markdown.ts");
 const config = load(fs.readFileSync("public/admin/config.yml", "utf8"));
 const schemas = contentSchemas(SERVICES.map((service) => service.slug));
 const pages = config.collections.find((collection) => collection.name === "pages");
@@ -140,9 +140,10 @@ const parserAccepts = (body) => {
   }
 };
 
-test("the legal body pattern mirrors the parser: it starts with a '## ' heading and has no inline syntax", () => {
+// tests/cms-legal-pattern.test.mjs fuzzes the pattern against the parser; these are named cases.
+test("the legal body pattern mirrors the parser: a '## ' heading first, no inline or block syntax, no empty section", () => {
   const [source, message] = legalPattern();
-  assert.equal(source, String.raw`^(?![\s\S]*(?:${INLINE_SYNTAX.source}))##[ \t]+\S`, "built from INLINE_SYNTAX in src/lib/legal-markdown.ts, so the two cannot drift");
+  assert.equal(source, LEGAL_BODY_PATTERN, "built in src/lib/legal-markdown.ts from the parser's own rules");
   assert.match(message, /Start with a line "## Heading"/);
   for (const file of legal.files) {
     assert.equal(file.fields[0].pattern, legalPattern(), "one rule for both pages");
@@ -155,6 +156,12 @@ test("the legal body pattern mirrors the parser: it starts with a '## ' heading 
     "Text before the first heading.\n\n## Heading\n\nText.",
     "# Heading\n\nText.",
     "##Heading\n\nText.",
+    "## Heading\n\nText.\n\n- a list item",
+    "## Heading\n\nText.\n\n1. a numbered item",
+    "## Section #2\n\nText.",
+    "## Heading\n\n### Detail\n\nText.",
+    "## Heading\n\n## Text below\n\nText.",
+    "## Heading\n\nText.\n\n---",
     ...["*bold*", "_em_", "`code`", "<b>tag</b>", "[link](https://example.com)", "a \\ escape", "a | table", "~~struck~~", "&amp; entity", "&#36;5"].map((sample) => `## Heading\n\nText with ${sample}.`),
   ];
   for (const body of refused) {

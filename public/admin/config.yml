@@ -652,9 +652,10 @@ collections:
         file: content/legal/privacy.md
         fields:
           # A plain text area: the markdown and rich-text widgets write \ escapes, which the legal
-          # parser (src/lib/legal-markdown.ts) refuses. The pattern mirrors the parser: a "## "
-          # heading first, and none of its INLINE_SYNTAX anywhere (tests/cms-config.test.mjs).
-          - &legal_body { name: body, label: Sections, widget: text, hint: "Start each section with a line '## Heading', then plain paragraphs separated by blank lines. Leave a blank line before each heading. No other formatting.", pattern: ['^(?![\s\S]*(?:[*_`<>[\]\\|]|~~|&#?\w+;))##[ \t]+\S', 'Start with a line "## Heading", then plain paragraphs, without * _ ` < > [ ] \ | ~~ or &…; characters'], use_emoji_autocomplete: false }
+          # parser (src/lib/legal-markdown.ts) refuses. The pattern is LEGAL_BODY_PATTERN from that
+          # file, so the CMS refuses what the build would refuse (inline syntax, lists, other heading
+          # levels, a section without text); tests/cms-config.test.mjs checks both agree.
+          - &legal_body { name: body, label: Sections, widget: text, hint: "Start each section with a line '## Heading', then plain paragraphs separated by blank lines. Leave a blank line before each heading. No other formatting.", pattern: ['^(?![\s\S]*(?:[*_`<>[\]\\|]|~~|&#?\w+;))(?![\s\S]*(?:^|\n)[^\S\n]*(?:#(?!#[ \t][^\S\n]*[^\s#][^#\n]*(?:\n|$))|[-+*](?:\s|$)|\d+[.)](?:\s|$)|[-=]+[^\S\n]*(?:\n|$)))(?![\s\S]*(?:^|\n)[^\S\n]*##[ \t][^\n]*(?:\n[^\S\n]*)*(?:\n[^\S\n]*##(?:[ \t]|\n|$)|$))##[ \t]+\S', 'Start with a line "## Heading", and give every heading some text below it. Use plain paragraphs only: no lists (lines that start with -, +, * or a number such as 1.), no other heading levels (# or ###), no # inside a heading, no lines of only - or =, and none of * _ ` < > [ ] \ | ~~ or &…; characters'], use_emoji_autocomplete: false }
       - name: terms
         label: Website terms
         file: content/legal/terms.md

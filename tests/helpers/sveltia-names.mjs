@@ -4,6 +4,9 @@
 // found by exact text. After an upgrade an anchor may move; then re-check how uploads are named
 // against UPLOAD_PATH (scripts/lib/uploads.mjs) and update the anchors.
 //
+// It also runs the code that applies a field pattern (eU, WQ and Aje): the pattern string becomes
+// new RegExp(source) (flags only from the /source/flags form), tested against the trimmed value.
+//
 // How an upload is named (0.230.1, functions AY, Zxe and DMe in the bundle):
 //   1. oK(name, { slugificationEnabled }): sanitize-filename (it empties a Windows device name
 //      such as con.png), then, with slugify_filename, the slug rules (RV) for the name without
@@ -31,6 +34,8 @@ const PIECES = [
   ["transliteration and slugs", "wV=new Map([[", "l&&(d=d.toLocaleLowerCase()),d}", true],
   ["asset names", "oK=(e,{slugificationEnabled", ",Bwe="],
   ["image formats", "GV=[`avif`", ",YV="],
+  ["pattern compiler", String.raw`$xe=/^\/(?<pattern>`, ",tU="],
+  ["field validation", "WQ=({value:e,validation:t,validity:n})", ",jje="],
 ];
 /** How Zxe picks a transformation: the sniffed format, the declared one, then raster_image. */
 export const TRANSFORMATION_CHOICE = "s=o[i]??(a?o[a]:void 0)??t.raster_image";
@@ -54,14 +59,22 @@ export function loadSveltiaNames({ locale = "en-US" } = {}) {
     "var cM={current:undefined};",
     ...PIECES.map((entry) => `var ${piece(bundle, entry)};`),
     `{const lower=String.prototype.toLocaleLowerCase;String.prototype.toLocaleLowerCase=function(l){return lower.call(this,l??${JSON.stringify(locale)})}}`,
-    "globalThis.sveltia={cM,oK,RV,JV};",
+    "globalThis.sveltia={cM,oK,RV,JV,eU,Aje};",
   ].join("\n");
   const context = vm.createContext({ crypto: { randomUUID: () => crypto.randomUUID() } });
   vm.runInContext(source, context, { filename: "sveltia-names.vm.js" });
-  const { cM, oK, RV, JV } = context.sveltia;
+  const { cM, oK, RV, JV, eU, Aje } = context.sveltia;
 
   const FORMATS = { jpg: "jpeg", jpeg: "jpeg", jpe: "jpeg", jfif: "jpeg", png: "png", gif: "gif", webp: "webp", avif: "avif", heic: "heic", heif: "heic" };
   return {
+    /** The RegExp Sveltia makes of a field pattern string. */
+    compilePattern: (source) => eU(source),
+    /** Whether Sveltia accepts `value` in a required field with this `pattern` ([source, message]). */
+    fieldAccepts(pattern, value) {
+      const validity = {};
+      Aje({ value, required: true, validation: pattern, validity });
+      return !validity.valueMissing && !validity.patternMismatch;
+    },
     /** The entry slug for a title, with the configuration's slug options. */
     slug(config, title) {
       cM.current = config;

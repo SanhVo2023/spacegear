@@ -10,6 +10,25 @@ export type LegalSection = { heading: string; paragraphs: string[] };
  * entities. Exported so the CMS field pattern can be tested against it.
  */
 export const INLINE_SYNTAX = /[*_`<>[\]\\|]|~~|&#?\w+;/;
+
+// The same rules as one pattern for the CMS field (public/admin/config.yml), which Sveltia tests
+// with new RegExp(source), no flags, against the trimmed body. Built here so it follows the parser;
+// tests/cms-config.test.mjs checks the config against it and fuzzes both for agreement.
+const LINE_START = String.raw`(?:^|\n)[^\S\n]*`;
+/** A heading line as the parser takes it, after its first "#": "#", a space or tab, then text with a visible character and no "#". */
+const HEADING_REST = String.raw`#[ \t][^\S\n]*[^\s#][^#\n]*(?:\n|$)`;
+/**
+ * The start of a line the parser refuses as block syntax, as a regex source for the text after
+ * the line's indentation: a "#" that does not open a valid "## " heading (other levels, "#" in
+ * heading text, an empty heading), list items, and lines of only "-" or "=" (rules and setext
+ * underlines). Quotes and fences start with characters that INLINE_SYNTAX refuses anyway.
+ */
+export const BLOCK_SYNTAX_LINE = String.raw`(?:#(?!${HEADING_REST})|[-+*](?:\s|$)|\d+[.)](?:\s|$)|[-=]+[^\S\n]*(?:\n|$))`;
+/** A heading followed only by blank lines, then another heading or the end: a section with no text. */
+const EMPTY_SECTION = String.raw`##[ \t][^\n]*(?:\n[^\S\n]*)*(?:\n[^\S\n]*##(?:[ \t]|\n|$)|$)`;
+/** The CMS pattern: no inline syntax, no block syntax, no empty section, and a "## " heading with text first. */
+export const LEGAL_BODY_PATTERN = String.raw`^(?![\s\S]*(?:${INLINE_SYNTAX.source}))(?![\s\S]*${LINE_START}${BLOCK_SYNTAX_LINE})(?![\s\S]*${LINE_START}${EMPTY_SECTION})##[ \t]+\S`;
+
 const INLINE_ALL = new RegExp(INLINE_SYNTAX.source, "g");
 const HEADING_ALL = new RegExp(`#|${INLINE_SYNTAX.source}`, "g");
 // Other heading levels, list items, quotes, fences and setext underlines.
