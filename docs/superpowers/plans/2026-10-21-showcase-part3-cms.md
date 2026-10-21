@@ -62,6 +62,10 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 - **Fast gates** (no lock): `cd "$CMS" && npm run lint && npm run typecheck && npm test`.
 - **Heavy gates:** rebuild, then `bash "$WT" "$CMS" 8788 run npm run check:seo -- http://127.0.0.1:8788`, then `bash "$WT" "$CMS" 8788 run npm run test:browser -- http://127.0.0.1:8788`. `check:fidelity` is not part of this plan: the HTML identity check proves that nothing renders differently.
 - **Rendered output must not change.** Tasks that touch rendering end with `node scripts/html-snapshot.mjs compare artifacts/html-baseline` after a rebuild. The expected result is `Rendered HTML identical to artifacts/html-baseline: 15 pages.` A difference is a bug to fix, never a reason to loosen the normalizer, except for a build-noise pattern that appears identically in both builds of the same page (record it under "Amendments").
+  - **Client module ids** (format 3, after the Task 6b review) are Turbopack's, and they shift whenever the module set changes. Tasks 7, 9 and 10 add client modules, so their compare may report pages where only client module ids changed.
+  - **Before rebuilding,** copy the saved build's chunks: `mkdir -p artifacts/dist-before/_next/static && cp -r dist/_next/static/chunks artifacts/dist-before/_next/static/`.
+  - **Then run** `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-before`. It passes only when every changed id is explained: the same `$client` export at the same place in an otherwise identical page, with byte-identical factory code in the two builds.
+  - Record the explained ids under "Amendments" and save the baseline again.
 - **Line endings.** A fresh worktree on this machine is checked out with `core.autocrlf=true`, so existing files may be CRLF. The Edit tool handles that; anchors in this plan never span a line break. New files are written with LF. Every check this plan adds normalizes CRLF; the vendored Sveltia files are marked `-text -diff` in `.gitattributes` so their bytes never change.
 - **Shared files** (Part 1 and Part 2 also edit them): `package.json`, `package-lock.json`, `public/_headers`, `scripts/package-site.mjs`, `scripts/check-export.mjs`, `scripts/check-seo.mjs`, `scripts/browser-check.mjs`, `scripts/build-production.mjs`. Every edit there is additive and fenced with `>>> CMS (showcase Part 3)` / `<<< CMS` comments, except the `build` script line in `package.json`.
 - **Files Part 1 and 2 own:** `EarthScene.tsx`, `OrbitalCinematic.tsx`, the hero, `src/components/fx/`. This plan never edits them. Task 8 makes one-line, output-neutral edits to ten image render sites in section components; see "Merge notes".
@@ -3373,13 +3377,18 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
 - **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
-  1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge.
-  2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. Expect identical: Part 3 is output-neutral and Task 8 is deferred.
-  3. Keep that baseline for the remaining work.
+  1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge. Also keep that build's chunks for step 2: `mkdir -p artifacts/dist-pre-merge/_next/static && cp -r dist/_next/static/chunks artifacts/dist-pre-merge/_next/static/`.
+  2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. **Expect identical, or only `"$module"` changes**:
+     - Part 3 is output-neutral and Task 8 is deferred.
+     - Turbopack's client module ids are not stable across branches; they shift whenever the module set changes. The Task 6b re-review found that 2 of 28 ids differed between this branch and the main worktree (`Pricing.tsx` 44815 / 89176, `ContactForm.tsx` 26675 / 65254), with byte-identical source and factory code.
+     - A page that differs only in ids is listed with each change (export, old id → new id, line). Re-run `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-pre-merge`.
+     - The ids are **explained** when the pages are identical apart from the ids, and each changed id has the same `$client` export name at the same place, with byte-identical factory code in the two builds. `--explain-client-ids` checks exactly this and passes only then.
+     - `--loose-client-ids` only drops the ids (with a warning), for a first look.
+  3. Once the compare passes (identical, or every id change explained), save the baseline again from the merged build and keep it for the remaining work.
 - **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
   - The copy that step 1 runs from `artifacts/` is therefore format 3. It compares the markup plus the resolved RSC tree, keeps client module ids, and writes a `.format` marker.
   - `compare` refuses format-1 folders (no marker) and format-2 folders, so save the pre-merge baseline with that copy, not with an older one.
-  - If the post-merge compare reports only changed `"$module"` ids (a client module that moved), re-run it with `--loose-client-ids` to triage. Then re-save the baseline once the moved modules are explained.
+  - If the post-merge compare reports only changed `"$module"` ids (the module set changed), explain them with `--explain-client-ids` as in step 2. Then re-save the baseline.
 
 ## Amendments made during execution
 
@@ -3510,7 +3519,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
          - a path that walks through another reference follows that reference, with its own path, first;
          - a path through a `$W`/`$Q`/`$@` value throws.
        - **Cycles:** a reference is a cycle only when its row and path contain the value being resolved. Any other reference, also one into the same row, is resolved from the row's raw value.
-       - **Client identity:** client references keep their module id (`"$module"`). `compare --loose-client-ids` drops the ids and warns; it is for triaging a module that moved, for example at the merge.
+       - **Client identity:** client references keep their module id (`"$module"`). `compare --loose-client-ids` drops the ids and warns; it is for triaging a changed module set, for example at the merge. Item 9 adds `--explain-client-ids`.
        - **Other changes:** hints are sorted (by their masked form); the build ID is the page's own row-0 `"b"`, and `.next/BUILD_ID` is not read; the dead `I[…]` and escaped chunk-list masks are gone, since the first one also masked markup text.
        - **Format refusal:** `compare` refuses format-1 and format-2 folders.
        - **Tests:** React's real dedupe output, from Next's compiled Flight server inside the test; same-row targets differ; cycles; inner references; both client-swap probes; hint order; markup `I[42,`; the CLI flags. The reviewer's `plants.mjs` gives 0 wrong results, its blind-spot probes are now caught, and `normalize-all.mjs` gives 0 throws.
@@ -3549,8 +3558,21 @@ The only task that edits section components. Each edit replaces `src={X}` with `
        - HTML entities such as `&#36;`;
        - a literal backslash-u text;
        - a claim split over list items (`["Since", "2012"]`);
-       - copy in JSON keys (refused by the schemas anyway).
-     - **Test counts:** 126 after `33545bc`, 130 after `b55a995`.
+       - copy in JSON keys (refused by the schemas anyway);
+       - older bypasses: unlisted adjectives ("200 loyal clients"), "200 plus", "1 million users", "10,000 people", "served 120 organisations", "a team of 30" / "30-strong", "five stars on Google", "ISO/IEC 27001", "MVP in a month", "90-day plan".
+     - **Test counts:** 126 after `33545bc`, 129 after `e51c260`, 130 after `b55a995`.
+  9. **Task 6b re-review** (`d7d808e`, `e7d7a3d`, `deff22e`). Only `scripts/` and tests changed, so no rebuild was needed; the format-3 compare of the existing build stayed identical.
+     - **Client module ids across branches:** see the merge notes and the "Rendered output must not change" convention. `compare` now lists the changed ids. `--explain-client-ids <dist of the saved build>` checks the export, the place and the factory code. A factory can serve several ids (`},18140,10542,…,t=>{`).
+       - Checked read-only against the main worktree's build: `Pricing` 44815 / 89176 and `ContactForm` 26675 / 65254 have byte-identical factories.
+     - **Resolver budget:** at most 1,000,000 resolved values. The 22-level doubling DAG now fails in 0.4 s instead of resolving in 9.6 s.
+     - **Honesty, narrower rules:**
+       - **Client results:** need a figure next to them, or a stated satisfaction rate. "Analyse customer satisfaction surveys" and "Customers served by your support team" pass; "98% Client satisfaction" and "Customers served: 10,000" do not.
+       - **SOC 2:** "SOC 2 report" passes.
+       - **Partner claims:** no "and", "or" or comma may sit between the vendor and "partner", and "select" and "preferred" are no longer tiers.
+       - **Figures that are not claims:** model sizes ("Llama 3 70B", "7B and 13B parameter models"), "128k context" and "100% remotely" pass.
+       - **Still flagged outside the legal pages:** "6–12 weeks" and "within 90 days". Also still flagged: "3 projects" and "2 teams" (digit plus a scale noun).
+     - **Title and sub or text:** a group with a title and a sub or text is now read as one phrase, so `{ title: "Trusted by 200", sub: "companies across Asia" }` is caught. This adds no hits on the real tree or the ordinary-phrase list.
+     - **check-content:** blames a `src/lib` module only when `stripTypeScriptTypes` fails on it with the same code and message. `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` (enum, namespace) in loaded code gets the file prefix too.
 
 ## Risks and open questions
 

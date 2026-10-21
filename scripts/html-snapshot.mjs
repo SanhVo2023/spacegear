@@ -15,8 +15,11 @@
 //     - A reference is a cycle only when its row and path lead to a value that contains the place
 //       being resolved; it is then written as {"$cycle": <levels up>}. Any other reference, also
 //       one into the same row, is resolved from the row's raw value.
-//     - Client references keep their module id and export name, and the async flag. `compare
-//       --loose-client-ids` ignores the module ids (and warns), to triage a module that moved.
+//     - Client references keep their module id and export name, and the async flag. Turbopack's
+//       ids shift whenever the module set changes, so `compare` lists a page that differs only in
+//       ids with each change; `--explain-client-ids <dist of the saved build>` passes it when each
+//       changed id keeps its export and place and has byte-identical factory code, and
+//       `--loose-client-ids` ignores the ids (and warns), for a first look.
 //     - The layout's async chunk elements (["$","script","script-N",{src,async,nonce}] with exactly
 //       those props) are dropped, so a different number of chunks compares equal.
 //     - The id-less hint rows are sorted, so their order in the stream does not matter.
@@ -26,7 +29,7 @@
 // `save` replaces the snapshot folder, so it only accepts a folder inside this worktree's
 // artifacts/; it writes a `.format` marker, and `compare` refuses a folder in another format.
 //   node scripts/html-snapshot.mjs save artifacts/html-baseline
-//   node scripts/html-snapshot.mjs compare artifacts/html-baseline [--loose-client-ids]
+//   node scripts/html-snapshot.mjs compare artifacts/html-baseline [--explain-client-ids <dist> | --loose-client-ids]
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
