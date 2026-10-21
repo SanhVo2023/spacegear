@@ -4,7 +4,7 @@
 
 **Goal:** Editors can change the site's copy and images through a git-based CMS at `/admin/` (Sveltia CMS, vendored), without touching code, while the exported site renders byte-for-byte the same HTML as before and every honesty, CSP and packaging gate stays green.
 
-**Architecture:** All copy moves from `src/lib/content.ts` into `content/` (JSON singletons, one-file-per-entry folder collections with an `order` field, and Markdown legal pages). `src/lib/content.ts` becomes a typed loader: it imports the JSON statically (`with { type: "json" }`), validates it with a tiny in-repo schema layer (`src/lib/content-schema.ts`, no zod), derives the same values and exports the same names and types, so no component logic changes. A generated, committed `src/lib/content-index.generated.ts` lists the folder-collection entries, because the loader also runs in the browser bundle and in the Worker, where it cannot read a folder. `/admin/` is a static page that loads a pinned, integrity-checked copy of Sveltia CMS from `public/admin/sveltia/`, with its own CSP rule in `public/_headers`. CMS uploads go to `public/uploads/`; a sharp build step writes `-640`/`-1280` WebP variants next to them, and `contentImage()` renders uploads through those variants.
+**Architecture:** All copy moves from `src/lib/content.ts` into `content/` (JSON singletons, one-file-per-entry folder collections with an `order` field, and Markdown legal pages). `src/lib/content.ts` becomes a typed loader: it imports the JSON statically (`with { type: "json" }`), validates it with a tiny in-repo schema layer (`src/lib/content-schema.ts`, no zod), derives the same values and exports the same names and types, so no component logic changes. A generated, committed `src/lib/content-index.generated.ts` lists the folder-collection entries, because the loader also runs in the browser bundle and in the Worker, where it cannot read a folder. `/admin/` is a static page that loads a pinned, integrity-checked copy of Sveltia CMS from `public/admin/sveltia/`, with its own CSP rule in `public/_headers`. CMS uploads go to `public/uploads/`; a sharp build step writes 640 and 1280 px WebP variants into a cache outside `public/` (`photo.jpg` → `photo.jpg.w640.webp`, see "Amendments" for Task 7), packaging ships them next to the originals under `/uploads/`, and `contentImage()` renders uploads through those variants.
 
 **Tech Stack:** Next.js 16.2.7 static export (Turbopack), React 19.2, TypeScript 5.9, Node 22.14 (`--experimental-strip-types`, `node:test` + tsx), sharp 0.34, Sveltia CMS 0.250.0 (vendored `dist/` IIFE build), js-yaml 4.2.0 (tests only), Cloudflare Workers Static Assets (`_headers`), Playwright (Chromium).
 
@@ -94,9 +94,10 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `src/lib/legal-markdown.ts`, `src/lib/legal.ts`, `src/components/legal-sections.ts` | Parse, read and render the legal Markdown | 5 |
 | `tests/legal.test.mjs` | Parser tests | 5 |
 | `scripts/lib/honesty.mjs` | Shared forbidden-claim patterns and content-tree scan | 6 |
-| `scripts/build-upload-variants.mjs` | sharp: `-640`/`-1280` WebP variants of each upload | 7 |
-| `scripts/lib/content-assets.mjs` | Referenced images that are missing | 7 |
-| `scripts/lib/uploads.mjs` | Upload folder rules: allowed types and names, links, shipping (added in execution) | 7 |
+| `scripts/build-upload-variants.mjs` | sharp: `.w640`/`.w1280` WebP variants of each upload, in `.cache/upload-variants/` with a hash manifest | 7 |
+| `scripts/lib/content-assets.mjs` | Referenced images that are missing (exact case), and references to refuse | 7 |
+| `scripts/lib/uploads.mjs` | Upload folder rules: allowed types and names, links, variant names and cache, shipping (added in execution) | 7 |
+| `scripts/lib/exact-paths.mjs` | Exact-case lookups and wrong-case references (added in execution) | 7 |
 | `src/lib/content-images.ts` | `contentImage()` srcset helper | 7 |
 | `tests/uploads.test.mjs` | Variant script and helper tests | 7 |
 | `.gitattributes` | Keep vendored bytes exact | 9 |
@@ -116,7 +117,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `src/app/privacy/page.tsx`, `src/app/terms/page.tsx` | Sections from Markdown | 5 |
 | `tests/content.test.mjs` | Shared patterns, content-tree scan, planted-price tests | 6 |
 | `scripts/check-content.mjs` | Index freshness, validation, scans, images | 6, 7 |
-| `.gitignore` | Upload variants, Sveltia temp files | 7 |
+| `.gitignore` | The variant cache (`/.cache/`), Sveltia temp files | 7 |
 | `scripts/package-site.mjs`, `scripts/check-export.mjs` | CMS blocks: uploads (T7), admin (T10) | 7, 10 |
 | 10 image render sites (listed in Task 8) | `src={x}` becomes `{...contentImage(x)}` | 8 |
 | `public/_headers` | `/admin/*` rule | 10 |
@@ -421,7 +422,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
   export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   export const HREF = /^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
-  export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
+  export const IMAGE = /^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
   export const COLOR = /^#[0-9a-fA-F]{6}$/;
 
   export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -1790,6 +1791,8 @@ The forbidden-claim patterns move to one shared module. `npm test` and `scripts/
 
 ### Task 7: Upload variants pipeline
 
+> **Superseded during execution (Task 7 and its review).** The committed `scripts/build-upload-variants.mjs`, `scripts/lib/uploads.mjs`, `scripts/lib/content-assets.mjs`, `scripts/lib/exact-paths.mjs`, `src/lib/content-images.ts`, `tests/uploads.test.mjs` and the fenced blocks supersede the code blocks below. Variants are no longer written next to the uploads under reserved `-640`/`-1280` names. They go to `.cache/upload-variants/` as `photo.jpg.w640.webp` and `photo.jpg.w1280.webp`, are current only while a manifest's SHA-1 of the original matches, and are shipped next to the originals by `package-site`. See "Amendments made during execution".
+
 CMS uploads land in `public/uploads/`. Before `next build`, `scripts/build-upload-variants.mjs` writes `<name>-640.webp` and `<name>-1280.webp` next to each raster upload (never upscaled; idempotent by modification time). Variants are build output and gitignored, so their names are reserved: content may not point at one, and a stale variant whose original was deleted is reported, never deleted (it could be a real upload). `contentImage()` turns an upload into a `srcset`; site images under `/images/` keep their exact markup. The CMS also re-encodes uploads to WebP in Chrome (Task 9), which drops camera metadata such as GPS.
 
 **Files:**
@@ -2141,16 +2144,16 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   cd "$CMS" && mkdir -p public/uploads && cp public/images/faq-team.webp public/uploads/e2e-check.webp \
     && sed -i 's#"img": "/images/faq-team.webp"#"img": "/uploads/e2e-check.webp"#' content/faq-card.json && grep -c e2e-check content/faq-card.json
   bash "$WT" "$CMS" 8788 rebuild
-  cd "$CMS" && grep -ioE 'srcset="/uploads/e2e-check-640\.webp 640w, /uploads/e2e-check-1280\.webp 1280w"' dist/index.html dist/contact/index.html && ls dist/uploads
+  cd "$CMS" && grep -ioE 'srcset="/uploads/e2e-check\.webp\.w640\.webp 640w, /uploads/e2e-check\.webp\.w1280\.webp 1280w"' dist/index.html dist/contact/index.html && ls dist/uploads
   ```
-  Expected: `1`; the rebuild passes (`Upload variants: 1 originals, 2 written, 0 up to date.`, `Content valid…`, `Export valid…`); one `srcSet=…` match in each of the two pages; `ls` lists `e2e-check-1280.webp  e2e-check-640.webp  e2e-check.webp`.
+  Expected: `1`; the rebuild passes (`Upload variants: 1 originals, 2 written, 0 up to date, 0 removed.`, `Content valid…`, `Uploads shipped: 3 files.`, `Export valid…`); one `srcSet=…` match in each of the two pages; `ls` lists `e2e-check.webp  e2e-check.webp.w1280.webp  e2e-check.webp.w640.webp`.
   Revert, then rebuild and compare:
   ```bash
-  cd "$CMS" && git checkout -- content/faq-card.json && rm -f public/uploads/e2e-check*.webp && rm -rf dist/uploads && git status --short public content
+  cd "$CMS" && git checkout -- content/faq-card.json && rm -f public/uploads/e2e-check.webp && git status --short public content
   bash "$WT" "$CMS" 8788 rebuild
   cd "$CMS" && node scripts/html-snapshot.mjs compare artifacts/html-baseline
   ```
-  Expected: `git status` shows nothing under `public` or `content` (variants are gitignored and deleted; the empty `public/uploads/` folder is invisible to git); then `Rendered HTML identical to artifacts/html-baseline: 15 pages.` (`rm -rf dist/uploads` is needed because preview packaging keeps old files in `dist/`.)
+  Expected: `git status` shows nothing under `public` or `content` (the empty `public/uploads/` folder is invisible to git); the rebuild's variant step removes the two cached variants (`… 2 removed.`) and packaging empties `dist/uploads/`; then `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
 
 - [ ] **Step 5: Commit.**
   ```bash
@@ -2744,7 +2747,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
               hint: This dashboard is an illustrative example. Every card must keep saying illustrative, example or sample.
               widget: object
               fields:
-                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
+                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
                 - { name: accent, label: Accent, widget: string, maxlength: 20 }
                 - { name: label, label: Label, widget: string, maxlength: 20 }
             - name: workflow
@@ -2953,7 +2956,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: shortName, label: Short name, widget: string, maxlength: 40 }
         - { name: category, label: Category, widget: string, maxlength: 20 }
-        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
+        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - { name: summary, label: Summary, widget: text, maxlength: 160 }
         - { name: buyerProblem, label: Buyer problem, widget: text, maxlength: 320 }
         - name: deliverables
@@ -3066,7 +3069,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
       reorder: true
       sortable_fields: { fields: [order, name], default: { field: order } }
       fields:
-        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
+        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: role, label: Role, widget: string, maxlength: 60 }
         - { name: company, label: Company, widget: string, maxlength: 80 }
@@ -3091,7 +3094,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: author, label: Author, widget: string, maxlength: 60 }
         - { name: title, label: Title, widget: string, maxlength: 120 }
         - { name: sub, label: Summary, widget: text, maxlength: 200 }
-        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
+        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - *link_href
         - *order
 
@@ -3187,10 +3190,12 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   The `/*` rule is not touched. `X-Robots-Tag` is removed and set again so the preview's packaging-time `noindex, nofollow` on `/*` is not doubled. A planning simulation of the asset worker's header logic gave, in both preview and production mode: `/admin/` → admin CSP only, `X-Robots-Tag: noindex, nofollow`, `X-Frame-Options: DENY` kept; `/` and `/privacy/` → the site CSP unchanged.
   Run: `cd "$CMS" && node --import tsx --test tests/admin.test.mjs` → `# pass 4`.
 
-- [ ] **Step 3: Ship `/admin/`.** In `scripts/package-site.mjs`, inside the CMS block, after the line `await shipFolder("uploads");` add:
+- [ ] **Step 3: Ship `/admin/`.** **Changed in Task 7:** `shipFolder` and the line `await shipFolder("uploads");` do not exist. Task 7 ships uploads with `shipUploads` (scripts/lib/uploads.mjs), which only copies upload images and their variants, so it cannot ship `/admin/`. In `scripts/package-site.mjs`, inside the CMS block, directly after the line that starts with ``console.log(`Uploads shipped:``, add:
   ```js
-  if(!await shipFolder("admin"))throw new Error("out/admin is missing: public/admin/ must be exported with the site.");
+  try{await fs.access("out/admin");}catch{throw new Error("out/admin is missing: public/admin/ must be exported with the site.");}
+  await fs.cp("out/admin",path.join(target,"admin"),{recursive:true,filter:file=>!path.basename(file).startsWith(".")});
   ```
+  `/admin/` holds only committed files (the page, `config.yml` and the hash-locked Sveltia files; editors cannot add files there), so copying it from `out/` as planned is fine. Dotfiles are skipped as before. Also update the CMS block's comment to mention `/admin/`.
 
 - [ ] **Step 4: Check the shipped admin.** In `scripts/check-export.mjs`, inside the CMS block, after the line `await scanUploads(root);` add:
   ```js
@@ -3317,7 +3322,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   - The counts on the page (5/5, 01/03, the hero stats) match the services and engagements.
   - A testimonial renders only after its permission box is ticked. Team cards describe disciplines, not people.
   - Services and engagements cannot be added or removed in the CMS: each service has its own page and route lists.
-  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build writes 640 px and 1280 px variants next to each one (`-640.webp`, `-1280.webp`; these names are reserved). The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
+  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build makes 640 px and 1280 px variants of each one (kept in `.cache/upload-variants/` and shipped next to the upload as `<name>.w640.webp` and `<name>.w1280.webp`; no upload name is reserved). Names use lowercase letters, digits, `-` and `_`. The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
   - Legal pages (`content/legal/*.md`) accept `## ` headings and plain paragraphs only. The preview notice and the contact section come from the site settings.
 
   If you add, rename or delete an entry file by hand, run `npm run content:index`. The CMS configuration is [public/admin/config.yml](public/admin/config.yml); it mirrors [src/lib/content-model.ts](src/lib/content-model.ts), and `npm test` fails when they drift. The CMS reads `config.yml` from the preview, so rebuild after changing it.
@@ -3374,6 +3379,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
 - **`src/lib/content.ts` is rewritten.** If Part 1 changed or added copy there (for example intro text), port the change into the matching `content/*.json` file, extend `content-model.ts` and `config.yml` if a field was added, then update `tests/fixtures/content-v1.json` (and `content-v1.d.ts` for a new export) for that deliberate change only, and record it under "Amendments". `npm test` (round-trip and mirror tests) shows exactly what is missing.
 - **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (after the `x-content-type-options` assertion, and before the report is written) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
+  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. If Part 1 rewords that message, update the prefix.
+  - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
 - **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` is a new devDependency. Re-run `npm install --package-lock-only` after resolving a lockfile conflict.
 - **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
@@ -3630,6 +3638,61 @@ The only task that edits section components. Each edit replaces `src={X}` with `
       - The variant step decodes by content, so a mislabelled but valid image gets variants; check-content refuses it in the same build.
       - Risk 8 (`1280w` descriptors) is unchanged.
   14. **For Task 9:** an upload whose name is outside `UPLOAD_PATH` now fails the build, not only its image field. Check that `slugify_filename` writes such names.
+- **Task 7 review fix round** (`3c21f12`). Where they differ, this supersedes items 2, 5, 7, 8 and 9 of the Task 7 entry above; the committed files supersede everything. The reviewer's probes are in `scratchpad/t7-review/`; the same cases, run against the new API, are in `artifacts/t7/probe-after.mjs`.
+  1. **Variants live in a cache, not in `public/uploads/`.** The reviewer found that a real `hero-1280.webp` next to `hero.webp` was silently overwritten and, being gitignored, never committed.
+     - **Layout:** variants are written to `.cache/upload-variants/files/<rel>.w640.webp` and `.w1280.webp`, with `manifest.json` beside `files/`. `/.cache/` is gitignored; the three `public/uploads` ignore lines are gone.
+     - **Names** keep the original's extension: `photo.jpg.w640.webp`, where the reviewer suggested `photo.w640.webp`. That way `team.jpg` and `team.png` never collide, and the "share a name" error is gone. No upload can have such a name, because upload names have no dot before the extension.
+     - **Nothing is reserved.** An upload named `-640`/`-1280` is an ordinary upload: `IMAGE` lost its `-640`/`-1280` lookahead, and the rule "a variant-named file is never an original" is gone. Content may still not point at a `.w640.webp`/`.w1280.webp` name (`imageReferenceProblems`, with its own message); the schema refuses it anyway, because of the dots.
+     - **Shipping:** `package-site` calls `shipUploads("public/uploads", dist/uploads, ".cache/upload-variants")`. It copies the originals plus the cached variants whose manifest SHA-1 matches the original's current bytes. URLs stay under `/uploads/`, so Task 10's `/uploads/*` rule covers the variants.
+     - **Pruning:** every run deletes, in the cache only, the variants of deleted or failing uploads, foreign files, links (removed, never followed) and a killed run's temporary files. Temporary files go first, even when the run then stops on a problem.
+       - A cache folder that is a link or a file is refused.
+       - `buildUploadVariants` requires a `cacheDir` for any folder other than `public/uploads/`, so a test can never prune the project's cache.
+       - No `.cache/` is created when there is nothing to cache.
+     - **`contentImage()`:** `/uploads/x.jpg` → `src` `/uploads/x.jpg.w1280.webp`, plus the srcset. It returns `{ src }` only when `NODE_ENV === "development"`, as `samples.ts` already does, because `next dev` serves only `public/`. This was the one drawback of the cache design: without it, uploads would 404 under `next dev`. Exported markup is unaffected.
+     - **Reviewer's probe after the fix:** `hero-1280.webp` is unchanged (1280 × 400), with no errors and `uploadProblems` `[]`. Shipped: `hero-1280.webp`, `hero-1280.webp.w640.webp`, `hero-1280.webp.w1280.webp`, `hero.webp`, `hero.webp.w640.webp` and `hero.webp.w1280.webp`.
+  2. **Content hash** (minor 1).
+     - The manifest is `{ recipe, uploads: { "<rel>": { sha1, size } } }`. A variant is current only when the SHA-1 matches and the variant is a regular file. A changed `RECIPE` (the encoding) rebuilds everything.
+     - There is no mtime pre-check: hashing is cheap enough.
+     - **The reviewer's same-mtime probe:** before the fix, 0 written and the variant stayed red, `[254, 0, 1]`. After it, 2 written and `[2, 0, 255]`.
+     - **Timing**, 20 × 12 MP JPEGs (4000 × 3000 noise, 150.7 MiB, 7.5 MiB each):
+       - SHA-1 of all 20: 145–149 ms;
+       - re-run with everything current: 146 ms;
+       - one photo changed: 561 ms;
+       - packaging, which hashes again: 331 ms;
+       - first run: 9.0 s.
+     - With no uploads, the step takes 64 ms against 46 ms for a bare `node -e ""` (median of 9).
+  3. **Uploads regex** (minor 2): `UPLOAD_REF` is now `(?<![\w.:/%-])\/uploads\/[\w./-]+\.(?:webp|png|jpe?g|avif|gif|svg)(?![\w.-])`, flags `gi`, in `scripts/lib/uploads.mjs`, with tests. On the reviewer's sample, the old regex hit `/uploads/2024/05/case-study.png` (inside an external URL) and `/uploads/a.webp` (truncating `a.webpx`); the new one finds neither.
+  4. **The excluded-asset rule** (minor 3): main's line 4 is unchanged. The fenced block drops that rule's `uploads/` errors by their message prefix (see the merge notes). In the plant check, `uploads/earth-4k.webp` and `uploads/galaxy-small-640.webp` shipped and `check-export` passed.
+  5. **Windows device names** (minor 4): `con`, `prn`, `aux`, `nul`, `com0`–`com9` and `lpt0`–`lpt9`, as any folder name or file stem, are refused by `UPLOAD_PATH`, `SITE_IMAGE_PATH` and `IMAGE`.
+     - `com10`, `icon`, `con-1` and `console/` pass.
+     - The list includes `0`, which Windows reserves too; Git's list has 1–9 only.
+     - The schema message now ends "not a Windows device name such as con or nul". The `IMAGE` line in Task 2 Step 3 and the four Task 9 `config.yml` image patterns and messages are updated in this plan.
+  6. **Letter case** (minor 5):
+     - `imageReferenceProblems` requires `/uploads/` paths to match `UPLOAD_PATH`, and `/images/` paths `SITE_IMAGE_PATH` (the lowercase `IMAGE` rule without its prefix).
+     - `missingImageFiles` uses `existsExact`, which reads the real directory listing.
+     - In `check-export`, `scanUploads` checks references by exact name (`exactIndex`). `wrongCaseReferences` flags every local asset path in pages, payloads and chunks (not `admin/`) that ships in another letter case. This also covers Part 1's `need` without editing it: in the plant check, `/images/Faq-Team.webp` passed `need` on Windows and was caught.
+  7. **`dist/uploads/` is re-checked** (minor 6) with `uploadProblems(…, { variants: true })`:
+     - originals follow the upload rules (type, bytes, name);
+     - a variant must be WebP and its original must be there.
+  8. **Hard links** (minor 7): a file with `nlink > 1` is refused by the variant step and check-content, and never shipped. `fs.linkSync` works on NTFS, so this is tested here.
+  9. **Temporary files** (minor 8): `.<variant>.<pid>.tmp` under `files/` and `manifest.json.<pid>.tmp` are removed at the start of each run. Two variant steps running at once would remove each other's temporary files; builds are serialized.
+  10. **Tests** (minor 9):
+      - The file-symlink case now reports `t.skip("file symlinks need developer mode on Windows")`.
+      - New tests kill the `isFile()` mutant (a folder where a variant belongs is replaced) and the decode-time `limitInputPixels: false` mutant (`writeVariant` is exported and refuses an image over the limit).
+      - `artifacts/t7/mutate.mjs` plants 16 mutants; all are killed except "ship variants of any original", which is equivalent, because a GIF has no manifest entry.
+      - `tests/uploads.test.mjs` holds 28 tests, 1 of them skipped on this machine. `npm test`: 161 tests, 160 pass, 1 skipped.
+  11. **Results:**
+      - Lint, typecheck and `npm test` pass; `Content valid: 12 routes; preview mode.`
+      - Rebuild on `3c21f12`: `Upload variants: 0 originals, 0 written, 0 up to date, 0 removed.`, `Uploads shipped: 0 files.`, `Export valid: 12 core pages, 156 files, 11.53 MiB total.`
+      - `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` One chunk was renamed (`1tn7orqpia2l5.js` → `1maa5m20t8jpc.js`): the shared chunk with `content-schema.ts`, which now holds the new `IMAGE` rule and message, plus the minifier's renamed locals. No client module id changed, so nothing needed explaining, and the baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+      - **Plant check** (temp copy, removed afterwards; nothing planted in the worktree):
+        - Planted: `logo.svg`, `page.html`, `con.webp` and a hard-linked `linked.jpg`, next to `hero.webp` and `hero-1280.webp`, `earth-4k.webp`, `galaxy-small-640.webp` and `team/photo.jpg`.
+        - The variant step refused the hard link.
+        - check-content listed all four plants.
+        - `package-site` shipped the five real uploads with their ten variants and none of the plants. The editor's `hero-1280.webp` shipped byte-identical (SHA-1 `d6accd1d…`).
+        - `check-export` passed.
+        - Then, planted straight into `dist/`, these were each refused: an SVG, a fake PNG, an orphan variant, `/uploads/Hero.webp` and `/images/Faq-Team.webp`. An external `…/wp-content/uploads/…` link and `/uploads/a.webpx` were not flagged.
 
 ## Risks and open questions
 
@@ -3639,7 +3702,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 4. **Blocked optional requests.** The update check logs a CSP error in DevTools (harmless, try/catch in the bundle). A non-English browser gets an error about translations and falls back to English. HEIC uploads, maps, PDF thumbnails and code highlighting are unavailable; none is used.
 5. **Linked worktree.** The local workflow saves into a linked worktree but cannot commit from the browser (Sveltia limitation); the owner commits with git.
 6. **New entries** created in the CMS need the index regenerated; every build does that, and `npm test` names the stale index if someone tests before building.
-7. **Upload variants are build output** (gitignored). Stale variants are reported, not deleted. Original uploads ship too (`uploads/**`, per the spec); the Chrome-side WebP re-encode strips camera metadata, but a file added outside the CMS keeps its metadata.
+7. **Upload variants are build output**, kept in the gitignored `.cache/upload-variants/` and pruned there by every build (the cache is the build's own, so nothing an editor made is ever deleted). Under `next dev` uploads render from the original, because the variants are not under `public/`. Original uploads ship too (`uploads/**`, per the spec); the Chrome-side WebP re-encode strips camera metadata, but a file added outside the CMS keeps its metadata.
 8. **`srcset` descriptors** for uploads narrower than 1280 px still say `1280w` (the variant is the original width); the browser may pick it slightly early. Harmless.
 9. **Task 8** edits files Part 2 will rework (see "Merge notes"); it can be deferred.
 10. **`js-yaml`** was already installed through ESLint; Task 9 only declares it (plain `npm install` in the CMS worktree's own `node_modules`), with a manual fallback.
