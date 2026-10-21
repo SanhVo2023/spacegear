@@ -4,12 +4,17 @@ const root="dist";const errors=[];let bytes=0;let count=0;
 async function walk(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await walk(file);else{count++;const stat=await fs.stat(file);bytes+=stat.size;const relative=path.relative(root,file).replaceAll("\\","/");if(stat.size>25*1024*1024)errors.push(`Oversized asset: ${relative}`);if(/gen-raw|assets\/source|\.env|\.map$|images\/(team|reviews|labs)|galaxy-small|earth-4k|earth-optimized|earth-color|models\/earth\.glb|seo\/og\.jpg|vercel\.svg|next\.svg/.test(relative))errors.push(`Excluded source/template asset: ${relative}`);}}}
 await walk(root);
 for(const route of ["","services","services/digital-transformation","services/ai-strategy","services/applied-ai","services/automation-integration","services/product-delivery","about","approach","contact","privacy","terms"]){
-  const file=path.join(root,route,"index.html");try{const html=await fs.readFile(file,"utf8");if(!html.includes("spacegear.tech"))errors.push(`Missing identity: ${route}`);if((html.match(/<h1(?:\s|>)/g)||[]).length!==1)errors.push(`H1 count: ${route}`);if(!html.includes('rel="canonical"'))errors.push(`No canonical: ${route}`);if(/hello@platform\.nl|Platform®|Platform B\.V\.|Book a Demo|97\.8/.test(html))errors.push(`Old identity: ${route}`);}catch{errors.push(`Missing HTML: ${route}`);}
+  const file=path.join(root,route,"index.html");try{const html=await fs.readFile(file,"utf8");if(!html.includes("spacegear.tech"))errors.push(`Missing identity: ${route}`);if((html.match(/<h1(?:\s|>)/g)||[]).length!==1)errors.push(`H1 count: ${route}`);if(!html.includes('rel="canonical"'))errors.push(`No canonical: ${route}`);}catch{errors.push(`Missing HTML: ${route}`);}
 }
 await fs.access(path.join(root,"404.html")).catch(()=>errors.push("Missing 404"));
-// Sample preview content (src/lib/samples.ts) must never be exported, in HTML or in JS chunks.
-async function scanSamples(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanSamples(file);else if(/\.(html|js|txt|json|xml|css|mjs)$/.test(entry.name)&&(await fs.readFile(file,"utf8")).includes("spacegear-sample-content"))errors.push(`Sample content exported: ${path.relative(root,file)}`);}}
-await scanSamples(root);
+// Every exported text file: no sample preview content (src/lib/samples.ts) and no old identity.
+// The brand strings mirror FORBIDDEN in tests/content.test.mjs. The real service name
+// "Digital Product & Platform Delivery" does not match them.
+const OLD_IDENTITY=[/Platform®/,/plat—form/i,/Platform B\.V\./,/Platform Labs/,/Book a Demo/i,/hello@platform\.nl/i,/\bplatform\.nl\b/i];
+// The original's metrics are checked in HTML and RSC payloads only; minified JS can hold such digits by chance.
+const OLD_METRICS=/(?<![\d.])(?:97\.8|31\.2|84\.7)(?![\d])/;
+async function scanText(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory()){await scanText(file);continue;}if(!/\.(html|js|txt|json|xml|css|mjs)$/.test(entry.name))continue;const text=await fs.readFile(file,"utf8"),relative=path.relative(root,file).replaceAll("\\","/");if(text.includes("spacegear-sample-content"))errors.push(`Sample content exported: ${relative}`);for(const pattern of OLD_IDENTITY){const hit=text.match(pattern);if(hit)errors.push(`Old identity "${hit[0]}" in ${relative}`);}if(/\.(html|txt)$/.test(entry.name)){const hit=text.match(OLD_METRICS);if(hit)errors.push(`Original metric "${hit[0]}" in ${relative}`);}}}
+await scanText(root);
 // Every local asset an exported page references must exist in dist/ (un-allowlisted assets fail the build).
 const need=async(ref,from)=>{ref=decodeURIComponent(ref);await fs.access(path.join(root,ref)).catch(()=>errors.push(`Missing asset ${ref} referenced by ${from}`));};
 const localAsset=/(?:src|href|poster)="(\/(?:images|models|draco|seo)\/[^"?#\s,]+|\/(?:icon\.svg|apple-icon\.png|favicon\.ico)(?=["?#]))/g;

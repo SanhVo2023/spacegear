@@ -110,7 +110,13 @@ try {
         report.results.push({ ...base, ok, reason: ok ? "optional, not rendered" : "missing in candidate" });
         continue;
       }
-      if (!o) { report.results.push({ ...base, ok: true, reason: "not in original" }); continue; }
+      if (!o) {
+        // A required section must exist on both sides to be compared; a missing original
+        // (wrong base URL, renamed id, failed render) must not pass silently.
+        const ok = OPTIONAL.includes(id);
+        report.results.push({ ...base, ok, reason: ok ? "not in original" : "missing in original" });
+        continue;
+      }
       if (o.height === 0) { report.results.push({ ...base, ok: false, reason: "original has zero height" }); continue; }
       const sheet = o.frames.length > 0 && c.frames.length > 0;
       if (sheet && (await allBlank(o.frames))) {
