@@ -5228,6 +5228,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - **Owner open questions, resolved by the controller:**
   1. **CSP:** in Task 10, after the GLB and Draco files are gone, remove `blob:` from `connect-src` only. `ade9924` added it for GLTFLoader's embedded textures. Keep `worker-src 'self' blob:` and `img-src … blob:`: the `<img>` decode fallback uses a `blob:` URL, and Turnstile may use workers. `test:browser` must still report no `securitypolicyviolation`.
-  2. **Phone hero ≈ 490 KiB** (1k set 191 KiB plus the existing galaxy LCP image): accepted.
+  2. **Phone hero ≈ 484 KiB** (1k set 185 KiB after the Task 1 review fix, plus the existing galaxy LCP image): accepted.
   3. **4k rule** (`deviceMemory ≥ 8` or unknown, hardware GPU, `maxTextureSize ≥ 4096`, not 2g/3g): accepted.
 - **Order:** Part 1 runs in the main worktree (port 8787) while Part 3 runs in `spacegear-cms` (port 8788). Part 3's branch merges after Part 1, then Part 2 runs.
+- **Task 1 review fix (6c51552):**
+  - The committed `scripts/build-globe-textures.mjs` and `tests/globe-textures.test.mjs` are now the reference. Task 1's code blocks show the pre-review version.
+  - The manifest now also exports `GLOBE_TIERS` and `GLOBE_MAPS` as `as const` arrays.
+- **Task 2 must derive its lists from the manifest.** Import `GLOBE_MAPS` (and `GLOBE_TIERS` where needed) from `texture-manifest.ts` instead of restating `GLOBE_MAPS: readonly GlobeMapName[]` by hand. Then a new map can never be skipped silently.
