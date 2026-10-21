@@ -6,6 +6,8 @@ import Reveal from "@/components/Reveal";
 import type { Testimonial } from "@/lib/content";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+/** Stable React key for an entry (index keys would reuse nodes across entries). */
+const keyOf = (t: Testimonial) => `${t.name}|${t.company}`;
 
 /** Client half of the Testimonials section. It receives its entries as props
  *  from the server component, so dev-only sample data never enters a client bundle. */
@@ -31,7 +33,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
           >
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.img
-                key={i}
+                key={keyOf(r)}
                 src={r.img}
                 alt={r.name}
                 draggable={false}
@@ -49,7 +51,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
             <span aria-hidden className="display text-5xl leading-none text-flame">“</span>
             <AnimatePresence mode="wait" initial={false}>
               <motion.blockquote
-                key={i}
+                key={keyOf(r)}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
@@ -77,8 +79,8 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
         <div className="flex items-center gap-3 border-t border-line-soft px-5 py-4">
           <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] text-mut-3 sm:block">Reviews</span>
           <div aria-hidden className="flex items-center gap-1.5">
-            {REVIEWS.map((_, k) => (
-              <span key={k} className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-5 bg-flame" : "w-1.5 bg-mut-3/50"}`} />
+            {REVIEWS.map((rv, k) => (
+              <span key={keyOf(rv)} className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-5 bg-flame" : "w-1.5 bg-mut-3/50"}`} />
             ))}
           </div>
           <div className="ml-auto flex gap-2 lg:hidden">
@@ -91,8 +93,9 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
           {REVIEWS.map((rv, k) => (
             <button
               type="button"
-              key={rv.name}
+              key={keyOf(rv)}
               onClick={() => setI(k)}
+              aria-current={k === i ? "true" : undefined}
               aria-label={`Show ${rv.name}`}
               className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border transition-all duration-300 ${k === i ? "border-flame ring-1 ring-flame" : "border-line opacity-60 hover:opacity-100"}`}
             >

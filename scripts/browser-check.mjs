@@ -207,6 +207,19 @@ try {
   assert.equal(await quick.locator("#email").inputValue(), "pat@gmail.com", "same-page hand-off fills email");
   assert.equal(await quick.evaluate((k) => sessionStorage.getItem(k), KEY), null, "same-page hand-off leaves no storage");
   assert.equal(await quick.evaluate(() => document.activeElement?.id), "message", "message field focused");
+  // Empty footer fields must never wipe what the visitor already typed into the mounted form.
+  await quick.locator("#name").fill("Typed Visitor");
+  await quick.locator("#email").fill("typed@gmail.com");
+  await quick.getByLabel("Your name").fill("");
+  await quick.getByLabel("Your email").fill("footer@gmail.com");
+  await quick.getByRole("button", { name: "Continue to the project brief" }).click();
+  await quick.waitForTimeout(400);
+  assert.equal(await quick.locator("#name").inputValue(), "Typed Visitor", "empty footer name keeps the typed name");
+  assert.equal(await quick.locator("#email").inputValue(), "footer@gmail.com", "non-empty footer email still fills");
+  await quick.getByLabel("Your email").fill("");
+  await quick.getByRole("button", { name: "Continue to the project brief" }).click();
+  await quick.waitForTimeout(400);
+  assert.equal(await quick.locator("#email").inputValue(), "footer@gmail.com", "empty footer email keeps the typed email");
   await quick.close();
   report.interactions.push("footer quick start hands name and email to the contact form (also on the contact page) without URL or leftover storage");
 

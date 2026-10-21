@@ -1,8 +1,9 @@
 // Development-only preview data for the Testimonials and Labs layouts.
 // These are NOT real clients or articles. Sections read them only when
 // `next dev` runs with NEXT_PUBLIC_SHOW_SAMPLES=true. Production builds cannot
-// render them: NODE_ENV is "production", check-content refuses the flag, and
-// check-export fails if SAMPLE_MARKER appears in exported HTML.
+// render them: `next build` inlines NODE_ENV="production", check-content refuses
+// the flag for every build, and check-export fails if SAMPLE_MARKER appears in
+// any exported file.
 import type { Article, Testimonial } from "./content";
 
 export const SAMPLE_MARKER = "spacegear-sample-content";

@@ -260,8 +260,8 @@ export const TEAM_ROLES: Person[] = [
 export type Testimonial = { img: string; name: string; role: string; company: string; quote: string; permissionConfirmed: true };
 // Images referenced here must also be added to `assets` in scripts/package-site.mjs, or the export will not ship them.
 export const TESTIMONIALS: Testimonial[] = [];
-// Images referenced here must also be added to `assets` in scripts/package-site.mjs, or the export will not ship them.
 export type Article = { slug: string; author: string; title: string; sub: string; img: string; href: string };
+// Images referenced here must also be added to `assets` in scripts/package-site.mjs, or the export will not ship them.
 export const ARTICLES: Article[] = [];
 
 export type FooterLink = { label: string; href: string };

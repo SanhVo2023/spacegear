@@ -18,10 +18,11 @@ export default function QuickStart() {
     const values = { name: name.current?.value.trim() ?? "", email: email.current?.value.trim() ?? "" };
     if (window.location.pathname.replace(/\/$/, "") === "/contact") {
       // Already on the contact page: the form is mounted, so fill it directly (no storage, no navigation).
+      // Only non-empty values are written, so an empty footer field never wipes what the visitor typed.
       const nameField = document.getElementById("name") as HTMLInputElement | null;
       const emailField = document.getElementById("email") as HTMLInputElement | null;
-      if (nameField) nameField.value = values.name.slice(0, 100);
-      if (emailField) emailField.value = values.email.slice(0, 254);
+      if (nameField && values.name) nameField.value = values.name.slice(0, nameField.maxLength);
+      if (emailField && values.email) emailField.value = values.email.slice(0, emailField.maxLength);
       const message = document.getElementById("message");
       if (message) {
         message.focus({ preventScroll: true });
@@ -37,7 +38,7 @@ export default function QuickStart() {
     router.push("/contact/");
   }
 
-  const input = "w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame";
+  const input = "w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame";
   return (
     <form action="/contact/" method="get" onSubmit={submit} className="mt-6 space-y-3">
       <input ref={name} type="text" autoComplete="name" maxLength={100} aria-label="Your name" placeholder="Your Name" className={input} />
@@ -46,7 +47,7 @@ export default function QuickStart() {
         <button
           type="submit"
           aria-label="Continue to the project brief"
-          className="grid aspect-square h-[50px] place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-0.5 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame"
+          className="grid aspect-square h-[50px] place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-0.5"
         >
           →
         </button>

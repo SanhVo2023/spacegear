@@ -174,7 +174,7 @@ export default function Work() {
           <AppearItem className="sm:col-span-2 sm:row-span-2">
             <Link prefetch={false} href={f.href} className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
               <div className="relative flex h-full flex-col justify-between p-6">
                 <div className="flex items-start justify-between">
@@ -222,7 +222,7 @@ export default function Work() {
           <StackCards top={88} step={14} gap={64}>
             <Link prefetch={false} href={f.href} className="group relative block h-[46vh] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/85 via-transparent to-[#0c0d0f]/30" />
               <div className="relative flex h-full flex-col justify-between p-6">
                 <div className="flex items-start justify-between">

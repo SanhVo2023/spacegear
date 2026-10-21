@@ -243,12 +243,10 @@ body {
 .field-error { font-size: 12px; color: #ffaf92; }
 .form-note { margin: 16px 0; font-size: 12px; color: #888891; }
 .form-note a { color: #fa6e43; text-decoration: underline; }
-.form-note a:hover { text-decoration: underline; }
 .form-feedback { margin-bottom: 16px; border: 1px solid rgba(250, 110, 67, 0.4); border-radius: 12px; background: rgba(250, 110, 67, 0.06); padding: 14px 16px; font-size: 13px; color: #e3dbd8; }
-.contact-form .button { min-height: 50px; line-height: 1.4; display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; background: #fa6e43; padding: 14px 20px; font-size: 13px; font-weight: 500; color: #161719; transition: filter 0.3s, box-shadow 0.3s; }
+.contact-form .button { min-height: 50px; line-height: 1.4; display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; background: #fa6e43; padding: 14px 20px; font-size: 13px; font-weight: 500; color: #161719; transition: filter 0.3s, box-shadow 0.3s, transform 0.25s; }
 .contact-form .button span { font-size: 20px; line-height: 1; }
-.contact-form .button:hover { transform: translateY(-2px); }
-.contact-form .button:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 10px 30px -8px rgba(250, 110, 67, 0.6); }
+.contact-form .button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 10px 30px -8px rgba(250, 110, 67, 0.6); }
 .contact-form .button:disabled { cursor: not-allowed; opacity: 0.55; }
 .honeypot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
