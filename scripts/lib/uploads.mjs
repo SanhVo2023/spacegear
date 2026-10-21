@@ -375,17 +375,38 @@ export function xmpHasGps(xmp) {
 }
 
 /**
- * Uploads that carry location data, which would ship with them: GPS in the EXIF or XMP metadata
- * that sharp reads (WebP, PNG, JPEG, AVIF), or in the XMP packet of a GIF, which sharp does not
- * read and which sits in the file as plain text. Only files that are what their extension says
- * are read (uploadProblems lists the others); dotfiles are skipped, as they never ship. An image
- * whose metadata cannot be read is listed too, since it could hide location data. Sorted.
+ * The bytes of an ImageMagick "Raw profile type …" PNG text chunk, as sharp's metadata().comments
+ * gives its text: "\n<name>\n<length>\n<hex, in lines>\n". Null when it is not that shape or the
+ * hex does not have the stated length.
+ */
+export function rawProfileBytes(text) {
+  const match = /^\s*[\w.-]+\n\s*(\d+)\n([\da-fA-F\s]*)$/.exec(text);
+  if (!match) return null;
+  const hex = match[2].replace(/\s+/g, "");
+  const bytes = Buffer.from(hex, "hex");
+  return hex.length % 2 === 0 && bytes.length === Number(match[1]) ? bytes : null;
+}
+
+const XMP_APP1 = "http://ns.adobe.com/xap/1.0/\0";
+
+/**
+ * Uploads that carry location data, which would ship with them. Read:
+ * - the EXIF and XMP metadata that sharp reads (WebP, PNG, JPEG, AVIF);
+ * - ImageMagick's "Raw profile type exif / xmp / APP1" text chunks in a PNG (`convert x.jpg x.png`
+ *   writes the photo's EXIF there), which sharp lists as comments;
+ * - the XMP packet of a GIF, which sharp does not read and which sits in the file as plain text.
+ * Not read (known limits): a drone maker's own XMP fields (such as DJI's drone-dji:GpsLatitude), XMP
+ * that puts EXIF properties in a default namespace instead of a prefix, and JPEG Extended XMP.
+ * Only files that are what their extension says are read (uploadProblems lists the others);
+ * dotfiles are skipped, as they never ship. An image whose metadata cannot be read is listed too,
+ * since it could hide location data. Sorted.
  */
 export async function locationProblems(dir, { label = "public/uploads" } = {}) {
   const listing = listUploads(dir);
   if (!listing) return [];
   const problems = [];
   const found = (rel, where) => problems.push(`${label}/${rel}: contains location data (GPS in its ${where} metadata), which would be published with the image: re-export it without location data and upload it again`);
+  const damaged = (rel) => problems.push(`${label}/${rel}: has metadata that cannot be read, so it may hide location data: re-export it without metadata and upload it again`);
   for (const { file, rel } of listing.files) {
     const extension = path.extname(rel).slice(1).toLowerCase();
     if (!UPLOAD_EXTENSIONS.includes(extension) || !SIGNATURES[extension].matches(readHead(file))) continue;
@@ -402,10 +423,23 @@ export async function locationProblems(dir, { label = "public/uploads" } = {}) {
       problems.push(`${label}/${rel}: cannot be read as an image, so it may hide location data: export it again and upload it again`);
       continue;
     }
-    const exif = metadata.exif ? exifHasGps(metadata.exif) : false;
-    if (exif === null) problems.push(`${label}/${rel}: has EXIF metadata that cannot be read, so it may hide location data: re-export it without metadata and upload it again`);
-    else if (exif) found(rel, "EXIF");
-    else if (metadata.xmp && xmpHasGps(metadata.xmp.toString("utf8"))) found(rel, "XMP");
+    // Every EXIF and XMP block the file carries: sharp's own, then ImageMagick's PNG text profiles.
+    const exifBlocks = metadata.exif ? [metadata.exif] : [];
+    const xmpTexts = metadata.xmp ? [metadata.xmp.toString("utf8")] : [];
+    let unreadable = false;
+    for (const { keyword, text } of metadata.comments ?? []) {
+      const kind = /^Raw profile type (exif|xmp|app1)$/i.exec(keyword)?.[1].toLowerCase();
+      if (!kind) continue;
+      const block = rawProfileBytes(text);
+      if (!block) unreadable = true;
+      else if (kind === "xmp") xmpTexts.push(block.toString("utf8"));
+      else if (block.subarray(0, XMP_APP1.length).toString("latin1") === XMP_APP1) xmpTexts.push(block.subarray(XMP_APP1.length).toString("utf8"));
+      else exifBlocks.push(block);
+    }
+    const exif = exifBlocks.map((block) => exifHasGps(block));
+    if (exif.includes(true)) found(rel, "EXIF");
+    else if (xmpTexts.some((xmp) => xmpHasGps(xmp))) found(rel, "XMP");
+    else if (unreadable || exif.includes(null)) damaged(rel);
   }
   return problems.sort();
 }

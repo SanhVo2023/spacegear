@@ -6,8 +6,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import sharp from "sharp";
-import { UPLOAD_PATH, exifHasGps, locationProblems, renameAdvice, suggestedUploadName, uploadProblems, xmpHasGps } from "../scripts/lib/uploads.mjs";
+import { UPLOAD_PATH, exifHasGps, locationProblems, rawProfileBytes, renameAdvice, suggestedUploadName, uploadProblems, xmpHasGps } from "../scripts/lib/uploads.mjs";
 import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
 
 sharp.cache(false);
@@ -99,6 +100,51 @@ test("uploads that carry location data are refused in every format; clean ones, 
       `public/uploads/xmp.gif: contains location data (GPS in its XMP metadata), ${advice}`,
     ]);
     assert.deepEqual(await locationProblems(path.join(dir, "no-such-folder")), [], "a missing folder is fine");
+  } finally { remove(dir); }
+});
+
+/** ImageMagick's raw profile text: "\n<name>\n<length>\n<hex, 72 per line>\n". */
+const rawProfile = (name, block) => `\n${name}\n${String(block.length).padStart(8)}\n${block.toString("hex").match(/.{1,72}/g).join("\n")}\n`;
+/** A PNG with one more chunk right after IHDR. */
+function pngWithChunk(png, type, data) {
+  const at = 8 + 25;
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(zlib.crc32(body));
+  return Buffer.concat([png.subarray(0, at), length, body, crc, png.subarray(at)]);
+}
+/** A zTXt chunk, as ImageMagick writes its profiles by default. */
+const zTXt = (keyword, text) => Buffer.concat([Buffer.from(`${keyword}\0\0`, "latin1"), zlib.deflateSync(Buffer.from(text, "latin1"))]);
+
+test("ImageMagick's raw profile text chunks in a PNG are read too (convert photo.jpg photo.png keeps the EXIF there)", async () => {
+  const gpsExif = (await sharp(await solid().withExif(GPS_EXIF).jpeg().toBuffer()).metadata()).exif;
+  const plainExif = (await sharp(await solid().withExif({ IFD0: { Make: "Phone" } }).jpeg().toBuffer()).metadata()).exif;
+  assert.deepEqual(rawProfileBytes(rawProfile("exif", gpsExif)), gpsExif);
+  assert.equal(rawProfileBytes("\nexif\n      10\n00ff\n"), null, "the hex is shorter than the stated length");
+  assert.equal(rawProfileBytes("a comment"), null);
+  const png = await solid().png().toBuffer();
+  const dir = tempDir();
+  try {
+    const files = {
+      "exif-ztxt.png": pngWithChunk(png, "zTXt", zTXt("Raw profile type exif", rawProfile("exif", gpsExif))),
+      "exif-text.png": pngWithChunk(png, "tEXt", Buffer.from(`Raw profile type exif\0${rawProfile("exif", gpsExif)}`, "latin1")),
+      "xmp-ztxt.png": pngWithChunk(png, "zTXt", zTXt("Raw profile type xmp", rawProfile("xmp", Buffer.from(GPS_XMP)))),
+      "app1-xmp.png": pngWithChunk(png, "zTXt", zTXt("Raw profile type APP1", rawProfile("APP1", Buffer.concat([Buffer.from("http://ns.adobe.com/xap/1.0/\0", "latin1"), Buffer.from(GPS_XMP)])))),
+      "damaged.png": pngWithChunk(png, "zTXt", zTXt("Raw profile type exif", "\nexif\n     999\n4578\n")),
+      "camera.png": pngWithChunk(png, "zTXt", zTXt("Raw profile type exif", rawProfile("exif", plainExif))),
+      "comment.png": pngWithChunk(png, "tEXt", Buffer.from("Comment\0exif:GPSLatitude in a plain comment", "latin1")),
+    };
+    for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), bytes);
+    const advice = "which would be published with the image: re-export it without location data and upload it again";
+    assert.deepEqual(await locationProblems(dir, { label: "u" }), [
+      `u/app1-xmp.png: contains location data (GPS in its XMP metadata), ${advice}`,
+      "u/damaged.png: has metadata that cannot be read, so it may hide location data: re-export it without metadata and upload it again",
+      `u/exif-text.png: contains location data (GPS in its EXIF metadata), ${advice}`,
+      `u/exif-ztxt.png: contains location data (GPS in its EXIF metadata), ${advice}`,
+      `u/xmp-ztxt.png: contains location data (GPS in its XMP metadata), ${advice}`,
+    ]);
   } finally { remove(dir); }
 });
 
