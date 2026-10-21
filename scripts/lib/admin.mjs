@@ -47,9 +47,11 @@ export function adminProblems(dir, { label = slashes(path.relative(process.cwd()
     else if (!ADMIN_FILES.includes(rel)) problems.push(`${at(rel)}: is not part of /admin/ (only ${ADMIN_FILES.join(", ")} ship): remove it`);
     else files.add(rel);
   }
-  const blocked = new Set([...listing.links, ...listing.hardLinks, ...listing.others].map(({ rel }) => rel));
+  // A refused entry is the problem to fix: the files it stands for, or hides when it is a linked
+  // folder, are not reported missing as well.
+  const blocked = [...listing.links, ...listing.hardLinks, ...listing.others].map(({ rel }) => rel);
   for (const rel of ADMIN_FILES) {
-    if (blocked.has(rel)) continue;
+    if (blocked.some((entry) => rel === entry || rel.startsWith(`${entry}/`))) continue;
     if (!files.has(rel)) {
       problems.push(`${at(rel)}: is missing`);
       continue;

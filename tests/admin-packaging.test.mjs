@@ -59,6 +59,15 @@ test("packaging refuses an /admin/ folder with an unexpected file, a link or a c
   }
 });
 
+test("a linked folder inside /admin/ is the one problem named, not the files it hides", () => {
+  const { root, admin } = adminCopy();
+  try {
+    fs.renameSync(path.join(admin, "sveltia"), path.join(root, "sveltia-elsewhere"));
+    fs.symlinkSync(path.join(root, "sveltia-elsewhere"), path.join(admin, "sveltia"), "junction");
+    assert.deepEqual(adminProblems(admin, { label: "public/admin" }), ["public/admin/sveltia: is a link (symbolic link or junction); /admin/ ships regular files only"]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("a file symlink in /admin/ is refused too", async (t) => {
   const { root, admin } = adminCopy();
   try {
