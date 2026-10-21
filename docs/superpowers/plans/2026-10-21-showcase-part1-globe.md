@@ -5235,3 +5235,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - The committed `scripts/build-globe-textures.mjs` and `tests/globe-textures.test.mjs` are now the reference. Task 1's code blocks show the pre-review version.
   - The manifest now also exports `GLOBE_TIERS` and `GLOBE_MAPS` as `as const` arrays.
 - **Task 2 must derive its lists from the manifest.** Import `GLOBE_MAPS` (and `GLOBE_TIERS` where needed) from `texture-manifest.ts` instead of restating `GLOBE_MAPS: readonly GlobeMapName[]` by hand. Then a new map can never be skipped silently.
+- **Task 2 review follow-ups:**
+  - `intro-gate.ts` now ships a hand-written ES5 literal (`INTRO_GATE_SCRIPT`). `introGateScript()` still returns it, so Task 6's `IntroGate.tsx` is unchanged.
+  - `stepDrag` guards `dt` and caps spin at `MAX_SPIN`.
+  - `clamp01` and `slerpDirection` are hardened.
+  - Read the committed modules, not Task 2's code blocks.
+- **Task 6 must make the intro cap hold before hydration** (found in the Task 2 review):
+  1. In `IntroOverlay`, measure `INTRO_LOAD_CAP_MS` from navigation start (`performance.now()`, or the rAF timestamp, both relative to `timeOrigin`), not from the effect's own start. That makes the cap count from first paint, as the spec says.
+  2. Add a pure-CSS failsafe, so a JS failure can never leave the page black: `html[data-intro="play"] .intro-overlay { animation: intro-failsafe 0s linear 6s forwards } @keyframes intro-failsafe { to { visibility: hidden; opacity: 0 } }`. It stops applying once the attribute leaves "play".
+  3. The gate also skips the intro when `navigator.connection.effectiveType` is slow-2g, 2g or 3g, consistent with `canStream4k`. Add this to the Task 2 literal if it is not there yet.
+  4. Task 6's browser check must assert that the overlay is gone within `INTRO_LOAD_CAP_MS` plus the reveal time of navigation start, and that the failsafe hides it when the overlay script never runs. For the second check, block the JS chunks with `page.route` in one test.
