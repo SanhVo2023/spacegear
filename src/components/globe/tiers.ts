@@ -30,7 +30,8 @@ const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|software|basic render/i
 /** The 4k set (≈2.1 MB download, ≈120 MB of GPU memory) streams after idle only on capable desktops. */
 export function canStream4k(env: GpuEnv): boolean {
   if (env.viewportWidth < 1024 || env.saveData) return false;
-  if (env.maxTextureSize < 4096 || SOFTWARE_RENDERER.test(env.renderer)) return false;
+  // Written as !(>=) so an unknown (NaN) texture limit fails too.
+  if (!(env.maxTextureSize >= 4096) || SOFTWARE_RENDERER.test(env.renderer)) return false;
   if (env.effectiveType && /^(slow-2g|2g|3g)$/.test(env.effectiveType)) return false;
   return env.deviceMemory === undefined || env.deviceMemory >= 8;
 }

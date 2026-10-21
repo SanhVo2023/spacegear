@@ -46,6 +46,8 @@ export const MAX_PITCH = 0.3;
 export const DRAG_RADIANS_PER_VIEWPORT = Math.PI;
 /** 1/s, exponential decay of the release velocity. */
 export const DRAG_FRICTION = 2.2;
+/** rad/s, the fastest fling: one turn a second. */
+export const MAX_SPIN = 2 * Math.PI;
 /** Radians at the viewport edge. */
 export const STAR_PARALLAX = 0.03;
 

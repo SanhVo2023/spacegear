@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import vm from "node:vm";
+import { Linter } from "eslint";
 
 const constants = await import("../src/components/globe/constants.ts");
 const scroll = await import("../src/components/globe/scroll.ts");
@@ -11,6 +14,7 @@ const manifest = await import("../src/components/globe/texture-manifest.ts");
 
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 const nearVec = (a, b, eps = 1e-9) => a.every((value, index) => near(value, b[index], eps));
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 test("the sun sweeps from the opening light to behind the centred globe", () => {
   assert.ok(nearVec(scroll.sunDirectionAt(0), scroll.normalize(constants.SUN_START)));
@@ -36,6 +40,29 @@ test("the rig keeps the three beats' framing on a unit sphere and the camera dol
   assert.ok(scroll.cameraZAt(0.5) < constants.CAMERA_Z && scroll.cameraZAt(0.5) > 5.75);
 });
 
+test("NaN scroll progress reads as the start of the hero", () => {
+  assert.equal(scroll.clamp01(Number.NaN), 0);
+  assert.equal(scroll.smoothstep(0, 1, Number.NaN), 0);
+  assert.equal(scroll.mapClamp(Number.NaN, 0, 1, 5, 7), 5);
+  assert.deepEqual(scroll.rigAt(Number.NaN), scroll.rigAt(0));
+  assert.equal(scroll.cameraZAt(Number.NaN), constants.CAMERA_Z);
+  assert.deepEqual(scroll.sunDirectionAt(Number.NaN), scroll.sunDirectionAt(0));
+});
+
+test("opposite directions still slerp through unit vectors at an even pace", () => {
+  for (const from of [[1, 0, 0], [0, 1, 0], [0, 0, 1], constants.SUN_END]) {
+    const a = scroll.normalize(from);
+    const b = a.map((value) => -value);
+    assert.ok(nearVec(scroll.slerpDirection(a, b, 0), a), `starts at ${from}`);
+    assert.ok(nearVec(scroll.slerpDirection(a, b, 1), b), `ends opposite ${from}`);
+    for (const t of [0.25, 0.5, 0.75]) {
+      const step = scroll.slerpDirection(a, b, t);
+      assert.ok(near(Math.hypot(...step), 1), `unit vector at ${t} from ${from}`);
+      assert.ok(near(dot(step, a), Math.cos(t * Math.PI)), `${t * 180}° from ${from}`);
+    }
+  }
+});
+
 test("the tilt spring settles on its target with little overshoot", () => {
   const spring = interaction.createSpring();
   let peak = 0;
@@ -45,6 +72,15 @@ test("the tilt spring settles on its target with little overshoot", () => {
   const jump = interaction.createSpring();
   interaction.stepSpring(jump, 1, 5);
   assert.ok(Number.isFinite(jump.value) && Math.abs(jump.value) < 2, "a long frame stays stable");
+});
+
+test("the spring holds still for a non-finite target", () => {
+  const spring = interaction.createSpring(0.5);
+  spring.velocity = 0.2;
+  for (const target of [Number.NaN, Infinity, -Infinity]) {
+    assert.equal(interaction.stepSpring(spring, target, 1 / 60), 0.5, String(target));
+  }
+  assert.deepEqual(spring, { value: 0.5, velocity: 0.2 });
 });
 
 test("dragging spins with the pointer, then coasts and stops", () => {
@@ -75,6 +111,50 @@ test("vertical drag pitches within limits and levels out on release", () => {
   assert.ok(Math.abs(state.pitch.value) < 1e-3, `level again (${state.pitch.value})`);
 });
 
+test("a NaN, negative or zero frame time never flings, coasts or speeds up the globe", () => {
+  for (const dt of [Number.NaN, -0.1, 0]) {
+    const input = interaction.createPointerInput();
+    const state = interaction.createDragState();
+    input.dragging = true;
+    input.dx = 144;
+    input.dy = 50;
+    assert.ok(near(interaction.stepDrag(input, state, dt, 1440), Math.PI / 10), `a drag still follows the pointer (dt ${dt})`);
+    assert.equal(state.velocity, 0, `no fling (dt ${dt})`);
+    assert.ok(Number.isFinite(state.pitch.value), `pitch stays finite (dt ${dt})`);
+    input.dragging = false;
+    state.velocity = 1;
+    assert.equal(interaction.stepDrag(input, state, dt, 1440), 0, `no coast (dt ${dt})`);
+    assert.equal(state.velocity, 1, `the release velocity neither decays nor grows (dt ${dt})`);
+  }
+});
+
+test("a very short frame does not inflate the fling", () => {
+  const input = interaction.createPointerInput();
+  const state = interaction.createDragState();
+  input.dragging = true;
+  input.dx = 10;
+  const spin = interaction.stepDrag(input, state, 1e-6, 1440);
+  // The velocity follows the pointer with a 40 ms time constant, so one frame adds at most spin / 0.04.
+  assert.ok(state.velocity > 0 && state.velocity <= spin / 0.04 + 1e-9, `velocity ${state.velocity}`);
+});
+
+test("a fling is capped at MAX_SPIN in both directions", () => {
+  assert.equal(constants.MAX_SPIN, 2 * Math.PI);
+  for (const sign of [1, -1]) {
+    const input = interaction.createPointerInput();
+    const state = interaction.createDragState();
+    input.dragging = true;
+    for (let i = 0; i < 20; i++) {
+      input.dx = sign * 1440; // a whole viewport per frame
+      interaction.stepDrag(input, state, 1 / 60, 1440);
+      assert.ok(Math.abs(state.velocity) <= constants.MAX_SPIN, `frame ${i}: ${state.velocity}`);
+    }
+    assert.equal(state.velocity, sign * constants.MAX_SPIN);
+    input.dragging = false;
+    assert.ok(Math.abs(interaction.stepDrag(input, state, 1 / 60, 1440)) <= constants.MAX_SPIN / 60);
+  }
+});
+
 test("the hero mode follows the spec's device table", () => {
   const desktop = { width: 1440, reducedMotion: false, saveData: false, webgl2: true };
   assert.equal(tiers.chooseHeroMode(desktop), "cinematic");
@@ -99,6 +179,7 @@ test("the 4k set streams only to capable desktops with a hardware GPU", () => {
   assert.equal(tiers.canStream4k({ ...gpu, saveData: true }), false);
   assert.equal(tiers.canStream4k({ ...gpu, effectiveType: "3g" }), false);
   assert.equal(tiers.canStream4k({ ...gpu, maxTextureSize: 2048 }), false);
+  assert.equal(tiers.canStream4k({ ...gpu, maxTextureSize: Number.NaN }), false, "an unknown texture limit never streams 4k");
   assert.equal(tiers.canStream4k({ ...gpu, renderer: "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)" }), false);
   assert.equal(tiers.canStream4k({ ...gpu, viewportWidth: 800 }), false);
   assert.equal(tiers.GLOBE_MAPS, manifest.GLOBE_MAPS, "the map list is the manifest's own, never restated");
@@ -134,6 +215,34 @@ test("intro progress only moves forward and the phases run in order", () => {
   assert.equal(calls, before, "unsubscribed listeners are not called");
 });
 
+test("the intro can be skipped and can fail, and only real changes notify", () => {
+  const store = intro.createIntroStore("loading");
+  let calls = 0;
+  store.subscribe(() => calls++);
+  store.start();
+  store.setProgress(0);
+  assert.equal(calls, 0, "starting again or reporting no progress changes nothing");
+  store.setProgress(0.2);
+  store.markReady();
+  assert.equal(store.get().ready, true);
+  assert.equal(store.get().progress, 1, "ready means fully loaded");
+  store.fail();
+  assert.equal(store.get().failed, true);
+  store.finish();
+  assert.equal(store.get().phase, "done", "any input skips straight from loading to done");
+  assert.equal(calls, 4);
+  const snapshot = store.get();
+  store.start();
+  store.reveal();
+  store.finish();
+  store.markReady();
+  store.fail();
+  store.setProgress(0.5);
+  store.setProgress(Number.NaN);
+  assert.equal(calls, 4, "no-op updates do not notify");
+  assert.equal(store.get(), snapshot, "and keep the same snapshot");
+});
+
 test("the caps leave room for the reveal and the store starts off on the server", () => {
   assert.ok(intro.INTRO_REVEAL_MS + 500 <= intro.INTRO_EXTRA_CAP_MS);
   assert.ok(intro.INTRO_EXTRA_CAP_MS <= 2500 && intro.INTRO_LOAD_CAP_MS <= 4000);
@@ -141,47 +250,99 @@ test("the caps leave room for the reveal and the store starts off on the server"
   assert.equal(intro.getServerIntroPhase(), "off");
 });
 
-function fakeWindow({ path = "/", hash = "", desktop = true, saveData = false, webgl2 = true, seen = false, storageThrows = false } = {}) {
-  const attributes = {};
-  const storage = new Map(seen ? [[gate.INTRO_SESSION_KEY, "1"]] : []);
-  return {
-    attributes,
-    storage,
-    location: { pathname: path, hash },
-    matchMedia: (query) => ({ matches: query === gate.INTRO_QUERY && desktop }),
-    sessionStorage: {
-      getItem: (key) => {
-        if (storageThrows) throw new Error("storage blocked");
-        return storage.get(key) ?? null;
-      },
-      setItem: (key, value) => storage.set(key, value),
-    },
-    navigator: saveData ? { connection: { saveData: true } } : {},
-    document: { documentElement: { setAttribute: (name, value) => { attributes[name] = value; } } },
-    ...(webgl2 ? { WebGL2RenderingContext: function WebGL2RenderingContext() {} } : {}),
-  };
-}
-
-test("the intro plays once, on a first desktop visit to the home page", () => {
-  const win = fakeWindow();
-  assert.equal(gate.runIntroGate(gate.INTRO_SESSION_KEY, gate.INTRO_QUERY, win), true);
-  assert.equal(win.attributes["data-intro"], "play");
-  assert.equal(win.storage.get(gate.INTRO_SESSION_KEY), "1");
-  delete win.attributes["data-intro"];
-  assert.equal(gate.runIntroGate(gate.INTRO_SESSION_KEY, gate.INTRO_QUERY, win), false, "a repeat view skips it");
-  assert.equal(win.attributes["data-intro"], undefined);
-});
-
-test("the intro is skipped for reduced motion or phones, Save-Data, deep links, other pages, no WebGL2 and blocked storage", () => {
-  for (const options of [{ desktop: false }, { saveData: true }, { hash: "#pricing" }, { path: "/services/" }, { webgl2: false }, { seen: true }, { storageThrows: true }]) {
-    const win = fakeWindow(options);
-    assert.equal(gate.runIntroGate(gate.INTRO_SESSION_KEY, gate.INTRO_QUERY, win), false, JSON.stringify(options));
-    assert.equal(win.attributes["data-intro"], undefined, JSON.stringify(options));
+test("on the client the store starts loading when the gate marked the intro", async () => {
+  const url = new URL("../src/components/globe/intro-store.ts", import.meta.url).href;
+  try {
+    globalThis.document = { documentElement: { dataset: { intro: "play" } } };
+    const played = await import(`${url}?gate=play`);
+    assert.equal(played.introStore.get().phase, "loading");
+    assert.equal(played.getIntroPhase(), "loading");
+    assert.equal(played.getServerIntroPhase(), "off", "the server snapshot stays off for hydration");
+    globalThis.document = { documentElement: { dataset: {} } };
+    const skipped = await import(`${url}?gate=none`);
+    assert.equal(skipped.introStore.get().phase, "off");
+  } finally {
+    delete globalThis.document;
   }
 });
 
-test("the serialised gate runs on its own as an inline script", () => {
+function fakeWindow({ path = "/", hash = "", width = 1440, reducedMotion = false, saveData = false, effectiveType, webgl2 = true, seen = false, getThrows = false, setThrows = false, storageGetterThrows = false } = {}) {
+  const attributes = {};
+  const storage = new Map(seen ? [[gate.INTRO_SESSION_KEY, "1"]] : []);
+  const win = {
+    attributes,
+    storage,
+    location: { pathname: path, hash },
+    // Answers only the gate's own query, the way the browser would evaluate it.
+    matchMedia: (query) => ({ matches: query === gate.INTRO_QUERY && width >= 1024 && !reducedMotion }),
+    navigator: saveData || effectiveType ? { connection: { saveData, effectiveType } } : {},
+    document: { documentElement: { setAttribute: (name, value) => { attributes[name] = value; } } },
+    ...(webgl2 ? { WebGL2RenderingContext: function WebGL2RenderingContext() {} } : {}),
+  };
+  const sessionStorage = {
+    getItem: (key) => {
+      if (getThrows) throw new Error("storage blocked");
+      return storage.get(key) ?? null;
+    },
+    setItem: (key, value) => {
+      if (setThrows) throw new Error("quota exceeded");
+      storage.set(key, value);
+    },
+  };
+  if (storageGetterThrows) Object.defineProperty(win, "sessionStorage", { get() { throw new Error("SecurityError"); } });
+  else win.sessionStorage = sessionStorage;
+  return win;
+}
+
+/** Runs the shipped inline script in a fresh context where only `window` is defined. */
+const runGate = (win) => vm.runInNewContext(gate.INTRO_GATE_SCRIPT, { window: win });
+
+const GATE_CASES = [
+  ["a first desktop visit to the home page", {}, "play"],
+  ["a fast connection", { effectiveType: "4g" }, "play"],
+  ["a phone", { width: 390 }, undefined],
+  ["reduced motion", { reducedMotion: true }, undefined],
+  ["Save-Data", { saveData: true }, undefined],
+  ["a slow-2g connection", { effectiveType: "slow-2g" }, undefined],
+  ["a 2g connection", { effectiveType: "2g" }, undefined],
+  ["a 3g connection", { effectiveType: "3g" }, undefined],
+  ["a deep link", { hash: "#pricing" }, undefined],
+  ["another page", { path: "/services/" }, undefined],
+  ["no WebGL2", { webgl2: false }, undefined],
+  ["a repeat view in this tab", { seen: true }, undefined],
+  ["getItem throws", { getThrows: true }, undefined],
+  ["setItem throws", { setThrows: true }, undefined],
+  ["the sessionStorage getter throws", { storageGetterThrows: true }, undefined],
+];
+
+test("the inline gate plays the intro only on a first desktop visit to the home page", () => {
+  for (const [label, options, expected] of GATE_CASES) {
+    const win = fakeWindow(options);
+    assert.doesNotThrow(() => runGate(win), label);
+    assert.equal(win.attributes["data-intro"], expected, label);
+    const marked = expected === "play" || options.seen ? "1" : undefined;
+    assert.equal(win.storage.get(gate.INTRO_SESSION_KEY), marked, `${label}: only a played intro marks the tab`);
+  }
+});
+
+test("the intro plays once per tab session", () => {
   const win = fakeWindow();
-  new Function("window", gate.introGateScript())(win);
+  runGate(win);
   assert.equal(win.attributes["data-intro"], "play");
+  delete win.attributes["data-intro"];
+  runGate(win);
+  assert.equal(win.attributes["data-intro"], undefined, "a repeat view skips it");
+});
+
+test("the gate script is fixed ES5 text with a knowable CSP hash", () => {
+  const script = gate.INTRO_GATE_SCRIPT;
+  assert.equal(gate.introGateScript(), script, "IntroGate.tsx renders the literal");
+  assert.ok(script.includes(JSON.stringify(gate.INTRO_SESSION_KEY)) && script.includes(JSON.stringify(gate.INTRO_QUERY)));
+  const parse = new Linter().verify(script, [{ languageOptions: { ecmaVersion: 5, sourceType: "script" } }]);
+  assert.deepEqual(parse.filter((message) => message.fatal), [], "parses as ES5");
+  assert.match(script, /^[\x20-\x7e]*$/, "printable ASCII, so the hash does not depend on an encoding");
+  assert.ok(!script.includes("<"), "safe inside an inline <script>");
+  // A change to the gate changes these pins; a CSP script-src entry would be 'sha256-<this hash>'.
+  assert.equal(script.length, 496);
+  assert.equal(createHash("sha256").update(script).digest("base64"), "0y3wV+PoPNzI6HQAOkd/uEUhzfrGQIcFoTGmdo7yXCU=");
 });

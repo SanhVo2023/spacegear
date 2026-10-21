@@ -1,37 +1,35 @@
 export const INTRO_SESSION_KEY = "spacegear:intro-seen";
 export const INTRO_QUERY = "(min-width: 1024px) and (prefers-reduced-motion: no-preference)";
 
-type GateWindow = {
-  location: { pathname: string; hash: string };
-  matchMedia(query: string): { matches: boolean };
-  sessionStorage: { getItem(key: string): string | null; setItem(key: string, value: string): void };
-  navigator: { connection?: { saveData?: boolean } };
-  document: { documentElement: { setAttribute(name: string, value: string): void } };
-  WebGL2RenderingContext?: unknown;
-};
-
 /**
- * Decides before first paint whether the intro plays: the home page without a hash, a desktop
- * width with motion allowed, no Save-Data, WebGL2 present, and not yet seen in this tab's session.
- * It is serialised with toString() into an inline script, so it must not use anything outside its
- * parameters.
+ * The inline script that decides before first paint whether the intro plays, by setting
+ * html[data-intro="play"]. It plays only on:
+ * - the home page without a hash;
+ * - a desktop width with motion allowed (INTRO_QUERY);
+ * - no Save-Data and no slow connection (slow-2g, 2g or 3g, as in canStream4k);
+ * - WebGL2 present;
+ * - a first view in this tab's session.
+ * Any error (blocked storage, for example) skips it.
+ *
+ * Hand-written ES5 rather than a serialised function, so the shipped bytes never depend on the
+ * toolchain (a transpiler helper would be swallowed by the catch) and the CSP hash is known from
+ * source; tests/globe-logic.test.mjs pins it. Parameters: k = session key, q = media query, w = window.
  */
-export function runIntroGate(key: string, query: string, win: GateWindow): boolean {
-  try {
-    if (win.location.pathname !== "/" || win.location.hash) return false;
-    if (!win.matchMedia(query).matches) return false;
-    if (win.navigator.connection && win.navigator.connection.saveData) return false;
-    if (typeof win.WebGL2RenderingContext !== "function") return false;
-    if (win.sessionStorage.getItem(key)) return false;
-    win.sessionStorage.setItem(key, "1");
-    win.document.documentElement.setAttribute("data-intro", "play");
-    return true;
-  } catch {
-    return false;
-  }
-}
+export const INTRO_GATE_SCRIPT =
+  "(function(k,q,w){try{" +
+  'if(w.location.pathname!=="/"||w.location.hash)return;' +
+  "if(!w.matchMedia(q).matches)return;" +
+  "var c=w.navigator.connection;" +
+  "if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType)))return;" +
+  'if(typeof w.WebGL2RenderingContext!=="function")return;' +
+  "var s=w.sessionStorage;" +
+  "if(s.getItem(k))return;" +
+  's.setItem(k,"1");' +
+  'w.document.documentElement.setAttribute("data-intro","play")' +
+  "}catch(e){}})(" +
+  `${JSON.stringify(INTRO_SESSION_KEY)},${JSON.stringify(INTRO_QUERY)},window);`;
 
 /** The inline script body rendered by IntroGate.tsx. */
 export function introGateScript(): string {
-  return `(${runIntroGate.toString()})(${JSON.stringify(INTRO_SESSION_KEY)},${JSON.stringify(INTRO_QUERY)},window);`;
+  return INTRO_GATE_SCRIPT;
 }
