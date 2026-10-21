@@ -87,6 +87,26 @@ const heldCopy = page => page.evaluate(() => [...document.querySelectorAll("#hom
   // Motion ends the entrance on blur(0px); the CSS end states use none.
   return !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(style.transform) || !["none", "blur(0px)"].includes(style.filter);
 }).map(el => el.textContent.trim().slice(0, 40)));
+// Centre of a hero link hidden under the intro overlay, and whether the overlay covers it there.
+const introSpot = (page, which) => page.evaluate(which => {
+  const el = which === "hero CTA" ? document.querySelector('#home .hero-copy a[href="/contact/"]')
+    : which === "nav Contact" ? [...document.querySelectorAll("header a")].find(a => a.textContent.trim() === "Contact")
+    : document.querySelector('#home a[href="/services/applied-ai/"]');
+  const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  return { x, y, href: el.getAttribute("href"), covered: Boolean(document.elementFromPoint(x, y)?.closest(".intro-overlay")) };
+}, which);
+// Hit-testing around the headline. The masks' padding takes no presses, so the eyebrow's bottom edge
+// (which the first row's masks overlap on wide viewports) belongs to the eyebrow; a word is its own
+// target, except in the cinematic hero, whose copy layer is pointer-transparent so presses reach the globe.
+const headlineHits = page => page.evaluate(() => {
+  const eyebrow = document.querySelector("#home .hero-copy > p"), e = eyebrow.getBoundingClientRect();
+  const word = document.querySelectorAll("#home .hero-word")[1].getBoundingClientRect();
+  const hit = document.elementFromPoint(word.left + word.width / 2, word.top + word.height / 2);
+  return {
+    eyebrowEdge: [0.1, 0.3, 0.5].every(f => eyebrow.contains(document.elementFromPoint(e.left + e.width * f, e.bottom - 2))),
+    word: hit?.closest(".hero-word") ? "word" : hit?.closest(".hero-scene") ? "globe" : hit?.tagName ?? null,
+  };
+});
 // Polls heldCopy until the hero copy is fully released (or the timeout passes) and returns the last result.
 async function releasedCopy(page, timeout = 6000) {
   let held = await heldCopy(page);
@@ -385,13 +405,7 @@ try {
         await clickPage.route("**/textures/earth/**", late(8000));
         await clickPage.goto(base, { waitUntil: "domcontentloaded" });
         await clickPage.waitForSelector("#home .hero-scene", { state: "attached", timeout: 30000 }); // hydrated
-        const spot = await clickPage.evaluate(which => {
-          const el = which === "hero CTA" ? document.querySelector('#home .hero-copy a[href="/contact/"]')
-            : which === "nav Contact" ? [...document.querySelectorAll("header a")].find(a => a.textContent.trim() === "Contact")
-            : document.querySelector('#home a[href="/services/applied-ai/"]');
-          const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
-          return { x, y, href: el.getAttribute("href"), covered: Boolean(document.elementFromPoint(x, y)?.closest(".intro-overlay")) };
-        }, target);
+        const spot = await introSpot(clickPage, target);
         const before = await overlayState(clickPage);
         assert.ok(before.intro === "play" && spot.covered, `desktop: the overlay covers the ${target} while the intro loads (precondition: ${JSON.stringify({ before, spot })})`);
         const url = clickPage.url();
@@ -406,6 +420,30 @@ try {
         await clickPage.close();
       }
       report.interactions.push(`desktop intro: a click on the overlay over the ${spots.join(", ")} ends it without navigating; the next deliberate click on the CTA navigates`);
+
+      // During the curtain lift the part still covered takes presses too (hit-testing follows its
+      // clip-path): 250 ms into the reveal the screen is still black, and a click on the nav's Contact
+      // link must not navigate; about 900 ms in, the corner card is uncovered and live.
+      const lift = [];
+      for (const [wait, target, live] of [[250, "nav Contact", false], [900, "corner card", true]]) {
+        const liftPage = await context.newPage();
+        await liftPage.goto(base, { waitUntil: "domcontentloaded" });
+        await liftPage.waitForFunction(() => document.documentElement.dataset.intro === "reveal", null, { timeout: 30000, polling: "raf" });
+        await liftPage.waitForTimeout(wait);
+        const spot = await introSpot(liftPage, target);
+        assert.equal(spot.covered, !live, `desktop: ${wait} ms into the curtain lift the ${target} is ${live ? "uncovered" : "still covered"} (precondition: ${JSON.stringify(spot)})`);
+        const url = liftPage.url();
+        if (live) {
+          await Promise.all([liftPage.waitForURL(`**${spot.href}`, { timeout: 10000 }), liftPage.mouse.click(spot.x, spot.y)]);
+        } else {
+          await liftPage.mouse.click(spot.x, spot.y);
+          await liftPage.waitForTimeout(1000);
+          assert.ok(liftPage.url() === url && (await overlayState(liftPage)).intro === "done", `desktop: a click ${wait} ms into the curtain lift, over the still-covered ${target}, ends the intro without following ${spot.href} (${liftPage.url()})`);
+        }
+        lift.push(`${target} at +${wait} ms ${live ? "navigates" : "does not navigate"}`);
+        await liftPage.close();
+      }
+      report.interactions.push(`desktop intro curtain lift: ${lift.join("; ")}`);
 
       // Pure-CSS failsafe: when the overlay's script never runs, the overlay hides itself and the held
       // hero copy shows after the failsafe delay.
@@ -489,6 +527,9 @@ try {
     assert.ok(!/\s[,.]/.test(words.text), `${profile.name}: the headline reads as a sentence (${words.text})`);
     assert.equal(await page.getByRole("heading", { level: 1, name: words.text, exact: true }).count(), 1, `${profile.name}: the headline's accessible name is the whole sentence`);
     assert.deepEqual(await headingTree(context, page), { name: words.text, roles: ["StaticText"] }, `${profile.name}: Chrome exposes the headline as one heading of plain text, with no group per word`);
+    const hits = await headlineHits(page);
+    if (profile.name === "desktop") assert.equal(hits.word, "globe", "desktop: presses on the cinematic headline reach the globe");
+    else assert.deepEqual(hits, { eyebrowEdge: true, word: "word" }, `${profile.name}: the masks' padding takes no presses (the eyebrow keeps its bottom edge) and each word is its own target`);
     await page.screenshot({ path: `artifacts/${profile.name}.png`, fullPage: false });
     assert.deepEqual(hydrationErrors, [], `${profile.name}: React hydrates without a mismatch (the intro gate edits <html> before hydration)`);
     assert.deepEqual(errors, [], `${profile.name}: console errors`);
