@@ -5267,3 +5267,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - **Task 4 carries these Task 3 follow-ups:**
   - `onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))}`, so a failure is terminal.
   - Make `tests/globe-loader.test.mjs` deterministic: send the 404 only after the `createImageBitmap` stub has seen both blobs.
+- **Task 4 review fixes (`8ecfbad`).** The committed files are the reference. They include:
+  - limb-lit atmosphere;
+  - luminance-weighted twilight with `twilightFloor`;
+  - `uCloudHeight`;
+  - cloud discard;
+  - a rig and camera snap until announced;
+  - per-`p` recompute;
+  - the uniform-set test.
+- **Real-GPU check after Task 4 (GTX 1660 Ti):** the look is approved.
+- **Task 5 carries these look and robustness items:**
+  - `LOOK.twilight` becomes `#ff8240`, with a comment that the input compensates for ACES so the band renders at the brand hue (#fa6e43 renders as brick red at the band's brightness).
+  - `LOOK.cityGain` becomes 4.5.
+  - The sun target vector moves into the `scroll` ref.
+  - `stepDrag` assigns velocity only when `Number.isFinite`.
+  - Add a test that 60 Hz and 144 Hz release velocities agree within about 2 % after a steady drag.
+- **Task 9 is high priority.** Until the poster is recaptured, first paint shows the OLD GLB poster: dark, blotchy, with the sun behind the headline.
