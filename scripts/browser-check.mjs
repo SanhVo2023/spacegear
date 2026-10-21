@@ -30,7 +30,10 @@ const globeSource = await fs.readFile(new URL("../src/components/globe/constants
 const globeConstant = name => Number(globeSource.match(new RegExp(`export const ${name} = (\\d+(?:\\.\\d+)?);`))?.[1]);
 const REVEAL_END_MS = 1000 * (globeConstant("REVEAL_DELAY_SECONDS") + Math.max(globeConstant("REVEAL_SECONDS"), globeConstant("FLARE_SECONDS")));
 const STREAM_SETTLE_MS = 1000 * globeConstant("STREAM_SETTLE_SECONDS");
-assert.ok(REVEAL_END_MS > 0 && STREAM_SETTLE_MS > 0, `the globe's reveal and stream timing is readable from constants.ts (${REVEAL_END_MS} ms, ${STREAM_SETTLE_MS} ms)`);
+// A retried stream would start from a new idle callback, forced after STREAM_IDLE_TIMEOUT_MS: a failed
+// stream is watched that long after its failure, plus a second.
+const RETRY_WATCH_MS = globeConstant("STREAM_IDLE_TIMEOUT_MS") + 1000;
+assert.ok(REVEAL_END_MS > 0 && STREAM_SETTLE_MS > 0 && RETRY_WATCH_MS > 1000, `the globe's reveal and stream timing is readable from constants.ts (${REVEAL_END_MS} ms, ${STREAM_SETTLE_MS} ms, ${RETRY_WATCH_MS} ms)`);
 const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
 INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
 const browser = await launchBrowser();
@@ -677,7 +680,7 @@ try {
   // 4k streaming on a page that reports a capable desktop GPU and 8 GB of device memory; a texture probe
   // records its WebGL calls (scripts/globe-stream.mjs). An intro visit, the hero scrolled away and back,
   // a lost context, then reloads: a stream paused off screen, and a stream that fails.
-  const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS, settleMs: STREAM_SETTLE_MS });
+  const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS, settleMs: STREAM_SETTLE_MS, retryWatchMs: RETRY_WATCH_MS });
   report.stream = stream.summary;
   report.interactions.push(stream.line);
 

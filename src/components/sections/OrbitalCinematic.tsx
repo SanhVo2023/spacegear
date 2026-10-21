@@ -69,12 +69,19 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   // The first frame shows the 2k set; capable desktops swap in the 4k set after the intro (EarthScene).
   const [tier, setTier] = useState<GlobeTier>("2k");
+  // Set by a failure, which is final for the tier. The scene is a separate React root (R3F), so a context
+  // lost in the moment between the 4k swap and its commit could otherwise report "4k" after the reset.
+  const failed = useRef(false);
   // A failure also ends a running intro at once (its counter would otherwise wait for the cap). The poster
   // shows again, so the hero no longer reports the 4k tier.
   const fail = () => {
+    failed.current = true;
     setGlobe("failed");
     setTier("2k");
     introStore.fail();
+  };
+  const onTier = (next: GlobeTier) => {
+    if (!failed.current) setTier(next);
   };
 
   // Mount the WebGL scene at once while the intro covers the page (its loading drives the counter);
@@ -115,7 +122,7 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
             active={active}
             dragTarget={live ? sceneRef : undefined}
             onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))}
-            onTier={setTier}
+            onTier={onTier}
             onLost={fail}
           />
         </SceneBoundary>
