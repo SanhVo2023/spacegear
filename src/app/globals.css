@@ -295,6 +295,11 @@ html { scroll-padding-top: 88px; }
    motion and no-JS is the [data-reveal] rule on each word. */
 .hero-word-mask { display: inline-block; overflow: clip; vertical-align: top; padding: 0.36em 0.1em 0.18em; margin: -0.36em -0.1em -0.18em; }
 .hero-word { display: inline-block; transform-origin: 0% 100%; }
+/* Only the words take pointer events, not their masks' padding, which overlaps the eyebrow and the
+   row above. The cinematic hero's copy layer stays pointer-transparent, so drags reach the globe. */
+.hero-word-mask { pointer-events: none; }
+.hero-word { pointer-events: auto; }
+.hero-copy-layer .hero-word { pointer-events: none; }
 
 /* Intro loader (IntroOverlay.tsx). It shows only while the inline gate (IntroGate.tsx) has set
    html[data-intro]: never without JavaScript, under reduced motion, on Save-Data or slow

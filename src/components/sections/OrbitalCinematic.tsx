@@ -174,7 +174,10 @@ function Stat({ value, unit, label, sub }: StatData) {
  * differs between server and client; reduced motion never plays the intro.
  */
 type CopyState = "held" | "shown" | "revealed";
-const copyState = (phase: IntroPhase): CopyState => (phase === "loading" ? "held" : phase === "off" ? "shown" : "revealed");
+/** `start` is the phase when this copy mounted: a remount after the intro (crossing 1024 px, a client
+ *  navigation back to "/") uses the normal timing. */
+const copyState = (phase: IntroPhase, start: IntroPhase): CopyState =>
+  phase === "loading" ? "held" : phase !== "off" && (start === "loading" || start === "reveal") ? "revealed" : "shown";
 const EASE = [0.44, 0, 0.56, 1] as const;
 const RISE = [0.16, 1, 0.3, 1] as const;
 /** On intro visits the eyebrow, pitch and stats wait this much longer for the curtain to clear. */
@@ -226,7 +229,9 @@ function HeroCopy() {
   // Same markup for every visitor (static export). The intro holds the copy until its reveal;
   // reduced motion and no-JS get the end state from CSS on [data-reveal] (globals.css, NoScriptStyles).
   const phase = useSyncExternalStore(introStore.subscribe, getIntroPhase, getServerIntroPhase);
-  const state = copyState(phase);
+  // Only picks an animation label, never markup; on the server (and so in the HTML) it is "off".
+  const [startPhase] = useState(getIntroPhase);
+  const state = copyState(phase, startPhase);
   return (
     <div className="hero-copy mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
       <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="text-[15px] leading-tight">
@@ -382,7 +387,7 @@ export default function OrbitalCinematic() {
           opacity={[[0, 0.18, 0.34], [1, 1, 0]]}
           y={[[0, 0.34], [0, -60]]}
           blur={[[0, 0.34], ["blur(0px)", "blur(8px)"]]}
-          className="pointer-events-none absolute inset-0 flex items-center"
+          className="hero-copy-layer pointer-events-none absolute inset-0 flex items-center"
         >
           <Container className="relative">
             <HeroCopy />
