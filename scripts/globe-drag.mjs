@@ -8,7 +8,9 @@
 // and high-passed (so the fixed limb shading and lighting cannot pull a match toward zero), and five
 // patches below the ocean glint are found again by normalised cross-correlation; the median
 // horizontal shift wins. At the opening scale 8° moves the surface about 170 px, which the patches
-// follow reliably; 30° moves it about 500 px, beyond what they can track.
+// follow reliably; 30° moves it about 500 px, beyond what they can track. The idle sequence is
+// searched around no shift; the two drags around the idle shift they include, so the ±320 px window
+// is spent on the induced turn alone (about 150 px of headroom each way).
 import sharp from "sharp";
 
 const PATCHES = [[950, 600], [1050, 600], [950, 700], [1050, 700], [1000, 650]]; // centres at 1440×1000
@@ -43,16 +45,18 @@ async function highPass(png) {
   return { w, h, px, scale: width / 1440 };
 }
 
-// Best (dx, dy) in px for one patch of `a` found in `b`, by normalised cross-correlation.
-function matchPatch(a, b, [cx, cy]) {
+// Best (dx, dy) in px for one patch of `a` found in `b`, by normalised cross-correlation, searching
+// ±SEARCH samples around a horizontal shift of `around` px.
+function matchPatch(a, b, [cx, cy], around = 0) {
   const [tw, th] = PATCH, [sx, sy] = SEARCH;
+  const ox = Math.round((around * a.scale) / 4);
   const x0 = Math.round((cx * a.scale) / 4 - tw / 2), y0 = Math.round((cy * a.scale) / 4 - th / 2);
   let mean = 0, energy = 0;
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) mean += a.px[(y0 + y) * a.w + x0 + x];
   mean /= tw * th;
   for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) energy += (a.px[(y0 + y) * a.w + x0 + x] - mean) ** 2;
   let best = { dx: 0, dy: 0, r: -2 };
-  for (let dy = -sy; dy <= sy; dy++) for (let dx = -sx; dx <= sx; dx++) {
+  for (let dy = -sy; dy <= sy; dy++) for (let dx = ox - sx; dx <= ox + sx; dx++) {
     const bx = x0 + dx, by = y0 + dy;
     if (bx < 0 || by < 0 || bx + tw > b.w || by + th > b.h) continue;
     let mb = 0, sab = 0, sbb = 0;
@@ -68,10 +72,11 @@ function matchPatch(a, b, [cx, cy]) {
   return best;
 }
 
-// Median horizontal surface shift (px at 1440 wide; + = the surface moved right) from `before` to `during`.
-function surfaceShift(before, during) {
-  const matches = PATCHES.map(centre => matchPatch(before, during, centre));
-  return { shift: Math.round(matches.map(m => m.dx).sort((p, q) => p - q)[2]), matches };
+// Median horizontal surface shift (px at 1440 wide; + = the surface moved right) from `before` to
+// `during`, searched around `around` px.
+function surfaceShift(before, during, around = 0) {
+  const matches = PATCHES.map(centre => matchPatch(before, during, centre, around));
+  return { shift: Math.round(matches.map(m => m.dx).sort((p, q) => p - q)[2]), around, matches };
 }
 
 /**
@@ -82,7 +87,7 @@ export async function dragTurn(page, { angle = 8, press = true } = {}) {
   const scene = page.locator("#home .hero-scene");
   const distance = Math.round((angle / 180) * 1440); // DRAG_RADIANS_PER_VIEWPORT is π
   const y = 540;
-  const sequence = async (from, to, withPress) => {
+  const sequence = async (from, to, withPress, around) => {
     await page.mouse.move(to, y, { steps: 4 });
     await page.waitForTimeout(1000); // the tilt settles with the cursor where it will end
     const before = await highPass(await canvasShot(page));
@@ -97,11 +102,11 @@ export async function dragTurn(page, { angle = 8, press = true } = {}) {
     const during = await highPass(await canvasShot(page));
     const held = await scene.evaluate(el => el.hasAttribute("data-dragging"));
     if (withPress) await page.mouse.up();
-    return { ...surfaceShift(before, during), pressed, held };
+    return { ...surfaceShift(before, during, around), pressed, held };
   };
   const start = 1000;
-  const idle = await sequence(start + distance, start, false);
-  const left = await sequence(start + distance, start, press);
-  const right = await sequence(start, start + distance, press);
+  const idle = await sequence(start + distance, start, false, 0);
+  const left = await sequence(start + distance, start, press, idle.shift);
+  const right = await sequence(start, start + distance, press, idle.shift);
   return { idle, left, right, inducedLeft: left.shift - idle.shift, inducedRight: right.shift - idle.shift };
 }

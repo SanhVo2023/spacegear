@@ -12,9 +12,70 @@ assert.ok(routes.length > 0, "sitemap lists routes");
 const homeHeaders = (await fetch(`${base}/`)).headers;
 assert.ok((homeHeaders.get("content-security-policy") || "").includes("connect-src"), "/ serves the Content-Security-Policy (with connect-src)");
 assert.ok(homeHeaders.has("x-content-type-options"), "/ serves X-Content-Type-Options");
+// Intro timing, read from the source so the checks follow a retune: the load cap and the reveal
+// (intro-store.ts) and the delay of the pure-CSS failsafe (globals.css).
+const introSource = await fs.readFile(new URL("../src/components/globe/intro-store.ts", import.meta.url), "utf8");
+const introConstant = name => Number(introSource.match(new RegExp(`export const ${name} = (\\d+);`))?.[1]);
+const INTRO = { loadCap: introConstant("INTRO_LOAD_CAP_MS"), extraCap: introConstant("INTRO_EXTRA_CAP_MS"), reveal: introConstant("INTRO_REVEAL_MS") };
+const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
+INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
 const browser = await launchBrowser();
 const report = { testedAt: new Date().toISOString(), base, browser: browser.version(), profiles: [], interactions: [] };
 await fs.mkdir("artifacts", { recursive: true });
+
+// The hero headline: every word in its own mask, risen into place and unclipped; the plain text.
+const heroWords = page => page.evaluate(() => {
+  const h1 = document.querySelector("#home h1");
+  const words = [...h1.querySelectorAll(".hero-word")];
+  const inPlace = el => ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(getComputedStyle(el).transform);
+  const clipped = el => {
+    const word = el.getBoundingClientRect(), mask = el.parentElement.getBoundingClientRect();
+    return word.top < mask.top - 0.5 || word.bottom > mask.bottom + 0.5 || word.left < mask.left - 0.5 || word.right > mask.right + 0.5;
+  };
+  return {
+    text: h1.textContent.replace(/\s+/g, " ").trim(),
+    count: words.length,
+    masked: words.every(el => el.parentElement.classList.contains("hero-word-mask")),
+    unsettled: words.filter(el => !inPlace(el)).map(el => el.textContent),
+    clipped: words.filter(clipped).map(el => el.textContent),
+  };
+});
+// Chrome's own accessibility tree for the page's h1: its name and the roles exposed inside it.
+async function headingTree(context, page) {
+  const cdp = await context.newCDPSession(page);
+  try {
+    await cdp.send("Accessibility.enable");
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+    const byId = new Map(nodes.map(node => [node.nodeId, node]));
+    const heading = nodes.find(node => node.role?.value === "heading" && node.properties?.some(p => p.name === "level" && p.value.value === 1));
+    const roles = new Set();
+    const walk = node => {
+      for (const id of node.childIds ?? []) {
+        const child = byId.get(id);
+        if (!child) continue;
+        if (!child.ignored) roles.add(child.role?.value);
+        if (child.role?.value !== "StaticText") walk(child);
+      }
+    };
+    if (heading) walk(heading);
+    return { name: heading?.name?.value ?? null, roles: [...roles] };
+  } finally {
+    await cdp.detach();
+  }
+}
+// The intro overlay's computed state and the time since navigation start.
+const overlayState = page => page.evaluate(() => {
+  const overlay = document.querySelector(".intro-overlay");
+  const style = overlay ? getComputedStyle(overlay) : {};
+  return { t: Math.round(performance.now()), intro: document.documentElement.dataset.intro ?? null, overlay: Boolean(overlay), display: style.display, visibility: style.visibility, opacity: style.opacity };
+});
+// Hero copy under #home that is transparent, displaced or blurred (the intro's held state).
+const heldCopy = page => page.evaluate(() => [...document.querySelectorAll("#home [data-reveal]")].filter(el => {
+  for (let n = el; n; n = n.parentElement) if (parseFloat(getComputedStyle(n).opacity) < 0.99) return true;
+  const style = getComputedStyle(el);
+  // Motion ends the entrance on blur(0px); the CSS end states use none.
+  return !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(style.transform) || !["none", "blur(0px)"].includes(style.filter);
+}).map(el => el.textContent.trim().slice(0, 40)));
 
 // Scrolls the page down and back up in steps (so in-view and lazy content gets
 // its chance to appear), then returns the start of every rendered text that is
@@ -123,17 +184,58 @@ try {
     // three.js reports shader compile and link failures as console errors starting with "THREE.".
     const shaderErrors = [];
     page.on("console", message => { if (message.type() === "error" && /THREE\./.test(message.text())) shaderErrors.push(message.text().slice(0, 300)); });
+    // React reports a hydration mismatch as a recoverable console error (minified #418, #423, #425 in production).
+    const hydrationErrors = [];
+    page.on("console", message => { if (message.type() === "error" && /hydrat|error #4(18|23|25)\b/i.test(message.text())) hydrationErrors.push(message.text().slice(0, 300)); });
     await page.addInitScript(() => {
-      window.__audit = { cls: 0, lcp: 0, longTasks: 0, rafRequests: 0 };
+      window.__audit = { cls: 0, lcp: 0, lcpElement: null, longTasks: 0, longestTask: 0, rafRequests: 0 };
       const originalRaf = window.requestAnimationFrame;
       window.requestAnimationFrame = callback => { window.__audit.rafRequests++; return originalRaf.call(window, callback); };
       new PerformanceObserver(list => { for (const e of list.getEntries()) if (!e.hadRecentInput) window.__audit.cls += e.value; }).observe({ type: "layout-shift", buffered: true });
-      new PerformanceObserver(list => { window.__audit.lcp = list.getEntries().at(-1)?.startTime || 0; }).observe({ type: "largest-contentful-paint", buffered: true });
-      new PerformanceObserver(list => { window.__audit.longTasks += list.getEntries().length; }).observe({ type: "longtask", buffered: true });
+      new PerformanceObserver(list => {
+        const entry = list.getEntries().at(-1);
+        window.__audit.lcp = entry?.startTime || 0;
+        const el = entry?.element;
+        window.__audit.lcpElement = el ? `${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? `.${el.className.split(" ")[0]}` : ""} ${entry.url || el.textContent.trim().slice(0, 24)}` : null;
+      }).observe({ type: "largest-contentful-paint", buffered: true });
+      new PerformanceObserver(list => {
+        for (const e of list.getEntries()) { window.__audit.longTasks++; window.__audit.longestTask = Math.max(window.__audit.longestTask, Math.round(e.duration)); }
+      }).observe({ type: "longtask", buffered: true });
+      // Intro and globe state changes with timestamps (data-intro on <html>, data-globe on the hero scene).
+      // Observing the document catches the inline gate's change to <html> during parsing.
+      window.__heroLog = [];
+      new MutationObserver(records => { for (const r of records) window.__heroLog.push({ attr: r.attributeName, value: r.target.getAttribute(r.attributeName), t: performance.now() }); })
+        .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe"] });
     });
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
+    // The intro plays once per session on a first desktop visit and is skipped everywhere else
+    // (phones and tablets, reduced motion, no JavaScript).
+    const heroLog = async () => (await page.evaluate(() => window.__heroLog)) ?? [];
+    const played = log => log.some(entry => entry.attr === "data-intro" && entry.value === "play");
+    let introMetrics = null;
+    if (profile.name === "desktop") {
+      await page.waitForFunction(() => window.__heroLog.some(entry => entry.attr === "data-intro" && entry.value === "done"), null, { timeout: 45000 });
+      const log = await heroLog();
+      const at = (attr, value) => log.find(entry => entry.attr === attr && entry.value === value);
+      const play = at("data-intro", "play"), reveal = at("data-intro", "reveal"), ready = at("data-globe", "ready"), done = at("data-intro", "done");
+      const timing = JSON.stringify({ play: play?.t, reveal: reveal?.t, ready: ready?.t, done: done.t });
+      assert.ok(play, "desktop: the intro plays on the first visit");
+      const firstPaint = await page.evaluate(() => performance.getEntriesByName("first-contentful-paint")[0]?.startTime);
+      assert.ok(play.t <= firstPaint, `desktop: the inline gate starts the intro before first paint (${timing}, first paint ${firstPaint})`);
+      assert.ok(reveal && play.t < reveal.t && reveal.t < done.t, `desktop: the intro reveals the page, then ends (${timing})`);
+      // Timers and frames get 300 ms of slack. The load cap counts from navigation start, as performance.now() does.
+      assert.ok(done.t <= Math.min(ready ? ready.t : Infinity, INTRO.loadCap) + INTRO.extraCap + 300, `desktop: the intro ends within 2.5 s of loading (${timing})`);
+      assert.ok(done.t <= INTRO.loadCap + INTRO.reveal + 300, `desktop: the overlay is gone within the load cap plus the reveal, from navigation start (${timing})`);
+      assert.equal((await overlayState(page)).display, "none", "desktop: the overlay is removed once the intro is done");
+      // Layout and long-task figures for the intro visit, taken before the checks below add their own work.
+      introMetrics = { ...(await page.evaluate(() => window.__audit)), timing: JSON.parse(timing) };
+      assert.ok(!(introMetrics.cls >= 0.05), `desktop with the intro: cumulative layout shift ${introMetrics.cls}`);
+    } else {
+      assert.equal(played(await heroLog()), false, `${profile.name}: no intro`);
+      assert.equal((await overlayState(page)).display, "none", `${profile.name}: the intro overlay never shows`);
+    }
     if (profile.name === "desktop") {
       // The globe streams same-origin WebP maps (fetch + createImageBitmap) under the shipped CSP.
       await page.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
@@ -220,6 +322,59 @@ try {
       assert.equal(await page.evaluate(() => document.activeElement === document.body), true, "desktop: a click on the globe moves focus off the nav");
       assert.equal((await services()).visibility, "hidden", "desktop: a click on the globe closes a keyboard-opened dropdown");
       report.interactions.push("desktop globe: a missed release ends the drag, a drag selects no text and a click moves focus");
+
+      // A second visit in the same tab skips the intro.
+      await page.reload({ waitUntil: "networkidle" });
+      await page.locator("h1").waitFor({ state: "visible" });
+      assert.equal(played(await heroLog()), false, "desktop: the intro is skipped on the second visit");
+      assert.equal((await overlayState(page)).display, "none", "desktop: no overlay on the second visit");
+      report.interactions.push(`desktop intro plays once per session, starts before first paint and ends within 2.5 s of loading and within ${INTRO.loadCap + INTRO.reveal} ms of navigation start (${JSON.stringify(introMetrics.timing)})`);
+
+      // Any input ends the intro at once. Tab lands on the skip link, which shows above the overlay with its focus ring.
+      const skipPage = await context.newPage(); // a new tab is a new session: the intro plays
+      // Hold the textures so the intro is still loading when the key is pressed.
+      await skipPage.route("**/textures/earth/**", async route => { await new Promise(resolve => setTimeout(resolve, 3000)); await route.continue().catch(() => {}); });
+      await skipPage.goto(base, { waitUntil: "domcontentloaded" });
+      await skipPage.waitForSelector("#home .hero-scene", { state: "attached", timeout: 30000 }); // hydrated: the overlay listens for input
+      const loading = await overlayState(skipPage);
+      assert.ok(loading.intro === "play" && loading.display === "flex", `desktop: the intro is still loading (precondition for the skip check: ${JSON.stringify(loading)})`);
+      // The overlay is never read out (the counter is aria-hidden), holds nothing focusable, never takes
+      // pointer events and sits outside main.
+      assert.deepEqual(await skipPage.evaluate(() => {
+        const overlay = document.querySelector(".intro-overlay");
+        return { ariaHidden: overlay.getAttribute("aria-hidden"), focusable: overlay.querySelectorAll("a, button, input, select, textarea, [tabindex]").length, pointerEvents: getComputedStyle(overlay).pointerEvents, inMain: Boolean(overlay.closest("main")) };
+      }), { ariaHidden: "true", focusable: 0, pointerEvents: "none", inMain: false }, "desktop: the intro overlay is hidden from assistive technology and cannot take focus or clicks");
+      await skipPage.keyboard.press("Tab");
+      const skipped = await overlayState(skipPage);
+      assert.ok(skipped.intro === "done" && skipped.display === "none", `desktop: a key press ends the intro at once (${JSON.stringify(skipped)})`);
+      await skipPage.waitForTimeout(300); // the skip link's slide-in
+      const skipFocus = await skipPage.evaluate(() => {
+        const el = document.activeElement, r = el.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { skipLink: el.matches(".skip-link"), focusVisible: el.matches(":focus-visible"), outline: getComputedStyle(el).outlineStyle, onTop: Boolean(top && (top === el || el.contains(top))) };
+      });
+      assert.deepEqual(skipFocus, { skipLink: true, focusVisible: true, outline: "solid", onTop: true }, "desktop: Tab during the intro focuses the visible skip link");
+      await skipPage.waitForTimeout(1800); // the copy rises once the intro has ended
+      assert.deepEqual(await heldCopy(skipPage), [], "desktop: a skipped intro releases the hero copy");
+      await skipPage.close();
+      report.interactions.push("desktop intro: Tab ends it at once and focuses the visible skip link; the copy is released");
+
+      // Pure-CSS failsafe: when the overlay's script never runs, the overlay hides itself and the held
+      // hero copy shows after the failsafe delay.
+      assert.ok(INTRO.failsafe > INTRO.loadCap + INTRO.reveal, `the CSS failsafe (${INTRO.failsafe} ms) waits out the load cap plus the reveal`);
+      const deadPage = await context.newPage();
+      await deadPage.route("**/_next/static/**", route => (route.request().resourceType() === "script" ? route.abort() : route.continue()));
+      await deadPage.goto(base, { waitUntil: "load" });
+      const stuck = await overlayState(deadPage);
+      assert.ok(stuck.intro === "play" && stuck.display === "flex" && stuck.visibility === "visible" && stuck.t < INTRO.failsafe - 500, `failsafe: the overlay covers the page while the scripts are blocked (precondition: ${JSON.stringify(stuck)})`);
+      assert.notDeepEqual(await heldCopy(deadPage), [], "failsafe: the hero copy is held while the overlay shows (precondition)");
+      await deadPage.waitForFunction(ms => performance.now() > ms, INTRO.failsafe + 300, { timeout: INTRO.failsafe + 10000 });
+      const released = await overlayState(deadPage);
+      assert.ok(released.intro === "play" && released.visibility === "hidden" && Number(released.opacity) === 0, `failsafe: the overlay hides itself without JavaScript (${JSON.stringify(released)})`);
+      assert.deepEqual(await heldCopy(deadPage), [], "failsafe: the hero copy shows without JavaScript");
+      assert.deepEqual((await heroWords(deadPage)).unsettled, [], "failsafe: the headline words stand in place without JavaScript");
+      await deadPage.close();
+      report.interactions.push(`desktop intro failsafe: with the scripts blocked the overlay hides and the copy shows after ${INTRO.failsafe} ms`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
@@ -255,8 +410,18 @@ try {
     }
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(100);
+    // The headline rises word by word from masks for every visitor; reduced motion and no-JS show the
+    // end state from CSS. The accessible name stays the plain sentence, and the copy is not duplicated.
+    const words = await heroWords(page);
+    assert.ok(words.count > 5 && words.masked && words.count === words.text.split(" ").length, `${profile.name}: each headline word sits in its own mask (${JSON.stringify(words)})`);
+    assert.deepEqual(words.unsettled, [], `${profile.name}: the headline words have risen into place`);
+    assert.deepEqual(words.clipped, [], `${profile.name}: no headline word is clipped by its mask`);
+    assert.ok(!/\s[,.]/.test(words.text), `${profile.name}: the headline reads as a sentence (${words.text})`);
+    assert.equal(await page.getByRole("heading", { level: 1, name: words.text, exact: true }).count(), 1, `${profile.name}: the headline's accessible name is the whole sentence`);
+    assert.deepEqual(await headingTree(context, page), { name: words.text, roles: ["StaticText"] }, `${profile.name}: Chrome exposes the headline as one heading of plain text, with no group per word`);
     await page.screenshot({ path: `artifacts/${profile.name}.png`, fullPage: false });
     assert.deepEqual(errors, [], `${profile.name}: console errors`);
+    assert.deepEqual(hydrationErrors, [], `${profile.name}: React hydrates without a mismatch (the intro gate edits <html> before hydration)`);
     // No GLB or Draco file is ever requested; reduced motion and no-JS load no globe textures at all.
     const forbidden = requests.filter(url => /\.glb(?:$|\?)|\/draco\//.test(url));
     assert.deepEqual(forbidden, [], `${profile.name}: no GLB or Draco request`);
@@ -270,7 +435,7 @@ try {
     // Layout stability is now gated, not only recorded: the hero's static → cinematic and poster →
     // canvas swaps must not shift content (unset without JavaScript).
     assert.ok(!(metrics.cls >= 0.05), `${profile.name}: cumulative layout shift ${metrics.cls}`);
-    report.profiles.push({ name: profile.name, textures: textureRequests.length, ...metrics });
+    report.profiles.push({ name: profile.name, textures: textureRequests.length, ...metrics, ...(introMetrics ? { intro: introMetrics } : {}) });
     if (profile.name === "desktop") {
       // The curtain footer is fixed behind the content; tabbing into it must bring it into view.
       await page.evaluate(() => {
@@ -428,6 +593,9 @@ try {
   });
   await fallbackPage.goto(base, { waitUntil: "networkidle" });
   await fallbackPage.waitForTimeout(2500); // past the idle-mount timeout
+  // A first visit plays the intro; a globe that cannot start ends it, and the copy is released.
+  assert.equal((await overlayState(fallbackPage)).intro, "done", "webgl-fallback: the intro ends when the globe cannot start");
+  assert.deepEqual(await heldCopy(fallbackPage), [], "webgl-fallback: the hero copy is fully visible");
   assert.ok(await fallbackPage.locator("h1").isVisible());
   assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
