@@ -5261,3 +5261,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - The look constants live in `LOOK`/`constants.ts`; never re-hard-code them in GLSL.
   - Each later task's real-GPU step may tune only `LOOK` and the constants.
 - **Task 3's real-GPU check** judges orientation, colour, seams, the glint and the sun position only. The blotch-free look is judged after Task 4, because the cloud-shadow terms need the cloud shell.
+- **`HeroScene` (from the Task 3 review fix `242c27e`).** The scene layer moved into a `HeroScene` child of `OrbitalCinematic.tsx` that exists only in the cinematic branch.
+  - Any `OrbitalCinematic` edit in Tasks 5–7 that touches the scene layer applies inside `HeroScene`. That covers `sceneRef`, `data-cursor`/`dragTarget`, `fail` and `introStore`, the mount effect, and `tier`/`onTier`.
+  - Drop those snippets' `!cinematic ||` guard. Re-read the committed file and apply the intent of each edit.
+- **Task 4 carries these Task 3 follow-ups:**
+  - `onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))}`, so a failure is terminal.
+  - Make `tests/globe-loader.test.mjs` deterministic: send the 404 only after the `createImageBitmap` stub has seen both blobs.
