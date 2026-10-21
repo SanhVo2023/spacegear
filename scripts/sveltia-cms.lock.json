@@ -1,0 +1,11 @@
+{
+  "name": "@sveltia/cms",
+  "version": "0.230.1",
+  "tarball": "https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz",
+  "integrity": "sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==",
+  "files": {
+    "LICENSE.txt": "dcbe3c626d85741f6fabefed0b34d07a2e92c032f63aa21c0279062363859c32",
+    "chunks/react-dom.js": "9b5ffe4f9241b1885d9da326f3401e9727d628bfbecb0cb32b027cda25d5bfeb",
+    "sveltia-cms.js": "d3eff7b0ba761ee1d06e9f581304075a575757de4cbd7ec1179b95873f6f4fc7"
+  }
+}

@@ -1,0 +1,2 @@
+# Vendored Sveltia CMS release: keep the published bytes (scripts/vendor-sveltia.mjs checks their hashes).
+public/admin/sveltia/** -text -diff

@@ -19,7 +19,8 @@
     "test:browser": "node scripts/browser-check.mjs",
     "check:fidelity": "node scripts/fidelity-compare.mjs",
     "content:index": "node scripts/build-content-index.mjs",
-    "uploads:variants": "node scripts/build-upload-variants.mjs"
+    "uploads:variants": "node scripts/build-upload-variants.mjs",
+    "cms:vendor": "node scripts/vendor-sveltia.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
