@@ -312,19 +312,32 @@ html[data-intro="reveal"] .intro-overlay {
   padding: 0 32px 40px;
   background: #08080b;
   pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-/* Wide enough for "100", so the track does not jump when the third digit appears. */
-.intro-count { min-width: 1.8em; font-weight: 500; font-size: clamp(72px, 11vw, 168px); line-height: 0.85; letter-spacing: -0.05em; color: #e3dbd8; font-variant-numeric: tabular-nums; }
-.intro-track { position: relative; flex: 1; height: 1px; margin-bottom: 20px; overflow: hidden; background: #2a2b2e; }
-.intro-bar { position: absolute; inset: 0; background: #fa6e43; transform: scaleX(0); transform-origin: left; }
-html[data-intro="reveal"] .intro-overlay { opacity: 0; transition: opacity 0.8s cubic-bezier(0.44, 0, 0.56, 1) 0.2s; }
-html[data-intro="reveal"] .intro-count { opacity: 0; transform: translateY(-24%); transition: opacity 0.5s, transform 0.7s cubic-bezier(0.44, 0, 0.56, 1); }
+/* While loading it takes the presses people aim at a loading screen: IntroOverlay.tsx turns one into
+   a skip and cancels its click. Before hydration it simply absorbs them; the failsafe's
+   visibility: hidden lets them through again. */
+html[data-intro="play"] .intro-overlay { pointer-events: auto; clip-path: inset(0); }
+/* The exit lifts it from the bottom up, like the site's curtain. */
+html[data-intro="reveal"] .intro-overlay { clip-path: inset(0 0 100% 0); transition: clip-path 0.9s cubic-bezier(0.76, 0, 0.24, 1) 0.12s; }
+/* The counter rises out of its own clip box, like the headline words. It is wide enough for "100", so
+   the track does not jump when the third digit appears. */
+.intro-count-mask { display: block; overflow: clip; }
+.intro-count { display: block; min-width: 1.8em; font-weight: 500; font-size: clamp(72px, 11vw, 168px); line-height: 0.85; letter-spacing: -0.05em; color: #e3dbd8; font-variant-numeric: tabular-nums; }
+html[data-intro="reveal"] .intro-count { transform: translateY(-105%); transition: transform 0.45s cubic-bezier(0.76, 0, 0.24, 1); }
+.intro-track { position: relative; flex: 1; height: 2px; margin-bottom: 20px; background: #2a2b2e; }
+.intro-bar { position: absolute; inset: 0; background: #fa6e43; box-shadow: 0 0 14px rgba(250, 110, 67, 0.55); transform: scaleX(0); transform-origin: left; }
+@supports not (overflow: clip) {
+  .hero-word-mask, .intro-count-mask { overflow: hidden; }
+}
 /* Under the overlay the globe appears at once: it fades up from black itself when the overlay lifts. */
 html[data-intro="play"] .hero-scene { transition: none; }
 /* Failsafe if the overlay's script never runs (a failed chunk, an exception): 6 s after the gate
-   marked the intro, more than the 4 s load cap plus the 1.1 s reveal (intro-store.ts), the overlay
-   hides itself and the held hero copy shows. Animations outrank the copy's inline entrance styles;
-   both rules stop applying as soon as the script moves data-intro past "play". */
+   marked the intro, more than the 4 s load cap, the 0.28 s hold on 100 and the 1.2 s reveal
+   (intro-store.ts), the overlay hides itself and the held hero copy shows. Animations outrank the
+   copy's inline entrance styles; both rules stop applying as soon as the script moves data-intro
+   past "play". */
 html[data-intro="play"] .intro-overlay { animation: intro-failsafe 0s linear 6s forwards; }
 html[data-intro="play"] #home [data-reveal] { animation: intro-failsafe-copy 0s linear 6s forwards; }
 @keyframes intro-failsafe { to { visibility: hidden; opacity: 0; } }

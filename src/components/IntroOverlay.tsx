@@ -1,35 +1,44 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { INTRO_EXTRA_CAP_MS, INTRO_LOAD_CAP_MS, INTRO_REVEAL_MS, introStore } from "@/components/globe/intro-store";
+import { INTRO_EXTRA_CAP_MS, INTRO_HOLD_MS, INTRO_LOAD_CAP_MS, INTRO_MIN_MS, INTRO_REVEAL_MS, introStore } from "@/components/globe/intro-store";
 
-/** How fast the counter eases toward its target (1/s): steady while loading, quicker once the globe is ready. */
+/** How fast the counter eases toward its target (1/s): steady while loading, a final surge once the globe is ready. */
 const CHASE_RATE = 6;
-const CATCH_UP_RATE = 15;
+const CATCH_UP_RATE = 9;
+/** After a press on the overlay, a click that comes within this long of the release is cancelled. */
+const SWALLOW_MS = 500;
 
 /**
- * The first-visit intro: a 00→100 counter driven by the globe's real texture progress, then the
- * reveal. It is rendered hidden on every page and only shows when the inline gate (IntroGate.tsx)
- * set html[data-intro="play"] before first paint. Any input ends it at once. It is aria-hidden, holds
- * nothing focusable and never takes pointer events, so it cannot trap focus or swallow a click; the
- * skip link sits above it. If this script never runs, a CSS failsafe hides it (globals.css).
+ * The first-visit intro: a 00→100 counter driven by the globe's real loading progress, a short hold on
+ * 100, then the reveal (the overlay lifts like the site's curtain). It is rendered hidden on every page
+ * and only shows when the inline gate (IntroGate.tsx) set html[data-intro="play"] before first paint.
+ * Any input ends it at once. It is aria-hidden and holds nothing focusable; the skip link sits above it.
+ * While loading it takes pointer presses (people click loading screens to skip them): a press only ends
+ * the intro, and the click it makes is cancelled, so no link the visitor could not see ever fires.
+ * If this script never runs, a CSS failsafe hides it and releases the hero copy (globals.css).
  */
 export default function IntroOverlay() {
+  const overlay = useRef<HTMLDivElement>(null);
   const count = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const root = document.documentElement;
+    // Hydration after the 6 s CSS failsafe finds the copy already shown; moving data-intro past "play"
+    // below re-applies its held entrance state, so it rises again (accepted: rare, and never blank).
     if (root.dataset.intro !== "play") return;
     introStore.start();
-    const inputs = ["keydown", "pointerdown", "wheel", "touchstart"] as const;
+    const inputs = ["keydown", "wheel", "touchstart"] as const;
     let shown = 0;
     let printed = 0;
     let last = -1;
+    let heldAt = -1;
     let frame = 0;
     let capTimer = 0;
     let readyTimer = 0;
     let doneTimer = 0;
+    let swallowTimer = 0;
 
     const write = (value: number) => {
       const whole = Math.floor(value);
@@ -37,8 +46,36 @@ export default function IntroOverlay() {
       printed = whole;
       if (bar.current) bar.current.style.transform = `scaleX(${value / 100})`;
     };
+
+    // The click that follows a press on the overlay is cancelled once. It may land after the overlay
+    // has gone, on the link underneath (touch) or on a common ancestor (mouse); either way it must not
+    // act. Disarmed by that click, a cancelled pointer, or SWALLOW_MS after the release, so a later,
+    // deliberate click always goes through.
+    const swallow = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      disarm();
+    };
+    const released = () => {
+      window.clearTimeout(swallowTimer);
+      swallowTimer = window.setTimeout(disarm, SWALLOW_MS);
+    };
+    function disarm() {
+      window.clearTimeout(swallowTimer);
+      window.removeEventListener("click", swallow, true);
+      window.removeEventListener("pointerup", released, true);
+      window.removeEventListener("pointercancel", disarm, true);
+    }
+    const arm = () => {
+      disarm();
+      window.addEventListener("click", swallow, true);
+      window.addEventListener("pointerup", released, true);
+      window.addEventListener("pointercancel", disarm, true);
+    };
+
     const detach = () => {
       for (const type of inputs) window.removeEventListener(type, skip, true);
+      window.removeEventListener("pointerdown", press, true);
       document.removeEventListener("focusin", skip, true);
       window.removeEventListener("scroll", scrolled);
     };
@@ -67,30 +104,43 @@ export default function IntroOverlay() {
     function skip() {
       finish();
     }
+    function press(event: PointerEvent) {
+      if (event.target instanceof Node && overlay.current?.contains(event.target)) arm();
+      finish();
+    }
     function scrolled() {
       if (window.scrollY > 4) finish();
     }
     const tick = (now: number) => {
       const { progress, ready, failed } = introStore.get();
-      // Once the first textured frame is on screen, the catch-up plus the reveal stay within INTRO_EXTRA_CAP_MS.
+      // Once the first textured frame is on screen, the catch-up, the hold and the reveal stay within INTRO_EXTRA_CAP_MS.
       if (ready && !readyTimer) readyTimer = window.setTimeout(reveal, INTRO_EXTRA_CAP_MS - INTRO_REVEAL_MS);
       const dt = last < 0 ? 0 : Math.min(0.1, (now - last) / 1000);
       last = now;
-      // The counter only reaches 100 once the first textured frame has rendered.
-      const target = ready ? 100 : Math.min(99, progress * 100);
+      // Real progress, never ahead of it, but paced to take at least INTRO_MIN_MS; 100 only once the
+      // first textured frame has rendered.
+      const target = 100 * Math.min(now / INTRO_MIN_MS, ready ? 1 : Math.min(0.99, progress));
       shown += (target - shown) * (1 - Math.exp(-(ready ? CATCH_UP_RATE : CHASE_RATE) * dt));
       if (target - shown < 0.5) shown = target;
       write(shown);
-      // The rAF time counts from navigation start, like performance.now(), so the load cap also
-      // covers the time before hydration: the page reveals at most INTRO_LOAD_CAP_MS after first paint.
-      if ((ready && shown >= 100) || failed || now >= INTRO_LOAD_CAP_MS) {
+      // The rAF time counts from navigation start, like performance.now(), so the load cap also covers
+      // the time before hydration. At the cap (or on a failure) the reveal starts at once, without the hold.
+      if (failed || now >= INTRO_LOAD_CAP_MS) {
         reveal();
         return;
+      }
+      if (shown >= 100) {
+        if (heldAt < 0) heldAt = now;
+        if (now - heldAt >= INTRO_HOLD_MS) {
+          reveal();
+          return;
+        }
       }
       frame = requestAnimationFrame(tick);
     };
 
     for (const type of inputs) window.addEventListener(type, skip, { capture: true, passive: true });
+    window.addEventListener("pointerdown", press, { capture: true, passive: true });
     document.addEventListener("focusin", skip, true);
     window.addEventListener("scroll", scrolled, { passive: true });
     // Input before hydration (a scroll, or Tab to the skip link) has already ended it for the visitor.
@@ -101,13 +151,18 @@ export default function IntroOverlay() {
       capTimer = window.setTimeout(reveal, Math.max(0, INTRO_LOAD_CAP_MS - performance.now()));
       frame = requestAnimationFrame(tick);
     }
-    return stop;
+    return () => {
+      stop();
+      disarm();
+    };
   }, []);
 
   return (
-    <div className="intro-overlay" aria-hidden="true">
-      <span ref={count} className="intro-count">
-        00
+    <div ref={overlay} className="intro-overlay" aria-hidden="true">
+      <span className="intro-count-mask">
+        <span ref={count} className="intro-count">
+          00
+        </span>
       </span>
       <span className="intro-track">
         <span ref={bar} className="intro-bar" />

@@ -323,7 +323,8 @@ test("the intro can be skipped and can fail, and only real changes notify", () =
 });
 
 test("the caps leave room for the reveal and the store starts off on the server", () => {
-  assert.ok(intro.INTRO_REVEAL_MS + 500 <= intro.INTRO_EXTRA_CAP_MS);
+  assert.ok(intro.INTRO_HOLD_MS + intro.INTRO_REVEAL_MS + 500 <= intro.INTRO_EXTRA_CAP_MS, "room for the catch-up, the hold and the reveal");
+  assert.ok(intro.INTRO_MIN_MS < intro.INTRO_LOAD_CAP_MS && intro.INTRO_CHUNK_SHARE > 0 && intro.INTRO_CHUNK_SHARE < 0.2);
   assert.ok(intro.INTRO_EXTRA_CAP_MS <= 2500 && intro.INTRO_LOAD_CAP_MS <= 4000);
   assert.equal(intro.introStore.get().phase, "off");
   assert.equal(intro.getServerIntroPhase(), "off");
@@ -436,7 +437,7 @@ test("the CSS failsafe hides the overlay and releases the held copy only after t
   ], "one rule for the overlay and one for the hero copy, both only while the intro plays");
   const delays = rules.map((rule) => Number(rule[4]) * 1000);
   assert.equal(new Set(delays).size, 1, "the overlay and the copy are released together");
-  assert.ok(delays[0] > intro.INTRO_LOAD_CAP_MS + intro.INTRO_REVEAL_MS, "a working script always reveals first");
+  assert.ok(delays[0] > intro.INTRO_LOAD_CAP_MS + intro.INTRO_HOLD_MS + intro.INTRO_REVEAL_MS, "a working script always reveals and ends first");
   assert.match(css, /@keyframes intro-failsafe \{ to \{ visibility: hidden; opacity: 0; \} \}/);
   assert.match(css, /@keyframes intro-failsafe-copy \{ to \{ opacity: 1; transform: none; filter: none; \} \}/);
 });

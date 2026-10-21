@@ -6,9 +6,9 @@ import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObj
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
-import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_SECONDS, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
 import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
-import { getIntroPhase, introStore } from "@/components/globe/intro-store";
+import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
 import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
 import { usePointerInput } from "@/components/globe/usePointerInput";
@@ -168,9 +168,10 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * MAX_TILT, delta) + drag.current.pitch.value;
     f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * MAX_TILT, delta);
 
-    // Intro reveal. A globe that became ready under the overlay stays black until the overlay lifts,
-    // then fades up from black while the atmosphere flares once. Without the intro, or when the intro
-    // ended first (its load cap, an input), the canvas itself fades in over the poster (globals.css).
+    // Intro reveal. A globe that became ready under the overlay stays black until the overlay lifts and
+    // for REVEAL_DELAY_SECONDS after (a silhouette against the galaxy, like an eclipse), then fades up
+    // while the atmosphere flares once. Without the intro, or when the intro ended first (its load cap,
+    // an input), the canvas itself fades in over the poster (globals.css).
     const w = warm.current;
     const covered = getIntroPhase() === "loading";
     if (!(w.announced ? w.played : covered)) {
@@ -181,7 +182,7 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
       f.flare = 1;
     } else {
       if (w.revealStart < 0) w.revealStart = state.clock.elapsedTime;
-      const t = state.clock.elapsedTime - w.revealStart;
+      const t = state.clock.elapsedTime - w.revealStart - REVEAL_DELAY_SECONDS;
       f.reveal = smoothstep(0, REVEAL_SECONDS, t);
       f.flare = 1 + FLARE_GAIN * Math.sin(Math.PI * clamp01(t / FLARE_SECONDS));
     }
@@ -205,7 +206,8 @@ export default function EarthScene({ variant, active, progress, dragTarget, onRe
   const [load] = useState(() => {
     const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", {
       backdrop: variant === "cinematic",
-      onProgress: variant === "cinematic" ? (fraction) => introStore.setProgress(fraction) : undefined,
+      // The scene's own code chunk filled the counter's first INTRO_CHUNK_SHARE (OrbitalCinematic.tsx).
+      onProgress: variant === "cinematic" ? (fraction) => introStore.setProgress(INTRO_CHUNK_SHARE + (1 - INTRO_CHUNK_SHARE) * fraction) : undefined,
     });
     // A failed load surfaces through use() → SceneBoundary; this only marks the rejection handled.
     promise.catch(() => undefined);

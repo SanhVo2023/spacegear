@@ -2,12 +2,21 @@
 export type IntroPhase = "off" | "loading" | "reveal" | "done";
 export type IntroState = { phase: IntroPhase; progress: number; ready: boolean; failed: boolean };
 
-/** The page reveals at most this long after the overlay appeared, even if textures are still loading. */
+/**
+ * The page reveals at most this long after navigation start (so after first paint), even if textures
+ * are still loading. At the cap the reveal starts at once, without the hold on 100.
+ */
 export const INTRO_LOAD_CAP_MS = 4000;
-/** The counter's catch-up plus the reveal never add more than this once the globe is ready. */
+/** The counter's catch-up, the hold on 100 and the reveal never add more than this once the globe is ready. */
 export const INTRO_EXTRA_CAP_MS = 2500;
-/** Overlay exit, globe fade-up and headline rise. */
-export const INTRO_REVEAL_MS = 1100;
+/** The counter rests on "100" this long before the reveal. */
+export const INTRO_HOLD_MS = 280;
+/** The counter takes at least this long (from navigation start) to reach 100; it never runs ahead of real progress. */
+export const INTRO_MIN_MS = 1500;
+/** Overlay exit (the curtain lift), then data-intro="done". The globe and the headline finish after it. */
+export const INTRO_REVEAL_MS = 1200;
+/** Share of the counter given to the scene's own code chunk; the texture bytes fill the rest. */
+export const INTRO_CHUNK_SHARE = 0.06;
 
 export function createIntroStore(initial: IntroPhase = "off") {
   let state: IntroState = { phase: initial, progress: 0, ready: false, failed: false };
