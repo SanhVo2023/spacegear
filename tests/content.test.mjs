@@ -111,6 +111,7 @@ test("displayed counts match the data", () => {
   const pad = (v) => String(v).padStart(2, "0");
   assert.equal(content.HOME.stats[0].value, pad(n));
   assert.equal(content.HOME.stats[1].value, pad(content.ENGAGEMENTS.length));
+  assert.equal(content.HOME.stats[1].sub.toLowerCase(), content.ENGAGEMENTS.map((e) => e.short.toLowerCase()).join(", "), "the second hero stat names the engagements it counts");
   assert.equal(content.WORK.lineup.count, `${n}/${n}`);
   assert.equal(content.CORE_PANEL.count, `${n}/${n}`);
   assert.equal(content.PILLARS.length, n);

@@ -130,7 +130,7 @@ export const HOME = {
   cta: { label: "Discuss a project", href: "/contact/" },
   stats: [
     { value: "05", unit: "", label: "Core services", sub: "From strategy to delivery" },
-    { value: "03", unit: "", label: "Delivery stages", sub: "Direction to daily use" },
+    { value: "03", unit: "", label: "Ways to engage", sub: "Assess, build, improve" },
   ] as Stat[],
   corner: { title: "Applied AI & Deep Learning", sub: "// Featured service", href: "/services/applied-ai/" },
   scrollHint: "Scroll to explore ↓",
