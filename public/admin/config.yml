@@ -1,0 +1,662 @@
+# Sveltia CMS configuration for spacegear.tech, served at /admin/config.yml.
+#
+# Today (local): build and start the preview, open /admin/ on it (http://127.0.0.1:<port>/admin/) in
+# Chrome or Edge, choose "Work with Local Repository" and pick the repository folder. Saves write
+# straight into content/ and public/uploads/; rebuild to see them on the preview. See README.md,
+# "Editing content". Written for Sveltia CMS 0.230.1 (public/admin/sveltia/, scripts/vendor-sveltia.mjs).
+#
+# Every field mirrors a rule in src/lib/content-model.ts (names, order, required, lengths, options,
+# list sizes); tests/cms-config.test.mjs fails when the two drift apart. The build validates every
+# file again and runs the honesty checks (no prices, invented metrics, clients or offices).
+# Emoji autocomplete is off in every text input (use_emoji_autocomplete: false on each string and
+# text field; Sveltia has no global switch for it).
+
+backend:
+  name: github
+  # The owner-supplied destination, empty until the code is imported. The local workflow never
+  # contacts it; README.md explains the GitHub setup (OAuth at /api/auth, Workers Builds).
+  repo: SanhVo2023/platform-design-contest
+  branch: main
+
+app_title: spacegear.tech content
+logo:
+  src: /icon.svg
+show_preview_links: false
+editor:
+  preview: false
+
+media_folder: public/uploads
+public_folder: /uploads
+media_libraries:
+  default:
+    config:
+      max_file_size: 10485760
+      # File names follow the slug rules below: lowercase ASCII letters, digits, - and _, so
+      # "Ảnh đẹp.JPG" is saved as anh-dep.webp. A name that is taken gets -1, -2…; check-content
+      # asks for a rename if a name still does not fit (a ~, or the dotless ı of a Turkish browser).
+      slugify_filename: true
+      # Chrome re-encodes JPEG, PNG, AVIF and HEIC uploads as WebP through a canvas, which drops
+      # camera metadata (GPS). GIF and WebP are kept as they are, so an animation keeps playing;
+      # check-content refuses any upload that still carries location data. HEIC needs a decoder
+      # that the CMS would load from unpkg.com, which the admin CSP blocks, so HEIC uploads are
+      # refused at upload time instead of being saved as .heic.
+      transformations:
+        jpeg: &to_webp { format: webp, quality: 85, width: 2560, height: 2560 }
+        png: *to_webp
+        avif: *to_webp
+        heic: *to_webp
+  stock_assets: false
+
+# The images that shipped before the CMS stay where they are; pick them here or type their path.
+asset_collections:
+  - name: site-images
+    label: Site images (read only)
+    media_folder: public/images
+    public_folder: /images
+    readonly: true
+
+# Entry file names and upload names. Sveltia keeps "~" in ASCII slugs, and lowercases with the
+# browser's language (a Turkish browser turns I into ı): the build refuses both, with a rename hint.
+slug:
+  encoding: ascii
+  clean_accents: true
+  sanitize_replacement: "-"
+  trim: true
+  lowercase: true
+  maxlength: 60
+
+output:
+  json:
+    indent_style: space
+    indent_size: 2
+
+collections:
+  - name: pages
+    label: Site and sections
+    label_singular: Block
+    icon: web
+    description: One file per block of the site. Counts such as 5/5 or 01/03 must match the services and engagements.
+    files:
+      - name: site
+        label: Site identity
+        file: content/site.json
+        fields:
+          - { name: name, label: Site name, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - { name: description, label: Default description, widget: text, maxlength: 200, use_emoji_autocomplete: false }
+          - name: socialProfiles
+            label: Social profiles
+            widget: list
+            required: false
+            max: 8
+            field: { name: url, label: Profile address, widget: string, maxlength: 200, pattern: ['^https:\/\/\S+$', "Use a full https:// profile address"], use_emoji_autocomplete: false }
+
+      - name: home
+        label: "Home: hero"
+        file: content/home.json
+        fields:
+          - name: eyebrow
+            label: Eyebrow
+            widget: object
+            fields:
+              - { name: muted, label: Muted part, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: strong, label: Strong part, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - name: headline
+            label: Headline
+            widget: object
+            fields:
+              - { name: lead, label: Lead, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - name: verbs
+                label: Verbs (three short words)
+                widget: list
+                min: 3
+                max: 3
+                field: { name: verb, label: Verb, widget: string, maxlength: 6, use_emoji_autocomplete: false }
+              - { name: tail, label: Tail, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+          - name: pitch
+            label: Pitch
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: text, label: Text (one line), widget: string, maxlength: 48, use_emoji_autocomplete: false }
+          - &link_cta
+            name: cta
+            label: Button
+            widget: object
+            fields:
+              - &link_label { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - &link_href { name: href, label: Link, widget: string, maxlength: 200, hint: "A site path such as /contact/ or /#faq, or a full https:// address.", pattern: ['^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$', "Use a site path such as /contact/ or a full https:// address"], use_emoji_autocomplete: false }
+          - name: stats
+            label: Stats
+            hint: The first counts the services, the second counts the engagements and names them.
+            widget: list
+            min: 2
+            max: 2
+            fields:
+              - { name: value, label: Value, widget: string, maxlength: 4, use_emoji_autocomplete: false }
+              - { name: unit, label: Unit, widget: string, maxlength: 4, required: false, use_emoji_autocomplete: false }
+              - { name: label, label: Label, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-label, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - name: corner
+            label: Featured corner link
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - *link_href
+          - { name: scrollHint, label: Scroll hint, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+          - { name: statement, label: Statement, widget: text, maxlength: 120, use_emoji_autocomplete: false }
+
+      - name: sections
+        label: Section headers
+        file: content/sections.json
+        fields:
+          - name: work
+            label: What We Do
+            widget: object
+            fields: &section_fields
+              - { name: title, label: Title, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: index, label: Index, widget: string, maxlength: 3, pattern: ['^\d{3}$', "Use three digits, such as 004"], use_emoji_autocomplete: false }
+              - { name: heading, label: Heading, widget: text, maxlength: 140, use_emoji_autocomplete: false }
+              - { name: description, label: Description, widget: text, maxlength: 160, use_emoji_autocomplete: false }
+          - { name: services, label: Our Services, widget: object, fields: *section_fields }
+          - { name: process, label: Our Process, widget: object, fields: *section_fields }
+          - { name: analytics, label: What We Measure, widget: object, fields: *section_fields, hint: "The description must keep saying the figures are illustrative, not client results." }
+          - { name: pricing, label: Engagements, widget: object, fields: *section_fields }
+          - { name: faq, label: Questions & Answers, widget: object, fields: *section_fields }
+          - { name: team, label: Who You Work With, widget: object, fields: *section_fields }
+          - { name: testimonials, label: What Our Clients Say, widget: object, fields: *section_fields }
+          - { name: labs, label: Spacegear Labs, widget: object, fields: *section_fields }
+
+      - name: work
+        label: "Home: What We Do"
+        file: content/work.json
+        fields:
+          - name: featured
+            label: Featured service tile
+            hint: Its image comes from the service entry.
+            widget: object
+            fields:
+              - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: name, label: Name, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - &service_slug { name: slug, label: Service, widget: select, options: [digital-transformation, ai-strategy, applied-ai, automation-integration, product-delivery] }
+          - name: lineup
+            label: Service lineup card
+            widget: object
+            fields:
+              - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - &count { name: count, label: Count, widget: string, maxlength: 7, hint: "Must match the number of services, such as 5/5.", pattern: ['^\d+\/\d+$', "Use a count such as 5/5"], use_emoji_autocomplete: false }
+              - { name: title, label: Title, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+              - { name: text, label: Text, widget: text, maxlength: 200, use_emoji_autocomplete: false }
+              - { name: footer, label: Footer, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - name: tiles
+            label: Service tiles
+            hint: Four tiles. Images and links come from the service entries.
+            widget: list
+            min: 4
+            max: 4
+            summary: "{{fields.name}}"
+            fields:
+              - *service_slug
+              - { name: name, label: Name, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: desc, label: Description, widget: text, maxlength: 120, use_emoji_autocomplete: false }
+          - name: assessment
+            label: Assessment card
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: badge, label: Badge, widget: string, maxlength: 7, hint: "01 over the number of engagements, such as 01/03.", pattern: ['^\d+\/\d+$', "Use a count such as 5/5"], use_emoji_autocomplete: false }
+              - { name: note, label: Note, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+              - { name: chip, label: Chip, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: value, label: Value, widget: string, maxlength: 4, use_emoji_autocomplete: false }
+              - { name: unit, label: Unit, widget: string, maxlength: 6, use_emoji_autocomplete: false }
+              - { name: progress, label: Progress (%), widget: number, value_type: float, min: 0, max: 100 }
+              - { name: cta, label: Button label, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - *link_href
+
+      - name: services-panel
+        label: "Home: Our Services panel"
+        file: content/services-panel.json
+        fields:
+          - name: panel
+            label: Core services card
+            widget: object
+            fields:
+              - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - *count
+              - { name: title, label: Title, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+              - { name: text, label: Text, widget: text, maxlength: 200, use_emoji_autocomplete: false }
+              - { name: line, label: Closing line, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+              - { name: cta, label: Button label, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - *link_href
+          - name: pillars
+            label: Service pillars
+            hint: One per service. Image and description come from the service entry.
+            widget: list
+            min: 1
+            max: 12
+            summary: "{{fields.no}} {{fields.name}}"
+            fields:
+              - { name: no, label: Number, widget: string, maxlength: 2, pattern: ['^\d{2}$', "Use two digits, such as 03"], use_emoji_autocomplete: false }
+              - *service_slug
+              - { name: name, label: Name, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: tag, label: Tag, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+              - { name: glyph, label: Glyph, widget: string, maxlength: 2, use_emoji_autocomplete: false }
+
+      - name: process
+        label: "Home: Our Process"
+        file: content/process.json
+        fields:
+          - &process_steps
+            name: steps
+            label: Steps
+            hint: Each step lists real outputs, never timings.
+            widget: list
+            min: 1
+            max: 8
+            summary: "{{fields.step}}: {{fields.name}}"
+            fields:
+              - { name: step, label: Step label, widget: string, maxlength: 12, use_emoji_autocomplete: false }
+              - { name: name, label: Name, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+              - { name: desc, label: Description, widget: text, maxlength: 220, use_emoji_autocomplete: false }
+              - name: outputs
+                label: Outputs
+                widget: list
+                min: 1
+                max: 6
+                field: { name: output, label: Output, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - name: cta
+            label: Call to action
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+              - { name: text, label: Text, widget: text, maxlength: 120, use_emoji_autocomplete: false }
+              - { name: cta, label: Button label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - *link_href
+
+      - name: approach
+        label: "Page: Approach"
+        file: content/approach.json
+        fields:
+          - *process_steps
+
+      - name: measure
+        label: "Home: What We Measure"
+        file: content/measure.json
+        fields:
+          - { name: illustrative, widget: hidden, default: true }
+          - name: imageCard
+            label: Image card
+            hint: This dashboard is an illustrative example. Every card must keep saying illustrative, example or sample.
+            widget: object
+            fields:
+              - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+              - { name: accent, label: Accent, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+              - { name: label, label: Label, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+          - name: workflow
+            label: Workflow card
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-title, widget: string, maxlength: 40, hint: "Keep the word illustrative, example or sample.", use_emoji_autocomplete: false }
+              - { name: center, label: Centre value, widget: string, maxlength: 6, use_emoji_autocomplete: false }
+              - name: segments
+                label: Segments
+                widget: list
+                min: 1
+                max: 6
+                summary: "{{fields.label}}"
+                fields:
+                  - { name: label, label: Label, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+                  - { name: value, label: Value (%), widget: number, value_type: float, min: 0, max: 100 }
+                  - { name: color, label: Colour, widget: string, maxlength: 7, pattern: ['^#[0-9a-fA-F]{6}$', "Use a hex colour such as #fa6e43"], use_emoji_autocomplete: false }
+          - name: stages
+            label: Stages
+            widget: list
+            min: 1
+            max: 6
+            summary: "{{fields.name}}"
+            fields:
+              - { name: name, label: Name, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+              - { name: note, label: Note, widget: string, maxlength: 12, use_emoji_autocomplete: false }
+              - { name: status, label: Status, widget: string, maxlength: 16, use_emoji_autocomplete: false }
+              - { name: detail, label: Detail, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+              - name: hands
+                label: Dial hands (degrees)
+                widget: list
+                min: 2
+                max: 2
+                field: { name: angle, label: Angle, widget: number, value_type: float, min: 0, max: 360 }
+          - { name: stagesFooter, label: Stages footer, widget: string, maxlength: 40, hint: "Keep the word illustrative.", use_emoji_autocomplete: false }
+          - name: accuracy
+            label: Accuracy card
+            widget: object
+            fields:
+              - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: value, label: Value, widget: string, maxlength: 6, use_emoji_autocomplete: false }
+              - { name: unit, label: Unit, widget: string, maxlength: 3, required: false, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-label, widget: string, maxlength: 24, hint: "Keep the word example.", use_emoji_autocomplete: false }
+          - name: throughput
+            label: Throughput card
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-title, widget: string, maxlength: 40, hint: "Keep the word example.", use_emoji_autocomplete: false }
+              - name: legend
+                label: Legend
+                widget: list
+                min: 1
+                max: 4
+                fields:
+                  - { name: value, label: Value, widget: string, maxlength: 8, use_emoji_autocomplete: false }
+                  - { name: label, label: Label, widget: string, maxlength: 16, use_emoji_autocomplete: false }
+          - name: readiness
+            label: Readiness card
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: sub, label: Sub-title, widget: string, maxlength: 50, hint: "Keep the word example.", use_emoji_autocomplete: false }
+              - { name: score, label: Score, widget: string, maxlength: 4, use_emoji_autocomplete: false }
+              - { name: scoreLabel, label: Score label, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+              - name: bars
+                label: Bars
+                widget: list
+                min: 1
+                max: 8
+                summary: "{{fields.label}}"
+                fields:
+                  - { name: label, label: Label, widget: string, maxlength: 16, use_emoji_autocomplete: false }
+                  - { name: v, label: Value (%), widget: number, value_type: float, min: 0, max: 100 }
+          - name: coverage
+            label: Coverage card
+            widget: object
+            fields:
+              - { name: tag, label: Tag, widget: string, maxlength: 30, hint: "Keep the word example.", use_emoji_autocomplete: false }
+              - { name: value, label: Value, widget: string, maxlength: 8, use_emoji_autocomplete: false }
+              - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - { name: progress, label: Progress (%), widget: number, value_type: float, min: 0, max: 100 }
+          - name: connectors
+            label: Connectors card
+            widget: object
+            fields:
+              - { name: tag, label: Tag, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+              - name: glyphs
+                label: Glyphs
+                widget: list
+                min: 1
+                max: 8
+                field: { name: glyph, label: Glyph, widget: string, maxlength: 2, use_emoji_autocomplete: false }
+          - name: ticker
+            label: Ticker
+            widget: list
+            min: 1
+            max: 16
+            field: { name: item, label: Item, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - *link_cta
+
+      - name: engagements-panel
+        label: "Home: Engagements footer"
+        file: content/engagements-panel.json
+        fields:
+          - name: footer
+            label: Footer link
+            widget: object
+            fields:
+              - { name: text, label: Text, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+              - *link_href
+
+      - name: faq-card
+        label: "Home: Questions card"
+        file: content/faq-card.json
+        fields:
+          - { name: title, label: Title, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+          - { name: text, label: Text, widget: text, maxlength: 200, use_emoji_autocomplete: false }
+          - { name: cta, label: Button label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+          - *link_href
+          - *image_field
+          - &image_alt { name: imgAlt, label: Image description, widget: string, maxlength: 120, required: false, hint: "Describe the image for screen readers; leave empty if it is decorative.", use_emoji_autocomplete: false }
+          - { name: badge, label: Badge, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+
+      - name: team
+        label: "Home: Who You Work With"
+        file: content/team.json
+        fields:
+          - { name: label, label: Label, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+          - *link_cta
+          - name: founder
+            label: Founder card
+            hint: Add only a real person with their own photo and bio. The card then leads the carousel.
+            widget: object
+            required: false
+            fields:
+              - { name: name, label: Name, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: role, label: Role, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+              - *image_field
+              - *image_alt
+              - name: links
+                label: Profile links
+                widget: list
+                required: false
+                max: 4
+                fields:
+                  - *link_label
+                  - *link_href
+              - { name: bio, label: Bio, widget: text, maxlength: 240, use_emoji_autocomplete: false }
+
+      - name: footer
+        label: Footer
+        file: content/footer.json
+        fields:
+          - { name: badge, label: Badge, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+          - { name: tagline, label: Tagline, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+          - name: identity
+            label: Identity lines
+            widget: list
+            min: 1
+            max: 3
+            field: { name: line, label: Line, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+          - { name: identityStrong, label: Identity name, widget: string, maxlength: 30, use_emoji_autocomplete: false }
+          - name: columns
+            label: Link columns
+            widget: list
+            min: 1
+            max: 3
+            field:
+              name: links
+              label: Links
+              widget: list
+              min: 1
+              max: 12
+              summary: "{{fields.label}}"
+              fields:
+                - *link_label
+                - *link_href
+          - name: quickStart
+            label: Quick start form
+            widget: object
+            fields:
+              - { name: title, label: Title, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+              - { name: text, label: Text, widget: text, maxlength: 100, use_emoji_autocomplete: false }
+              - { name: note, label: Note, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+          - { name: about, label: About line, widget: text, maxlength: 120, use_emoji_autocomplete: false }
+
+  - name: services
+    label: Services
+    label_singular: Service
+    icon: design_services
+    description: The five services. Each has its own page, so services cannot be added or removed here.
+    folder: content/services
+    extension: json
+    format: json
+    identifier_field: name
+    create: false
+    delete: false
+    duplicate: false
+    reorder: true
+    sortable_fields: { fields: [order, name], default: { field: order } }
+    fields:
+      - { name: slug, label: Slug, widget: string, maxlength: 40, readonly: true, hint: "Part of the page address. It must match the file name.", pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', "Use lowercase letters, digits and single hyphens"], use_emoji_autocomplete: false }
+      - { name: name, label: Name, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - { name: shortName, label: Short name, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+      - { name: category, label: Category, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+      - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - { name: summary, label: Summary, widget: text, maxlength: 160, use_emoji_autocomplete: false }
+      - { name: buyerProblem, label: Buyer problem, widget: text, maxlength: 320, use_emoji_autocomplete: false }
+      - name: deliverables
+        label: Deliverables
+        widget: list
+        min: 1
+        max: 8
+        field: { name: deliverable, label: Deliverable, widget: string, maxlength: 100, use_emoji_autocomplete: false }
+      - name: process
+        label: Process
+        widget: list
+        min: 1
+        max: 6
+        field: { name: step, label: Step, widget: string, maxlength: 100, use_emoji_autocomplete: false }
+      - name: faqs
+        label: Questions
+        widget: list
+        min: 1
+        max: 6
+        summary: "{{fields.question}}"
+        fields:
+          - { name: question, label: Question, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+          - { name: answer, label: Answer, widget: text, maxlength: 300, use_emoji_autocomplete: false }
+      - { name: relatedInsightSlugs, widget: hidden, default: [] }
+      # With reorder: true, Sveltia writes this field itself: a new entry gets the highest order
+      # plus one, and dragging or deleting entries in the list view renumbers them 1, 2, 3…
+      - &order { name: order, widget: hidden }
+
+  - name: engagements
+    label: Engagements
+    label_singular: Engagement
+    icon: handshake
+    description: The three ways to engage. Exactly one is featured; no prices or durations.
+    folder: content/engagements
+    extension: json
+    format: json
+    identifier_field: name
+    create: false
+    delete: false
+    duplicate: false
+    reorder: true
+    sortable_fields: { fields: [order, name], default: { field: order } }
+    fields:
+      - { name: name, label: Name, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+      - { name: short, label: Short name, widget: string, maxlength: 12, hint: "The hero's second stat lists these short names.", use_emoji_autocomplete: false }
+      - *image_field
+      - { name: stage, label: Stage, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+      - { name: stageNo, label: Stage number, widget: string, maxlength: 2, pattern: ['^\d{2}$', "Use two digits, such as 02"], use_emoji_autocomplete: false }
+      - name: deliverables
+        label: Deliverables
+        widget: list
+        min: 3
+        max: 6
+        field: { name: deliverable, label: Deliverable, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - name: outcomes
+        label: Outcomes
+        widget: list
+        min: 3
+        max: 6
+        field: { name: outcome, label: Outcome, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - { name: featured, label: Featured, widget: boolean, default: false, hint: "Exactly one engagement is featured." }
+      - *order
+
+  - name: faqs
+    label: Questions & Answers
+    label_singular: Question
+    icon: help
+    folder: content/faqs
+    extension: json
+    format: json
+    identifier_field: question
+    slug: "{{question}}"
+    reorder: true
+    sortable_fields: { fields: [order, question], default: { field: order } }
+    fields:
+      - { name: question, label: Question, widget: string, maxlength: 100, use_emoji_autocomplete: false }
+      - { name: answer, label: Answer, widget: text, maxlength: 400, use_emoji_autocomplete: false }
+      - *order
+
+  - name: team-roles
+    label: Team disciplines
+    label_singular: Discipline
+    icon: groups
+    description: Disciplines, not people. Role cards never name or link to individuals.
+    folder: content/team-roles
+    extension: json
+    format: json
+    identifier_field: name
+    slug: "{{name}}"
+    reorder: true
+    sortable_fields: { fields: [order, name], default: { field: order } }
+    fields:
+      - { name: name, label: Discipline, widget: string, maxlength: 40, use_emoji_autocomplete: false }
+      - { name: role, label: Role, widget: string, maxlength: 20, use_emoji_autocomplete: false }
+      - *image_field
+      - *image_alt
+      - { name: links, widget: hidden, default: [] }
+      - { name: bio, label: Description, widget: text, maxlength: 240, use_emoji_autocomplete: false }
+      - *order
+
+  - name: testimonials
+    label: Testimonials
+    label_singular: Testimonial
+    icon: format_quote
+    description: Real quotes only. A quote renders only after its permission box is ticked.
+    folder: content/testimonials
+    extension: json
+    format: json
+    identifier_field: name
+    slug: "{{company}}-{{name}}"
+    summary: "{{name}}, {{company}}"
+    reorder: true
+    sortable_fields: { fields: [order, name], default: { field: order } }
+    fields:
+      - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - { name: name, label: Name, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - { name: role, label: Role, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - { name: company, label: Company, widget: string, maxlength: 80, use_emoji_autocomplete: false }
+      - { name: quote, label: Quote, widget: text, maxlength: 400, use_emoji_autocomplete: false }
+      - { name: permissionConfirmed, label: The client gave written permission to publish this quote, widget: boolean, default: false }
+      - *order
+
+  - name: articles
+    label: Articles
+    label_singular: Article
+    icon: article
+    description: Published articles that the Labs section links to.
+    folder: content/articles
+    extension: json
+    format: json
+    identifier_field: title
+    slug: "{{slug}}"
+    reorder: true
+    sortable_fields: { fields: [order, title], default: { field: order } }
+    fields:
+      - { name: slug, label: Slug, widget: string, maxlength: 60, pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', "Use lowercase letters, digits and single hyphens"], use_emoji_autocomplete: false }
+      - { name: author, label: Author, widget: string, maxlength: 60, use_emoji_autocomplete: false }
+      - { name: title, label: Title, widget: string, maxlength: 120, use_emoji_autocomplete: false }
+      - { name: sub, label: Summary, widget: text, maxlength: 200, use_emoji_autocomplete: false }
+      - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - *link_href
+      - *order
+
+  - name: legal
+    label: Legal pages
+    icon: gavel
+    description: The preview notice and the contact section are added by the site from its settings.
+    files:
+      - name: privacy
+        label: Privacy
+        file: content/legal/privacy.md
+        fields:
+          # A plain text area: the markdown and rich-text widgets write \ escapes, which the legal
+          # parser (src/lib/legal-markdown.ts) refuses. The pattern mirrors the parser: a "## "
+          # heading first, and none of its INLINE_SYNTAX anywhere (tests/cms-config.test.mjs).
+          - &legal_body { name: body, label: Sections, widget: text, hint: "Start each section with a line '## Heading', then plain paragraphs separated by blank lines. Leave a blank line before each heading. No other formatting.", pattern: ['^(?![\s\S]*(?:[*_`<>[\]\\|]|~~|&#?\w+;))##[ \t]+\S', 'Start with a line "## Heading", then plain paragraphs, without * _ ` < > [ ] \ | ~~ or &…; characters'], use_emoji_autocomplete: false }
+      - name: terms
+        label: Website terms
+        file: content/legal/terms.md
+        fields:
+          - *legal_body
