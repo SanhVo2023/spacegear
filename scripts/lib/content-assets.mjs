@@ -1,10 +1,11 @@
 // Every local image the loaded content references, the references to refuse, and the files
-// missing from public/ (for a CMS upload, its generated -640/-1280 WebP variants count too). Any
-// string that starts with /images/ or /uploads/ counts, in any field, links included. Used by
+// missing from public/ (for a CMS upload, its generated variants in the variant cache count too).
+// Any string that starts with /images/ or /uploads/ counts, in any field, links included. Files
+// are looked up with their exact letter case, as Cloudflare serves them. Used by
 // scripts/check-content.mjs.
-import fs from "node:fs";
 import path from "node:path";
-import { RASTER, VARIANT, variantFiles } from "./uploads.mjs";
+import { existsExact } from "./exact-paths.mjs";
+import { CACHE_DIR, RASTER, SITE_IMAGE_PATH, UPLOAD_PATH, VARIANT, variantFiles } from "./uploads.mjs";
 
 const LOCAL_IMAGE = /^\/(?:images|uploads)\//;
 
@@ -20,22 +21,24 @@ export function referencedImages(values) {
   return [...found].sort();
 }
 
-// \w is ASCII here (no u flag): letters, digits and _.
-const PLAIN_SEGMENT = /^[\w-][\w.-]*$/;
-/** Plain names only: no "..", no dotfile, no empty segment, backslash, %, ? or other character. */
-const isPlainPath = (src) => src.split("/").slice(1).every((segment) => PLAIN_SEGMENT.test(segment));
-const isVariant = (src) => src.startsWith("/uploads/") && VARIANT.test(src);
+const NAME_RULE = "lowercase letters, digits, - and _ only, in folders too, and not a Windows device name such as con or nul";
 
 function problemWith(src) {
-  if (!isPlainPath(src)) return `${JSON.stringify(src)} is not a plain image path under /images/ or /uploads/ (letters, digits, -, _ and dots; no "..", dotfiles or other characters)`;
-  if (isVariant(src)) return `${src} is a generated variant (names ending in -640.webp or -1280.webp are reserved): point at the original upload`;
+  if (src.startsWith("/uploads/")) {
+    const rel = src.slice("/uploads/".length);
+    if (VARIANT.test(rel)) return `${src} is a generated variant: point at the original upload`;
+    if (!UPLOAD_PATH.test(rel)) return `${JSON.stringify(src)} is not an upload the site can serve: use ${NAME_RULE}, ending in .webp, .png, .jpg, .jpeg, .avif or .gif`;
+  } else if (!SITE_IMAGE_PATH.test(src.slice("/images/".length))) {
+    return `${JSON.stringify(src)} is not a site image the site can serve: use ${NAME_RULE}, ending in .webp, .png, .jpg, .jpeg, .avif, .gif or .svg`;
+  }
   return "";
 }
 
 /**
- * Local image references to refuse, each with where it is (`FAQ_CARD.img: …`): a path that is not
- * a plain file path, so it could leave /images/ or /uploads/, or a generated variant. The content
- * schema refuses both in image fields; this also covers links and every other field.
+ * Local image references to refuse, each with where it is (`FAQ_CARD.img: …`): a path the upload
+ * or site-image name rules refuse (so also "..", %, capitals, device names), or a generated
+ * variant. The content schema refuses them in image fields; this also covers links and every
+ * other field.
  */
 export function imageReferenceProblems(values) {
   const problems = [];
@@ -50,18 +53,22 @@ export function imageReferenceProblems(values) {
   return problems;
 }
 
-export function missingImageFiles(values, publicDir = "public") {
+/**
+ * Referenced images that are not in `publicDir` with exactly that name (`/images/x.webp`), and
+ * the generated variants of referenced uploads that are not in the cache
+ * (`/uploads/a.webp.w1280.webp (run npm run uploads:variants)`).
+ */
+export function missingImageFiles(values, publicDir = "public", cacheDir = CACHE_DIR) {
   const missing = [];
   for (const src of referencedImages(values)) {
     if (problemWith(src)) continue; // imageReferenceProblems names it; it is not looked up on disk
-    const file = path.join(publicDir, src);
-    if (!fs.existsSync(file)) {
+    if (!existsExact(publicDir, src)) {
       missing.push(src);
       continue;
     }
     if (src.startsWith("/uploads/") && RASTER.test(src)) {
-      for (const variant of variantFiles(file)) {
-        if (!fs.existsSync(variant)) missing.push(`/${path.relative(publicDir, variant).replaceAll("\\", "/")} (run npm run uploads:variants)`);
+      for (const variant of variantFiles(src.slice("/uploads/".length))) {
+        if (!existsExact(path.join(cacheDir, "files"), variant)) missing.push(`/uploads/${variant} (run npm run uploads:variants)`);
       }
     }
   }

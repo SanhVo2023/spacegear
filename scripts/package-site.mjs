@@ -15,12 +15,13 @@ for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});
   await fs.cp(path.join(source,name),dest,{recursive:true});
 }
-// >>> CMS (showcase Part 3): ship the CMS uploads with their generated variants: only regular .webp,
-// .png, .jpg, .jpeg, .avif and .gif files with names the site can show, never a dotfile (.gitkeep,
-// the CMS's .sveltia-tmp-*), an SVG, HTML or other file, or a link (scripts/lib/uploads.mjs). They
-// come from public/uploads/, not out/, because next build follows links when it copies public/.
+// >>> CMS (showcase Part 3): ship the CMS uploads, and next to each the variants that the variant
+// step cached for its current bytes: only regular .webp, .png, .jpg, .jpeg, .avif and .gif files with
+// names the site can show, never a dotfile (.gitkeep, the CMS's .sveltia-tmp-*), an SVG, HTML or
+// other file, or a link (scripts/lib/uploads.mjs). They come from public/uploads/, not out/, because
+// next build follows links when it copies public/; the variants come from .cache/upload-variants/.
 const {shipUploads}=await import("./lib/uploads.mjs");
-console.log(`Uploads shipped: ${(await shipUploads("public/uploads",path.join(target,"uploads"))).length} files.`);
+console.log(`Uploads shipped: ${(await shipUploads("public/uploads",path.join(target,"uploads"),".cache/upload-variants")).length} files.`);
 // <<< CMS
 let headers=await fs.readFile("public/_headers","utf8");
 // Previews add X-Robots-Tag inside the existing /* rule: a second /* rule replaces the first one's

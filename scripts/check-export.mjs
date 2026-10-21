@@ -27,13 +27,22 @@ const chunkAsset=/"(\/(?:images|models)\/[A-Za-z0-9_./-]+\.(?:glb|webp|png|jpe?g
 async function scanChunks(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanChunks(file);else if(entry.name.endsWith(".js"))for(const m of (await fs.readFile(file,"utf8")).matchAll(chunkAsset))await need(m[1],path.relative(root,file));}}
 await scanChunks(path.join(root,"_next/static/chunks")).catch(()=>errors.push("Missing JS chunks: _next/static/chunks"));
 for(const file of ["draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"])await fs.access(path.join(root,file)).catch(()=>errors.push(`Missing Draco decoder file: ${file}`));
-// >>> CMS (showcase Part 3): every /uploads/ file a page or chunk names must ship (srcset variants
-// included) and no such path may step out of uploads/; only images ship there (scripts/lib/uploads.mjs).
-const {UPLOAD_PATH}=await import("./lib/uploads.mjs");
-const uploadRef=/\/uploads\/[\w./-]+?\.(?:webp|png|jpe?g|avif|gif|svg)/g;
-async function scanUploads(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name),relative=path.relative(root,file).replaceAll("\\","/");if(entry.isDirectory()){if(relative!=="admin")await scanUploads(file);}else if(/\.(html|txt|js)$/.test(entry.name))for(const m of (await fs.readFile(file,"utf8")).matchAll(uploadRef)){if(/\/\.\.?\//.test(m[0]))errors.push(`Unsafe upload path ${m[0]} in ${relative}`);else await need(m[0],relative);}}}
+// >>> CMS (showcase Part 3): uploads, and the letter case of every local path (scripts/lib/uploads.mjs,
+// scripts/lib/exact-paths.mjs):
+// - every /uploads/ file a page or chunk names must ship under exactly that name (srcset variants
+//   included), and no such path may step out of uploads/;
+// - what ships under uploads/ passes the upload rules again (types, bytes, names), so a file that
+//   changed during the build cannot ship unchecked;
+// - no page, payload or chunk may name a shipped file in another letter case (Windows finds it,
+//   Cloudflare does not);
+// - the excluded-asset rule at the top is for site assets, so it does not judge upload names.
+const {UPLOAD_REF,uploadProblems}=await import("./lib/uploads.mjs");
+const {exactIndex,wrongCaseReferences}=await import("./lib/exact-paths.mjs");
+for(let i=errors.length-1;i>=0;i--)if(errors[i].startsWith("Excluded source/template asset: uploads/"))errors.splice(i,1);
+const shipped=exactIndex(root);
+async function scanUploads(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name),relative=path.relative(root,file).replaceAll("\\","/");if(entry.isDirectory()){if(relative!=="admin")await scanUploads(file);}else if(/\.(html|txt|js)$/.test(entry.name))for(const [ref] of (await fs.readFile(file,"utf8")).matchAll(UPLOAD_REF)){if(/\/\.\.?\//.test(ref))errors.push(`Unsafe upload path ${ref} in ${relative}`);else if(!shipped.has(ref.slice(1)))errors.push(`Missing asset ${ref} referenced by ${relative}`);}}}
 await scanUploads(root);
-async function shippedUploads(dir,prefix=""){let entries;try{entries=await fs.readdir(dir,{withFileTypes:true});}catch(error){if(error.code==="ENOENT")return;throw error;}for(const entry of entries){const rel=prefix+entry.name;if(entry.isDirectory())await shippedUploads(path.join(dir,entry.name),`${rel}/`);else if(!entry.isFile()||!UPLOAD_PATH.test(rel))errors.push(`Not an upload that may ship: uploads/${rel}`);}}
-await shippedUploads(path.join(root,"uploads"));
+errors.push(...uploadProblems(path.join(root,"uploads"),{label:`${root}/uploads`,variants:true}));
+errors.push(...wrongCaseReferences(root,{skip:["admin"]}));
 // <<< CMS
 if(errors.length){console.error(errors.join("\n"));process.exitCode=1;}else console.log(`Export valid: 12 core pages, ${count} files, ${(bytes/1048576).toFixed(2)} MiB total.`);

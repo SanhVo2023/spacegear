@@ -13,7 +13,7 @@ import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 import { imageReferenceProblems, missingImageFiles } from "./lib/content-assets.mjs";
 import { pathsFromRoot } from "./lib/project-path.mjs";
-import { uploadProblems } from "./lib/uploads.mjs";
+import { CACHE_DIR, uploadProblems } from "./lib/uploads.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
 const errors = [];
 // Node names a broken JSON import (or a missing entry) by its absolute path: print it from ROOT.
@@ -83,13 +83,14 @@ if (content) {
   // Honesty (scripts/lib/honesty.mjs): no invented prices, clients, results, offices, press or
   // timelines in any loaded export (each scanned on its own, for the scoped rules)...
   for (const problem of scanExports(content)) errors.push(`forbidden claim in export ${problem}`);
-  // Every image the content points at must exist (a CMS upload also needs its generated variants),
-  // and no path may point at a variant or out of /images/ or /uploads/.
+  // Every image the content points at must exist with exactly that name (a CMS upload also needs
+  // its generated variants, in the variant cache), and every path must be one the site can serve:
+  // not a variant, not out of /images/ or /uploads/.
   for (const problem of imageReferenceProblems(content)) errors.push(`image path in export ${problem}`);
-  for (const missing of missingImageFiles(content, path.join(ROOT, "public"))) errors.push(`missing image: public${missing}`);
+  for (const missing of missingImageFiles(content, path.join(ROOT, "public"), CACHE_DIR)) errors.push(missing.endsWith(")") ? `missing image variant: ${missing}` : `missing image: public${missing}`);
 }
-// Only images may sit in public/uploads/ (no SVG, HTML or other file, no link), with names the
-// site can show (scripts/lib/uploads.mjs). Dotfiles such as .gitkeep are exempt and never ship.
+// Only images may sit in public/uploads/ (no SVG, HTML or other file, no link or hard link), with
+// names the site can show (scripts/lib/uploads.mjs). Dotfiles such as .gitkeep are exempt and never ship.
 await attempt(() => { errors.push(...uploadProblems(path.join(ROOT, "public", "uploads"))); });
 // ...or in any file under content/, including fields the site does not render.
 await attempt(() => { for (const problem of scanContentTree(ROOT)) errors.push(`forbidden claim in ${problem}`); });

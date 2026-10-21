@@ -41,11 +41,11 @@ test("links accept site paths and https addresses only", () => {
   for (const bad of ["contact", "http://example.org", "javascript:alert(1)", "/a b", "//evil.example"]) assert.equal(run(s.href(), bad).issues.length, 1, bad);
 });
 
-test("images must live under /images/ or /uploads/ with a lowercase name, and cannot be a generated variant", () => {
-  for (const ok of ["/images/suite/neural-net.webp", "/uploads/team-photo.webp", "/uploads/scan_2.jpeg", "/images/brand/logo.svg"]) assert.deepEqual(run(s.image(), ok).issues, [], ok);
-  for (const bad of ["/uploads/team-photo-640.webp", "/uploads/team-photo-1280.webp", "https://cdn.example.com/a.jpg", "/models/earth.glb", "/uploads/Team-Photo.webp", "/uploads/photo.WEBP", "/uploads/.hidden.webp"]) assert.equal(run(s.image(), bad).issues.length, 1, bad);
+test("images must live under /images/ or /uploads/ with a lowercase name, and cannot be a generated variant or a Windows device name", () => {
+  for (const ok of ["/images/suite/neural-net.webp", "/uploads/team-photo.webp", "/uploads/scan_2.jpeg", "/images/brand/logo.svg", "/uploads/team-photo-1280.webp", "/uploads/icon.webp", "/uploads/con-1.webp", "/uploads/console/a.png", "/uploads/com10.jpg"]) assert.deepEqual(run(s.image(), ok).issues, [], ok);
+  for (const bad of ["/uploads/team-photo.jpg.w640.webp", "/uploads/team-photo.webp.w1280.webp", "https://cdn.example.com/a.jpg", "/models/earth.glb", "/uploads/Team-Photo.webp", "/uploads/photo.WEBP", "/uploads/.hidden.webp", "/uploads/con.webp", "/uploads/team/nul.png", "/images/aux.svg", "/uploads/com1.jpg", "/uploads/lpt9.gif", "/uploads/prn/a.webp", "/images/com0/a.webp"]) assert.equal(run(s.image(), bad).issues.length, 1, bad);
   assert.deepEqual(run(s.image(), "/uploads/photo.bmp").issues, [
-    "(file): use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant",
+    "(file): use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul",
   ]);
 });
 

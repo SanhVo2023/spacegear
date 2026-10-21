@@ -36,9 +36,12 @@ export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // Every other scheme is refused, mailto: included: the contact address comes only from
 // SITE.contactEmail, which is env-gated.
 export const HREF = /^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
-// Lowercase names and extensions, no generated -640/-1280 variant, and SVG only under /images/:
-// an SVG served from /uploads/ would be an active same-origin document that a CMS editor could upload.
-export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
+// Lowercase names and extensions, and SVG only under /images/: an SVG served from /uploads/ would
+// be an active same-origin document that a CMS editor could upload. No name has a dot before its
+// extension, so a generated variant (photo.jpg.w640.webp) never fits, and no folder or file is a
+// Windows device name (con, prn, aux, nul, com0-9, lpt0-9), which Git for Windows cannot check out.
+// scripts/lib/uploads.mjs applies the same names to the files themselves.
+export const IMAGE = /^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
 export const COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -78,7 +81,7 @@ function textOf(format: TextFormat, { min = 1, max, pattern, message }: TextOpti
 export const text = (options: TextOptions) => textOf("plain", options);
 export const slug = (max = 60) => textOf("slug", { max, pattern: SLUG, message: "use lowercase letters, digits and single hyphens" });
 export const href = () => textOf("href", { max: 200, pattern: HREF, message: "use a site path such as /contact/ or a full https:// address" });
-export const image = () => textOf("image", { max: 200, pattern: IMAGE, message: "use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant" });
+export const image = () => textOf("image", { max: 200, pattern: IMAGE, message: "use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul" });
 export const color = () => textOf("color", { max: 7, pattern: COLOR, message: "use a hex colour such as #fa6e43" });
 
 export function number({ min, max, integer = false }: { min: number; max: number; integer?: boolean }): Schema<number> {

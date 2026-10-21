@@ -53,9 +53,7 @@ next-env.d.ts
 
 .vercel
 
-# CMS: upload variants are build output (scripts/build-upload-variants.mjs), as are its temporary
-# files left by an interrupted run; Sveltia's temporary save files
-/public/uploads/**/*-640.webp
-/public/uploads/**/*-1280.webp
-/public/uploads/**/.*.tmp
+# CMS: the upload variant cache is build output (scripts/build-upload-variants.mjs); Sveltia's
+# temporary save files
+/.cache/
 .sveltia-tmp-*
