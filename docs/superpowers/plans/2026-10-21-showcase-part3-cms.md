@@ -294,6 +294,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 - Create: `src/lib/content-schema.ts`
 - Test: `tests/content-schema.test.mjs`
 
+> **Superseded during execution (Task 2 review).** The committed `src/lib/content-schema.ts` and `tests/content-schema.test.mjs` supersede the code blocks below, which show the first version (9 tests; the committed file has 14). Only the `HREF` and `IMAGE` lines in Step 3 are kept current, because Task 9's `config.yml` mirrors them. The changes are listed under "Amendments made during execution".
+
 - [ ] **Step 1: Write the failing test** `tests/content-schema.test.mjs`:
   ```js
   import { test } from "node:test";
@@ -413,8 +415,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
   }
 
   export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-  export const HREF = /^(?:\/[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
-  export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
+  export const HREF = /^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
+  export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
   export const COLOR = /^#[0-9a-fA-F]{6}$/;
 
   export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -649,8 +651,8 @@ Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
     input.work.tiles[0].slug = "no-such-service";
     input.servicesPanel.pillars[0].slug = "no-such-service";
     const issues = issuesOf(input);
-    assert.ok(issues.some((issue) => issue.startsWith("content/work.json: tiles[0].slug: choose one of")));
-    assert.ok(issues.some((issue) => issue.startsWith("content/services-panel.json: pillars[0].slug: choose one of")));
+    assert.ok(issues.some((issue) => issue.startsWith('content/work.json: tiles[0].slug: "no-such-service" is not one of: ')));
+    assert.ok(issues.some((issue) => issue.startsWith('content/services-panel.json: pillars[0].slug: "no-such-service" is not one of: ')));
   });
 
   test("service art and pillar summaries are derived from the service entry", () => {
@@ -698,7 +700,7 @@ Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
   test("role cards cannot link to profiles", () => {
     const input = fresh();
     entry(input, "team-roles", "product-and-delivery.json").links = [{ label: "LinkedIn", href: "https://linkedin.com/in/x" }];
-    assert.ok(issuesOf(input).some((issue) => issue.startsWith("content/team-roles/product-and-delivery.json: links: 1 items, the limit is 0")));
+    assert.ok(issuesOf(input).some((issue) => issue.startsWith("content/team-roles/product-and-delivery.json: links: 1 item, the limit is 0")));
   });
   ```
   `tests/content-index.test.mjs`:
@@ -2570,7 +2572,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
               widget: object
               fields:
                 - &link_label { name: label, label: Label, widget: string, maxlength: 30 }
-                - &link_href { name: href, label: Link, widget: string, maxlength: 200, hint: "A site path such as /contact/ or /#faq, or a full https:// address.", pattern: ['^(?:\/[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$', "Use a site path such as /contact/ or a full https:// address"] }
+                - &link_href { name: href, label: Link, widget: string, maxlength: 200, hint: "A site path such as /contact/ or /#faq, or a full https:// address.", pattern: ['^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$', "Use a site path such as /contact/ or a full https:// address"] }
             - name: stats
               label: Stats
               hint: The first counts the services, the second counts the engagements and names them.
@@ -2735,7 +2737,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
               hint: This dashboard is an illustrative example. Every card must keep saying illustrative, example or sample.
               widget: object
               fields:
-                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
                 - { name: accent, label: Accent, widget: string, maxlength: 20 }
                 - { name: label, label: Label, widget: string, maxlength: 20 }
             - name: workflow
@@ -2944,7 +2946,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: shortName, label: Short name, widget: string, maxlength: 40 }
         - { name: category, label: Category, widget: string, maxlength: 20 }
-        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
         - { name: summary, label: Summary, widget: text, maxlength: 160 }
         - { name: buyerProblem, label: Buyer problem, widget: text, maxlength: 320 }
         - name: deliverables
@@ -3057,7 +3059,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
       reorder: true
       sortable_fields: { fields: [order, name], default: { field: order } }
       fields:
-        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: role, label: Role, widget: string, maxlength: 60 }
         - { name: company, label: Company, widget: string, maxlength: 80 }
@@ -3082,7 +3084,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: author, label: Author, widget: string, maxlength: 60 }
         - { name: title, label: Title, widget: string, maxlength: 120 }
         - { name: sub, label: Summary, widget: text, maxlength: 200 }
-        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant"] }
         - *link_href
         - *order
 
@@ -3387,6 +3389,33 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   All four are output-neutral: re-saving the baseline with the hardened script gives byte-identical files. A second rebuild with no changes (new build ID) compares identical: `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
 - **`next/font` class hashes are deliberately not masked.** Names such as `inter_381028bd-module__L_xBwa__variable` and `mono_14708230-module__eivcfq__variable` derive from the module path relative to Turbopack's root. A trial build with `turbopack.root` on the parent folder changed exactly these two hashes on every page and nothing else. So a baseline is valid only for the project root and `node_modules` layout it was built with. The Task 1 baseline, built after `npm ci`, is byte-identical to the planning snapshot.
 - **The normalizer assumes Turbopack's flat chunk names** (`/_next/static/chunks/<name>.js|.css`, `/_next/static/media/<name>.<ext>`, no subfolders; checked in the Task 1 build). The chunk patterns do not match nested paths such as webpack's `chunks/app/…`. A `next build --webpack` build (Task 4's diagnostic retry) therefore cannot be compared with this baseline. If the bundler is ever switched, re-save the baseline from a webpack build of the unchanged source, and re-check the patterns, before comparing.
+- **Task 2 review follow-up** (one commit after `7cff37a`; each change seen red, then green). The committed `src/lib/content-schema.ts` and `tests/content-schema.test.mjs` (14 tests) supersede Task 2's code blocks; only the `HREF` and `IMAGE` lines there are kept current.
+  1. **Links.** `HREF` refuses protocol-relative `//host`: `^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$`. Tests pin these refusals:
+     - links: `//host`, `data:`, `JAVASCRIPT:` and `mailto:`. Refusing `mailto:` is deliberate, because the only contact address is `SITE.contactEmail`, which is env-gated;
+     - images: `/uploads/../x.webp` and `data:image/svg+xml,…`;
+     - numbers: `JSON.parse("1e999")` (Infinity);
+     - objects: a `__proto__` key is an unknown field, and nothing is polluted.
+  2. **Images.** `IMAGE` now requires:
+     - lowercase names: folders and file names use `[a-z0-9_-]` only, so no dots and no uppercase;
+     - lowercase extensions;
+     - SVG only under `/images/`, because an SVG served from `/uploads/` is an active same-origin document.
+
+     The pattern is `^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$`. Every current image path, in the fixture and in `public/images/`, already fits. The message says what is required: "use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant".
+  3. **Optional groups.** The `nullable` JSDoc now says that `false` and `0` count as content, so a group with a boolean or number field is never "not added"; a test covers it. `isEmpty` stops at 64 nested levels with a `ContentError` (`<path>: nested more than 64 levels deep`) instead of a `RangeError`. `check` re-throws that error with the file name and keeps the problems found so far.
+  4. **Messages.**
+     - Counts read `1 item` / `N items`, and the same for characters.
+     - `oneOf` repeats the value: `"x" is not one of: a, b`.
+     - A whitespace-only required text says `required`. So does an empty text with `min > 1`, which used to say `needs at least N characters`.
+  5. **Length.** Text length counts code points (`[...value].length`), so an emoji is one character.
+
+  **Plan edits:**
+  - Task 3's loader tests now expect `"no-such-service" is not one of: ` and `links: 1 item, the limit is 0`.
+  - Task 9's `config.yml` has the new `&link_href` pattern, and the new pattern and message in all four image fields. The extracted `config.yml` still parses with js-yaml, and its 12 href and 8 image fields (aliases resolved) equal `HREF.source` and `IMAGE.source`.
+  - Task 7's `contentImage("/uploads/logo.svg")` test stays as it is: the helper does not validate, and only the schema refuses that path.
+
+  **For Task 9:**
+  1. Check how Sveltia 0.230.1's string widget counts `maxlength` (code points or UTF-16 units). Sveltia is the reference: if it counts UTF-16 units, change `textOf` to match and record that here.
+  2. Check that `slugify_filename: true` writes names that `IMAGE` accepts (lowercase ASCII letters, digits, `-`, `_`). If it keeps uppercase or non-ASCII letters, record it here, because the image field would then refuse those uploads with the message above.
 
 ## Risks and open questions
 

@@ -32,14 +32,22 @@ export class ContentError extends Error {
 }
 
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-export const HREF = /^(?:\/[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
-export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
+// A site path (never "//host", which browsers read as another site) or a full https:// address.
+// Every other scheme is refused, mailto: included: the contact address comes only from
+// SITE.contactEmail, which is env-gated.
+export const HREF = /^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
+// Lowercase names and extensions, no generated -640/-1280 variant, and SVG only under /images/:
+// an SVG served from /uploads/ would be an active same-origin document that a CMS editor could upload.
+export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
 export const COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 const at = (path: string, key: string | number) => (typeof key === "number" ? `${path}[${key}]` : path ? `${path}.${key}` : key);
 const where = (path: string) => path || "(file)";
+const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+const show = (value: unknown) =>
+  typeof value === "string" ? JSON.stringify(value) : Array.isArray(value) ? "a list" : isRecord(value) ? "a group of fields" : String(value);
 
 function schema<T>(meta: Meta, run: (value: unknown, path: string, issues: string[]) => T): Schema<T> {
   return Object.assign(run, { meta });
@@ -52,10 +60,17 @@ function textOf(format: TextFormat, { min = 1, max, pattern, message }: TextOpti
       issues.push(`${where(path)}: expected text`);
       return "";
     }
-    if (value.length < min) issues.push(`${where(path)}: ${min === 1 ? "required" : `needs at least ${min} characters`}`);
-    if (value.length > max) issues.push(`${where(path)}: ${value.length} characters, the limit is ${max}`);
-    if (value !== value.trim()) issues.push(`${where(path)}: remove the spaces at the start or the end`);
-    if (pattern && value !== "" && !pattern.test(value)) issues.push(`${where(path)}: ${message ?? `must match ${pattern}`}`);
+    // Lengths count code points, so an emoji is one character, not two UTF-16 units. Sveltia's
+    // maxlength counter is the reference: if it counts differently, this follows it.
+    const length = [...value].length;
+    const trimmed = value.trim();
+    if (min > 0 && trimmed === "") issues.push(`${where(path)}: required`);
+    else {
+      if (length < min) issues.push(`${where(path)}: needs at least ${count(min, "character")}`);
+      if (value !== trimmed) issues.push(`${where(path)}: remove the spaces at the start or the end`);
+      if (pattern && value !== "" && !pattern.test(value)) issues.push(`${where(path)}: ${message ?? `must match ${pattern}`}`);
+    }
+    if (length > max) issues.push(`${where(path)}: ${count(length, "character")}, the limit is ${max}`);
     return value;
   });
 }
@@ -63,7 +78,7 @@ function textOf(format: TextFormat, { min = 1, max, pattern, message }: TextOpti
 export const text = (options: TextOptions) => textOf("plain", options);
 export const slug = (max = 60) => textOf("slug", { max, pattern: SLUG, message: "use lowercase letters, digits and single hyphens" });
 export const href = () => textOf("href", { max: 200, pattern: HREF, message: "use a site path such as /contact/ or a full https:// address" });
-export const image = () => textOf("image", { max: 200, pattern: IMAGE, message: "use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)" });
+export const image = () => textOf("image", { max: 200, pattern: IMAGE, message: "use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant" });
 export const color = () => textOf("color", { max: 7, pattern: COLOR, message: "use a hex colour such as #fa6e43" });
 
 export function number({ min, max, integer = false }: { min: number; max: number; integer?: boolean }): Schema<number> {
@@ -99,7 +114,7 @@ export function literal(expected: boolean): Schema<boolean> {
 export function oneOf(values: readonly string[]): Schema<string> {
   return schema({ kind: "oneOf", values: [...values] }, (value, path, issues) => {
     if (typeof value !== "string" || !values.includes(value)) {
-      issues.push(`${where(path)}: choose one of ${values.join(", ")}`);
+      issues.push(`${where(path)}: ${show(value)} is not one of: ${values.join(", ")}`);
       return typeof value === "string" ? value : "";
     }
     return value;
@@ -112,8 +127,8 @@ export function list<T>(item: Schema<T>, { min = 0, max }: { min?: number; max: 
       issues.push(`${where(path)}: expected a list`);
       return [];
     }
-    if (value.length < min) issues.push(`${where(path)}: needs at least ${min} item${min === 1 ? "" : "s"}`);
-    if (value.length > max) issues.push(`${where(path)}: ${value.length} items, the limit is ${max}`);
+    if (value.length < min) issues.push(`${where(path)}: needs at least ${count(min, "item")}`);
+    if (value.length > max) issues.push(`${where(path)}: ${count(value.length, "item")}, the limit is ${max}`);
     return value.map((entry, index) => item(entry, at(path, index), issues));
   });
 }
@@ -137,22 +152,40 @@ export function object<S extends Shape>(shape: S): Schema<Output<S>> {
   });
 }
 
-const isEmpty = (value: unknown): boolean =>
-  value === null || value === undefined || value === "" ||
-  (Array.isArray(value) && value.length === 0) ||
-  (isRecord(value) && Object.values(value).every(isEmpty));
+const MAX_DEPTH = 64;
+// Recurses into the file's data, not the schema, so the depth is capped: absurd input is a
+// ContentError instead of a RangeError (stack overflow).
+const isEmpty = (value: unknown, path: string, depth = 0): boolean => {
+  if (depth > MAX_DEPTH) throw new ContentError([`${where(path)}: nested more than ${MAX_DEPTH} levels deep`]);
+  return value === null || value === undefined || value === "" ||
+    (Array.isArray(value) && value.length === 0) ||
+    (isRecord(value) && Object.values(value).every((child) => isEmpty(child, path, depth + 1)));
+};
 
-/** An optional group: null, a missing key or an all-empty group (a CMS "not added" value) all mean null. */
+/**
+ * An optional group: null, a missing key or an all-empty group (a CMS "not added" value) all mean
+ * null. Only "", [], null and missing values are empty: `false` and `0` count as content, so a
+ * group with a boolean or number field is never "not added" and is always validated.
+ */
 export function nullable<T>(inner: Schema<T>): Schema<T | null> {
-  return schema({ kind: "nullable", inner }, (value, path, issues) => (isEmpty(value) ? null : inner(value, path, issues)));
+  return schema({ kind: "nullable", inner }, (value, path, issues) => (isEmpty(value, path) ? null : inner(value, path, issues)));
 }
 
-/** Validates one file's data and records its problems, prefixed with the file name. */
+/**
+ * Validates one file's data and records its problems, prefixed with the file name. If the data is
+ * too deeply nested to check, throws a ContentError with the problems found so far.
+ */
 export function check<T>(target: Schema<T>, value: unknown, file: string, issues: string[]): T {
   const local: string[] = [];
-  const result = target(value, "", local);
-  for (const issue of local) issues.push(`${file}: ${issue}`);
-  return result;
+  const prefix = (issue: string) => `${file}: ${issue}`;
+  try {
+    const result = target(value, "", local);
+    for (const issue of local) issues.push(prefix(issue));
+    return result;
+  } catch (error) {
+    if (error instanceof ContentError) throw new ContentError([...issues, ...[...local, ...error.issues].map(prefix)]);
+    throw error;
+  }
 }
 
 /** Validates one file and throws a ContentError that lists every problem. */
