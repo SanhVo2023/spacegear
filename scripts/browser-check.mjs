@@ -6,6 +6,10 @@ const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
 assert.ok(routes.length > 0, "sitemap lists routes");
+// The preview must serve the shipped security headers, so every check below runs under the real CSP.
+const homeHeaders = (await fetch(`${base}/`)).headers;
+assert.ok((homeHeaders.get("content-security-policy") || "").includes("connect-src"), "/ serves the Content-Security-Policy (with connect-src)");
+assert.ok(homeHeaders.has("x-content-type-options"), "/ serves X-Content-Type-Options");
 const browser = await launchBrowser();
 const report = { testedAt: new Date().toISOString(), base, browser: browser.version(), profiles: [], interactions: [] };
 await fs.mkdir("artifacts", { recursive: true });
@@ -34,6 +38,30 @@ async function hiddenText(page) {
   });
 }
 
+// Records CSP violations and blocked-texture errors on every page and route a context opens.
+// Each page pushes its securitypolicyviolation events to window.__csp and reports them through a
+// binding, so events survive navigation; the console catches what the browser itself logs (also without JS).
+const CSP_ERROR = /Couldn't load texture|violates the following Content Security Policy/;
+async function watchCsp(context) {
+  const problems = [];
+  const where = page => { try { return new URL(page.url()).pathname; } catch { return "(no page)"; } };
+  await context.exposeBinding("__cspReport", ({ page }, entry) => problems.push(`${where(page)} securitypolicyviolation ${entry}`));
+  await context.addInitScript(() => {
+    window.__csp = [];
+    document.addEventListener("securitypolicyviolation", e => {
+      const entry = `${e.effectiveDirective || e.violatedDirective} blocked ${e.blockedURI || "(inline)"}`;
+      window.__csp.push(entry);
+      window.__cspReport?.(entry);
+    });
+    // Counts decoded image bitmaps; three's GLTF loader decodes the globe's embedded textures this way.
+    window.__bitmaps = [];
+    const decode = window.createImageBitmap;
+    if (decode) window.createImageBitmap = (...args) => decode.apply(window, args).then(bitmap => { window.__bitmaps.push({ w: bitmap.width, h: bitmap.height }); return bitmap; });
+  });
+  context.on("console", message => { if (CSP_ERROR.test(message.text())) problems.push(`${where(message.page())} console.${message.type()} ${message.text().slice(0, 200)}`); });
+  return problems;
+}
+
 try {
   for (const profile of [
     { name: "mobile-320", width: 320, height: 740 },
@@ -44,6 +72,7 @@ try {
     { name: "no-javascript", width: 1440, height: 1000, javaScriptEnabled: false },
   ]) {
     const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, javaScriptEnabled: profile.javaScriptEnabled });
+    const cspProblems = await watchCsp(context);
     const page = await context.newPage(), errors = [], requests = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("request", request => requests.push(request.url()));
@@ -60,7 +89,14 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
     const models = requests.filter(url => /\.glb(?:$|\?)/.test(url));
     if (profile.width < 1024 || profile.reducedMotion || profile.javaScriptEnabled === false) assert.equal(models.length, 0, `${profile.name}: no model`);
-    if (profile.name === "desktop") assert.equal(models.length, 1, "desktop enhancement loads one model");
+    if (profile.name === "desktop") {
+      assert.equal(models.length, 1, "desktop enhancement loads one model");
+      // The globe's textures are embedded in the model and fetched as blob: URLs; the CSP must let them load.
+      await page.waitForFunction(() => window.__bitmaps.some(b => b.w >= 512), null, { timeout: 20000 }).catch(() => {});
+      assert.deepEqual(cspProblems, [], "desktop /: the globe loads without CSP violations or texture errors");
+      assert.ok(await page.evaluate(() => window.__bitmaps.some(b => b.w >= 512)), "desktop /: the globe's embedded textures decode");
+      report.interactions.push("desktop globe textures decode under the shipped CSP");
+    }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
       const menu = page.locator(".mobile-menu");
@@ -164,6 +200,8 @@ try {
       await sweep.close();
       report.interactions.push(`${profile.name}: no transparent text on all ${routes.length} routes after a scroll pass`);
     }
+    assert.deepEqual(cspProblems, [], `${profile.name}: no CSP violations or texture errors on any visited route`);
+    report.interactions.push(`${profile.name}: no CSP violations or texture errors`);
     await context.close();
   }
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });

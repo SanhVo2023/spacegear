@@ -16,7 +16,13 @@ for(const name of [...roots,...assets,...files]) {
   await fs.cp(path.join(source,name),dest,{recursive:true});
 }
 let headers=await fs.readFile("public/_headers","utf8");
-if(process.env.SITE_MODE!=="production")headers+="\n/*\n  X-Robots-Tag: noindex, nofollow\n";
+// Previews add X-Robots-Tag inside the existing /* rule: a second /* rule replaces the first one's
+// headers in the local preview, which then served no CSP or other security headers at all.
+if(process.env.SITE_MODE!=="production"){
+  const marked=headers.replace(/^\/\*(\r?\n)/m,(rule,eol)=>`${rule}  X-Robots-Tag: noindex, nofollow${eol}`);
+  if(marked===headers)throw new Error("public/_headers needs a /* rule for the preview X-Robots-Tag.");
+  headers=marked;
+}
 await fs.writeFile(path.join(target,"_headers"),headers);
 const routes=["services","services/digital-transformation","services/ai-strategy","services/applied-ai","services/automation-integration","services/product-delivery","about","approach","contact","privacy","terms"];
 const redirects=["/index.html / 301",...routes.flatMap(route=>[`/${route} /${route}/ 301`,`/${route}/index.html /${route}/ 301`])];
