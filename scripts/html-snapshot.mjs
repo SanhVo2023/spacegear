@@ -229,14 +229,21 @@ export function changedClientIds(before, after) {
  * factory runs from its ids to the next "},<ids>,<arrow>=>{" or the end of the list. A triage
  * aid: both builds are cut the same way.
  */
-export function moduleFactory(distDir, id) {
+const chunkCache = new Map();
+/** A build's chunk files as [name, text], read once per run. */
+function chunksOf(distDir) {
   const dir = path.join(distDir, "_next", "static", "chunks");
-  if (!fs.existsSync(dir)) return null;
+  if (!chunkCache.has(dir)) {
+    chunkCache.set(dir, fs.existsSync(dir) ? fs.readdirSync(dir).filter((file) => file.endsWith(".js")).sort().map((name) => [name, fs.readFileSync(path.join(dir, name), "utf8")]) : []);
+  }
+  return chunkCache.get(dir);
+}
+
+export function moduleFactory(distDir, id) {
   const arrow = String.raw`(?:\([\w$,]*\)|[\w$]+)=>\{`;
   const start = new RegExp(`(?:\\}|void 0),(?:\\d{1,9},){0,32}?${String(id).replace(/[^\w]/g, "\\$&")},(?:\\d{1,9},){0,32}(?=${arrow})`);
   const next = new RegExp(`\\},(?:\\d{1,9},){1,33}${arrow}|\\}\\]\\);?\\s*$`);
-  for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".js")).sort()) {
-    const text = fs.readFileSync(path.join(dir, name), "utf8");
+  for (const [name, text] of chunksOf(distDir)) {
     const found = start.exec(text);
     if (!found) continue;
     const rest = text.slice(found.index + found[0].length);
@@ -244,6 +251,51 @@ export function moduleFactory(distDir, id) {
     return { chunk: name, code: end < 0 ? rest : rest.slice(0, end) };
   }
   return null;
+}
+
+// A number in factory code that names a module: an import (e.i(N), e.r(N), e.A(N) …) or the id
+// an export list is registered under (e.s([...], N), which a merged factory does for each of its ids).
+const MODULE_REFERENCE = /(?:[\w$]\.[A-Za-z]\(|\],)$/;
+
+/**
+ * Whether module `oldId` of the build in `oldDist` is the same module as `newId` in `newDist`.
+ * It is when the two factories are identical apart from module ids, and every module id that
+ * differs (its own, an import, an export registration) maps one to one to a module that is the
+ * same in turn, checked the same way. Returns { ok: true } or { ok: false, reason }.
+ */
+export function explainModule(oldDist, oldId, newDist, newId) {
+  const forward = new Map(); // old id → new id, for every pair being or already explained
+  const backward = new Map();
+  const visit = (from, to) => {
+    if (forward.has(from) || backward.has(to)) {
+      if (forward.get(from) === to) return null; // explained, or being explained further up
+      return `module ${from} cannot be both ${forward.get(from) ?? `the old ${backward.get(to)}`} and ${to}`;
+    }
+    forward.set(from, to);
+    backward.set(to, from);
+    const before = moduleFactory(oldDist, from);
+    const after = moduleFactory(newDist, to);
+    if (!before) return `module ${from} not found in ${oldDist}`;
+    if (!after) return `module ${to} not found in ${newDist}`;
+    const a = before.code.split(/(\d+)/);
+    const b = after.code.split(/(\d+)/);
+    if (a.length !== b.length) return "the factory code differs";
+    const uses = [];
+    for (let i = 1; i < a.length; i += 2) {
+      if (a[i - 1] !== b[i - 1]) return "the factory code differs";
+      if (a[i] === b[i]) continue;
+      if (!MODULE_REFERENCE.test(a[i - 1])) return "the factory code differs";
+      uses.push([a[i], b[i]]);
+    }
+    if (a.at(-1) !== b.at(-1)) return "the factory code differs";
+    for (const [used, now] of uses) {
+      const problem = visit(used, now);
+      if (problem) return used === from ? problem : `module ${used} → ${now}, which it uses, is not the same: ${problem}`;
+    }
+    return null;
+  };
+  const problem = visit(String(oldId), String(newId));
+  return problem ? { ok: false, reason: problem } : { ok: true };
 }
 
 function htmlFiles(base) {
@@ -321,11 +373,8 @@ function main() {
       const changes = changedClientIds(savedText, currentText);
       if (explain) {
         const unexplained = changes.flatMap((change) => {
-          const old = moduleFactory(explain, change.from);
-          const now = moduleFactory(root, change.to);
-          if (!old) return [`${describe(change)}: module ${change.from} not found in ${explain}`];
-          if (!now) return [`${describe(change)}: module ${change.to} not found in ${root}`];
-          return old.code === now.code ? [] : [`${describe(change)}: the factory code differs (${old.chunk}, ${now.chunk})`];
+          const result = explainModule(explain, change.from, root, change.to);
+          return result.ok ? [] : [`${describe(change)}: ${result.reason}`];
         });
         if (!unexplained.length) { explained += changes.length; continue; }
         problems.push(`${file}: client module ids changed that --explain-client-ids cannot explain:\n${unexplained.map((line) => `    ${line}`).join("\n")}`);
@@ -341,7 +390,7 @@ function main() {
   }
   const added = current.filter((file) => !saved.includes(file));
   if (added.length) console.log(`New pages (not in the snapshot): ${added.join(", ")}`);
-  const note = loose ? " (client module ids ignored)" : explained ? ` (${explained} client module id${explained === 1 ? "" : "s"} changed; each has the same export, place and factory code)` : "";
+  const note = loose ? " (client module ids ignored)" : explained ? ` (${explained} client module id${explained === 1 ? "" : "s"} changed; each has the same export, place and factory code, module ids aside)` : "";
   if (problems.length) {
     console.error(problems.join("\n"));
     process.exitCode = 1;

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { FORMAT, normalize, withoutClientIds } from "../scripts/html-snapshot.mjs";
+import { FORMAT, explainModule, normalize, withoutClientIds } from "../scripts/html-snapshot.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../scripts/html-snapshot.mjs", import.meta.url));
 
@@ -151,6 +151,35 @@ test("references into the same row resolve from the raw row; only a containing v
   assert.deepEqual(treeOf(rscPage('0:["$","div",null,{"self":"$0:props","row":"$0"}]\n'))[3], { self: { $cycle: 1 }, row: { $cycle: 2 } });
 });
 
+test("a changed client id is explained when its factory differs only in module ids that are explained in turn", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-explain-"));
+  try {
+    // Turbopack chunks: "void 0,<ids>,<arrow>{…}" first, then "},<ids>,<arrow>{…}", ending "}]);".
+    const build = (name, modules) => {
+      const dir = path.join(root, name, "_next", "static", "chunks");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "a1.js"), `(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,${modules.map(([ids, body]) => `${ids},e=>{"use strict";${body}}`).join(",")}]);`);
+      return path.join(root, name);
+    };
+    const tile = (self, dep) => `var t=e.i(${dep});e.s(["Tile",0,function(){return(0,t.jsx)("a",{delay:60})}],${self})`;
+    const helper = (self) => `e.s(["jsx",0,function(){return 1}],${self})`;
+    const old = build("old", [["10403", tile(10403, 500)], ["500", helper(500)]]);
+    const same = build("same", [["10999", tile(10999, 500)], ["500", helper(500)]]);
+    const shifted = build("shifted", [["10999", tile(10999, 600)], ["600", helper(600)]]);
+    const otherDep = build("other", [["10999", tile(10999, 600)], ["600", 'e.s(["jsx",0,function(){return 2}],600)']]);
+    const literal = build("literal", [["10999", tile(10999, 500).replace("delay:60", "delay:90")], ["500", helper(500)]]);
+    const twice = build("twice", [["10999", `var t=e.i(600),u=e.i(601);${tile(10999, 600)}`], ["600", helper(600)], ["601", helper(601)]]);
+    const oldTwice = build("old-twice", [["10403", `var t=e.i(500),u=e.i(500);${tile(10403, 500)}`], ["500", helper(500)]]);
+
+    assert.deepEqual(explainModule(old, 10403, same, 10999), { ok: true }, "only its own id changed (e.s([...], id))");
+    assert.deepEqual(explainModule(old, 10403, shifted, 10999), { ok: true }, "a dependency id changed too, and that module is the same");
+    assert.deepEqual(explainModule(old, 10403, otherDep, 10999), { ok: false, reason: "module 500 → 600, which it uses, is not the same: the factory code differs" });
+    assert.deepEqual(explainModule(old, 10403, literal, 10999), { ok: false, reason: "the factory code differs" }, "a number that is not a module id");
+    assert.deepEqual(explainModule(oldTwice, 10403, twice, 10999).ok, false, "one old id cannot stand for two new ones");
+    assert.deepEqual(explainModule(old, 10403, same, 12345), { ok: false, reason: `module 12345 not found in ${same}` });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("a reference graph that resolves to more than a million values fails fast", () => {
   const hex = (n) => n.toString(16);
   // Each row holds two references to the next, so the tree doubles at every level.
@@ -252,11 +281,12 @@ test("save writes the format marker and compare refuses a folder saved in anothe
       fs.mkdirSync(path.join(root, dir, "_next", "static", "chunks"), { recursive: true });
       fs.writeFileSync(path.join(root, dir, "_next", "static", "chunks", "a1.js"), `(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,${id},e=>{"use strict";${body}},777,(e,t)=>{other()}]);`);
     };
-    chunk("old-dist", 123, 'e.s(["default",0,function(){return"Pricing"}])');
-    chunk("dist", 124, 'e.s(["default",0,function(){return"Pricing"}])');
+    // The factory registers its exports under its own id (e.s([...], id)), as merged factories do.
+    chunk("old-dist", 123, 'e.s(["default",0,function(){return"Pricing"}],123)');
+    chunk("dist", 124, 'e.s(["default",0,function(){return"Pricing"}],124)');
     result = run("compare", snap, "--explain-client-ids", "old-dist");
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /identical to artifacts[\\/]snap: 2 pages \(1 client module id changed; each has the same export, place and factory code\)\./);
+    assert.match(result.stdout, /identical to artifacts[\\/]snap: 2 pages \(1 client module id changed; each has the same export, place and factory code, module ids aside\)\./);
     chunk("dist", 124, 'e.s(["default",0,function(){return"Contact"}])');
     result = run("compare", snap, "--explain-client-ids", "old-dist");
     assert.equal(result.status, 1);
