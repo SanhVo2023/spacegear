@@ -122,9 +122,12 @@ test("new vendored bytes need a visible pin edit: a file and lock changed togeth
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("the site stylesheet does not take class names from the vendored CMS", () => {
-  // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle to the site CSS.
-  assert.match(fs.readFileSync("src/app/globals.css", "utf8"), /^@source not "\.\.\/\.\.\/public\/admin";\r?$/m);
+test("the site stylesheet does not take class names from the vendored CMS or the editable copy", () => {
+  // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle, or in a
+  // CMS edit, to the site CSS.
+  const css = fs.readFileSync("src/app/globals.css", "utf8");
+  assert.match(css, /^@source not "\.\.\/\.\.\/public\/admin";\r?$/m);
+  assert.match(css, /^@source not "\.\.\/\.\.\/content";\r?$/m);
 });
 
 test("the admin page loads only the vendored bundle and is never indexed", () => {
