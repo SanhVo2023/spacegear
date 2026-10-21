@@ -21,7 +21,7 @@
 | `dist/sveltia-cms.js` (IIFE, auto-initializes) | 2.5 MB + `dist/chunks/{git,qrcode,react-dom}.js` + `dist/chunks/assets/rolldown-runtime-*.js` | **Yes.** This is the documented browser build (docs: plain `<script>`, "not distributed as an ES module"). It loads its chunks with `import(new URL("chunks/<name>.js", document.currentScript.src))` and only falls back to unpkg if that fails (function `DSe` in the bundle), so the chunks vendored next to it are used. |
 | `npm/index.js` (ESM for bundlers) | 2.5 MB + 300 chunks + fonts/wasm | No: it has bare dynamic imports (`import("exifr/…")`, `import("@shikijs/langs/…")`) and JSON locale imports that need a bundler and the package's dependencies installed. |
 
-**Decision:** vendor `dist/sveltia-cms.js`, `dist/chunks/**/*.js` and `LICENSE.txt` (no source maps) into `public/admin/sveltia/` with `scripts/vendor-sveltia.mjs`, which downloads the pinned tarball, verifies its sha512 integrity, extracts with a small built-in tar reader and records sha256 hashes in `scripts/sveltia-cms.lock.json`. `npm test` re-verifies the hashes offline. Nothing is installed into `node_modules` (the CMS worktree shares the main worktree's `node_modules` through a junction).
+**Decision:** vendor `dist/sveltia-cms.js`, `dist/chunks/**/*.js` and `LICENSE.txt` (no source maps) into `public/admin/sveltia/` with `scripts/vendor-sveltia.mjs`, which downloads the pinned tarball, verifies its sha512 integrity, extracts with a small built-in tar reader and records sha256 hashes in `scripts/sveltia-cms.lock.json`. `npm test` re-verifies the hashes offline. Sveltia is not installed into `node_modules`. (The CMS worktree has its own `node_modules`, installed with `npm ci`, because Turbopack rejects a `node_modules` junction that points outside the project root; see "Amendments made during execution".)
 
 **What the bundle fetches at run time** (inspected in `dist/sveltia-cms.js` 0.250.0):
 - `@font-face` rules for Source Sans 3, Noto Mono and Material Symbols (the UI icons) from `https://cdn.jsdelivr.net/fontsource/fonts/…`. Without them the icons render as words, so the admin CSP allows that one path for fonts.
@@ -51,7 +51,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
 ## Conventions for every task
 
-- **Worktree.** `E:\Personal\clone website\spacegear-cms`, branch `feat/showcase-cms` (cut from `feat/spacegear-showcase` by the controller), `node_modules` junctioned to the main worktree's. Preview port **8788**. Never touch the main worktree (`spacegear`, port 8787, Part 1) or `platform-clone`.
+- **Worktree.** `E:\Personal\clone website\spacegear-cms`, branch `feat/showcase-cms` (cut from `feat/spacegear-showcase` by the controller), with its own `node_modules` from `npm ci` (Turbopack rejects a `node_modules` junction that points outside the project root). Install dependencies there with plain `npm install`. Preview port **8788**. Never touch the main worktree (`spacegear`, port 8787, Part 1) or `platform-clone`.
 - **Read first:** `C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/showcase-conventions.md` (machine limits, lock helper, rules that must not regress), and `AGENTS.md` (read `node_modules/next/dist/docs/` before Next-specific code).
 - **Bash prelude.** Shell state does not persist between Bash calls, so start every Bash call with:
   ```bash
@@ -2157,9 +2157,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - Test: `tests/admin.test.mjs`, `tests/cms-config.test.mjs`
 - Modify: `package.json` (script `cms:vendor`, devDependency `js-yaml`), `package-lock.json`
 
-- [ ] **Step 1: Declare the YAML parser the config test uses.** `js-yaml@4.2.0` is already in `node_modules` (through ESLint); declare it without touching `node_modules`, which is shared with the main worktree:
+- [ ] **Step 1: Declare the YAML parser the config test uses.** `js-yaml@4.2.0` is already in the CMS worktree's own `node_modules` (through ESLint); declare it with a plain install:
   ```bash
-  cd "$CMS" && npm install --save-dev --save-exact --package-lock-only js-yaml@4.2.0 && git diff --stat package.json package-lock.json && node --input-type=module -e "import('js-yaml').then((m) => console.log(typeof m.load))"
+  cd "$CMS" && npm install --save-dev --save-exact js-yaml@4.2.0 && git diff --stat package.json package-lock.json && node --input-type=module -e "import('js-yaml').then((m) => console.log(typeof m.load))"
   ```
   Expected: `package.json` gains `"js-yaml": "4.2.0"` under `devDependencies`; the lockfile diff is a few lines (the root `devDependencies` entry and possibly the `dev` flag of `node_modules/js-yaml`); then `function`. If the lockfile diff touches unrelated packages, or the registry is unreachable, run `git checkout -- package.json package-lock.json` and add the two lines by hand instead: `"js-yaml": "4.2.0"` in `package.json` `devDependencies`, and the same line in `package-lock.json` under `packages[""].devDependencies` (keep keys alphabetical). Record which way was used under "Amendments".
 
@@ -3368,16 +3368,30 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` is a new devDependency. Re-run `npm install --package-lock-only` after resolving a lockfile conflict.
 - **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
-- After merging, rebuild and run the heavy gates once; the HTML baseline must then be re-saved from the merged build (Part 1 changes the hero markup on purpose).
+- **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
+  1. In the main worktree, before merging, save the baseline from Part 1's final build: `node scripts/html-snapshot.mjs save artifacts/html-baseline`.
+  2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. Expect identical: Part 3 is output-neutral and Task 8 is deferred.
+  3. Keep that baseline for the remaining work.
 
 ## Amendments made during execution
 
 (Executors record here every deviation, failed expectation or extra normalization, with the reason.)
 
+- **Task 1, `node_modules`.** The first rebuild failed: `TurbopackInternalError: Symlink [project]/node_modules is invalid, it points out of the filesystem root`. The worktree's own `package-lock.json` makes it Turbopack's root, and the junction pointed to the main worktree's `node_modules`, outside that root. The controller removed the junction and ran `npm ci` in the CMS worktree (452 packages). Install dependencies there with plain `npm install`; the conventions, the research summary, Task 9 Step 1 and risks 2 and 10 now say so. `next.config.ts` is unchanged: a `turbopack.root` on the parent folder also builds, but it changes the `next/font` class hashes (below) and would reach the main worktree with the merge.
+- **Task 1, `scripts/html-snapshot.mjs` hardening** (Task 1 review; verified red, then green):
+  1. `compare` fails with `<dir> has no saved pages; run save first.` (exit 1) when the snapshot folder is missing or empty, instead of passing with 0 pages.
+  2. `save` only replaces a folder strictly inside this worktree's `artifacts/` (resolved path). It refuses `.`, `src`, `dist`, `artifacts` itself and anything outside, with exit 2, before deleting anything.
+  3. Without `.next/BUILD_ID`, the build ID comes from the page's own `\"b\":\"…\"` value in the RSC payload (it occurs once per page).
+  4. `normalize` turns CRLF into LF first.
+
+  All four are output-neutral: re-saving the baseline with the hardened script gives byte-identical files. A second rebuild with no changes (new build ID) compares identical: `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+- **`next/font` class hashes are deliberately not masked.** Names such as `inter_381028bd-module__L_xBwa__variable` and `mono_14708230-module__eivcfq__variable` derive from the module path relative to Turbopack's root. A trial build with `turbopack.root` on the parent folder changed exactly these two hashes on every page and nothing else. So a baseline is valid only for the project root and `node_modules` layout it was built with. The Task 1 baseline, built after `npm ci`, is byte-identical to the planning snapshot.
+- **The normalizer assumes Turbopack's flat chunk names** (`/_next/static/chunks/<name>.js|.css`, `/_next/static/media/<name>.<ext>`, no subfolders; checked in the Task 1 build). The chunk patterns do not match nested paths such as webpack's `chunks/app/…`. A `next build --webpack` build (Task 4's diagnostic retry) therefore cannot be compared with this baseline. If the bundler is ever switched, re-save the baseline from a webpack build of the unchanged source, and re-check the patterns, before comparing.
+
 ## Risks and open questions
 
 1. **Turbopack and `with { type: "json" }`** is the one combination not probed in planning (all other tools were). Task 4 Step 8 exercises it first, before anything depends on it, and says what to do on failure.
-2. **Fonts come from jsDelivr at run time on `/admin/` only.** The CMS code is vendored, but the IIFE bundle hard-codes its Fontsource URLs; blocking them turns the Material Symbols icons into words. The admin CSP allows only `https://cdn.jsdelivr.net/fontsource/` for fonts. Fully self-hosting fonts would need the npm build bundled with esbuild and `@sveltia/cms` plus its dependencies installed into the shared `node_modules`; left for later.
+2. **Fonts come from jsDelivr at run time on `/admin/` only.** The CMS code is vendored, but the IIFE bundle hard-codes its Fontsource URLs; blocking them turns the Material Symbols icons into words. The admin CSP allows only `https://cdn.jsdelivr.net/fontsource/` for fonts. Fully self-hosting fonts would need the npm build bundled with esbuild and `@sveltia/cms` plus its dependencies installed into `node_modules`; left for later.
 3. **Sveltia 0.250.0 was released on 2026-10-21**, the day of this plan, and the project releases several times a week. The pin is verified (integrity, hashes, schema validation of `config.yml`); upgrades follow the README procedure.
 4. **Blocked optional requests.** The update check logs a CSP error in DevTools (harmless, try/catch in the bundle). A non-English browser gets an error about translations and falls back to English. HEIC uploads, maps, PDF thumbnails and code highlighting are unavailable; none is used.
 5. **Linked worktree.** The local workflow saves into a linked worktree but cannot commit from the browser (Sveltia limitation); the owner commits with git.
@@ -3385,7 +3399,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 7. **Upload variants are build output** (gitignored). Stale variants are reported, not deleted. Original uploads ship too (`uploads/**`, per the spec); the Chrome-side WebP re-encode strips camera metadata, but a file added outside the CMS keeps its metadata.
 8. **`srcset` descriptors** for uploads narrower than 1280 px still say `1280w` (the variant is the original width); the browser may pick it slightly early. Harmless.
 9. **Task 8** edits files Part 2 will rework (see "Merge notes"); it can be deferred.
-10. **`js-yaml`** was already installed through ESLint; Task 9 only declares it (`--package-lock-only`), with a manual fallback.
+10. **`js-yaml`** was already installed through ESLint; Task 9 only declares it (plain `npm install` in the CMS worktree's own `node_modules`), with a manual fallback.
 
 ## Deviations from the spec, with reasons
 
@@ -3426,4 +3440,4 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
   If 0.230.1 lacks something the config needs, stop and report it rather than moving to a newer version.
 - **Task 8 is deferred.** It edits section components that Part 2 reworks. It runs after Part 2, in the main worktree (`feat/spacegear-showcase`, port 8787), against the components as they are then. Tasks 1–7 and 9–11 run in `spacegear-cms` on `feat/showcase-cms` (port 8788).
-- **Order:** Part 3 runs in parallel with Part 1. The controller merges `feat/showcase-cms` into `feat/spacegear-showcase` after Part 1 finishes, following the merge notes above, and re-saves the HTML baseline after the merge.
+- **Order:** Part 3 runs in parallel with Part 1. The controller merges `feat/showcase-cms` into `feat/spacegear-showcase` after Part 1 finishes, following the merge notes above, including their HTML-baseline order (save in the main worktree before the merge, compare after it).
