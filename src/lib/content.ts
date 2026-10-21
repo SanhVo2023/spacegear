@@ -1,6 +1,10 @@
 // Site copy, loaded from the files in content/ (edited through the CMS at /admin/).
 // Every file is validated when this module loads: at build time, in `npm test` and in
-// scripts/check-content.mjs, so a malformed edit fails with a list of the fields to fix.
+// scripts/check-content.mjs, so a malformed edit fails there with a list of the fields to fix.
+// It also loads, and validates again, on every page load in the browser and at Worker cold
+// start, because buildContent also derives values the components hydrate with. That cost
+// (about 5 KB gzip and a few ms) is accepted; see "Controller amendments" in
+// docs/superpowers/plans/2026-10-21-showcase-part3-cms.md.
 // The exports keep the names and types the components used before the CMS
 // (src/lib/content-contract.ts proves the types; tests/content-roundtrip.test.mjs the values).
 // Honesty rules (tests/content.test.mjs, scripts/check-content.mjs): no invented clients,

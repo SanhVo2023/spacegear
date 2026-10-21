@@ -5,7 +5,8 @@
 import type * as Before from "../../tests/fixtures/content-v1";
 import type * as After from "./content";
 
-type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+// Exact equality: mutual assignability would also accept an added optional key or `any`.
+type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Expect<T extends true> = T;
 
 export type ContentContract = [
