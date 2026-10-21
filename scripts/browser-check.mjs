@@ -386,7 +386,11 @@ try {
       await skipPage.keyboard.press("Tab");
       const skipped = await overlayState(skipPage);
       assert.ok(skipped.intro === "done" && skipped.display === "none", `desktop: a key press ends the intro at once (${JSON.stringify(skipped)})`);
-      await skipPage.waitForTimeout(300); // the skip link's slide-in
+      // The skip link slides in (0.2 s): wait until it is the element on top at its centre.
+      await skipPage.waitForFunction(() => {
+        const el = document.activeElement, r = el.getBoundingClientRect(), top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return Boolean(top && (top === el || el.contains(top)));
+      }, null, { timeout: 5000, polling: "raf" }).catch(() => {});
       const skipFocus = await skipPage.evaluate(() => {
         const el = document.activeElement, r = el.getBoundingClientRect();
         const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
@@ -454,13 +458,16 @@ try {
       const stuck = await overlayState(deadPage);
       assert.ok(stuck.intro === "play" && stuck.display === "flex" && stuck.visibility === "visible" && stuck.t < INTRO.failsafe - 500, `failsafe: the overlay covers the page while the scripts are blocked (precondition: ${JSON.stringify(stuck)})`);
       assert.notDeepEqual(await heldCopy(deadPage), [], "failsafe: the hero copy is held while the overlay shows (precondition)");
-      await deadPage.waitForFunction(ms => performance.now() > ms, INTRO.failsafe + 300, { timeout: INTRO.failsafe + 10000 });
+      // The failsafe's delay counts from the overlay's first style resolution (about first paint), not
+      // from navigation start: poll for the moment it hides, then check that moment.
+      const hiddenAt = await (await deadPage.waitForFunction(() => getComputedStyle(document.querySelector(".intro-overlay")).visibility === "hidden" && performance.now(), null, { timeout: INTRO.failsafe + 10000, polling: "raf" })).jsonValue();
+      assert.ok(hiddenAt >= INTRO.failsafe && hiddenAt <= INTRO.failsafe + 1500, `failsafe: the overlay hides about ${INTRO.failsafe} ms after first paint (hidden at ${Math.round(hiddenAt)} ms)`);
       const released = await overlayState(deadPage);
       assert.ok(released.intro === "play" && released.visibility === "hidden" && Number(released.opacity) === 0, `failsafe: the overlay hides itself without JavaScript (${JSON.stringify(released)})`);
-      assert.deepEqual(await heldCopy(deadPage), [], "failsafe: the hero copy shows without JavaScript");
+      assert.deepEqual(await releasedCopy(deadPage, 1500), [], "failsafe: the hero copy shows without JavaScript");
       assert.deepEqual((await heroWords(deadPage)).unsettled, [], "failsafe: the headline words stand in place without JavaScript");
       await deadPage.close();
-      report.interactions.push(`desktop intro failsafe: with the scripts blocked the overlay hides and the copy shows after ${INTRO.failsafe} ms`);
+      report.interactions.push(`desktop intro failsafe: with the scripts blocked the overlay hides at ${Math.round(hiddenAt)} ms (delay ${INTRO.failsafe} ms from first paint) and the copy shows`);
 
       // Slow textures and late hydration: the load cap still counts from navigation start, so the page
       // reveals at the cap, before the globe is ready; the globe that arrives afterwards fades in lit,
@@ -478,7 +485,8 @@ try {
       assert.ok(slowAt("data-intro", "reveal") <= INTRO.loadCap + 200, `desktop slow load: the page reveals at the load cap, counted from navigation start (${slowTiming})`);
       assert.ok(slowAt("data-intro", "done") <= INTRO.loadCap + INTRO.reveal + 300, `desktop slow load: the overlay is gone within the load cap plus the reveal (${slowTiming})`);
       await slowPage.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
-      await slowPage.waitForTimeout(1200); // the canvas's fade-in over the poster
+      // The canvas fades in over the poster (0.6 s): wait until it is fully opaque.
+      await slowPage.waitForFunction(() => getComputedStyle(document.querySelector("#home .hero-scene")).opacity === "1", null, { timeout: 10000, polling: "raf" });
       const lateGlobe = pixelStats(await globeCapture(slowPage));
       assert.ok(lateGlobe.mean > 40 && lateGlobe.stdev > 10, `desktop slow load: a globe ready after the reveal is lit, not left black (${JSON.stringify(lateGlobe)})`);
       await slowPage.close();
@@ -705,8 +713,9 @@ try {
   await fallbackPage.goto(base, { waitUntil: "networkidle" });
   await fallbackPage.waitForTimeout(2500); // past the idle-mount timeout
   // A first visit plays the intro; a globe that cannot start ends it, and the copy is released.
+  await fallbackPage.waitForFunction(() => document.documentElement.dataset.intro === "done", null, { timeout: 10000 }).catch(() => {});
   assert.equal((await overlayState(fallbackPage)).intro, "done", "webgl-fallback: the intro ends when the globe cannot start");
-  assert.deepEqual(await heldCopy(fallbackPage), [], "webgl-fallback: the hero copy is fully visible");
+  assert.deepEqual(await releasedCopy(fallbackPage), [], "webgl-fallback: the hero copy is fully visible");
   assert.ok(await fallbackPage.locator("h1").isVisible());
   assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
