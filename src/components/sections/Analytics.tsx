@@ -54,7 +54,7 @@ export default function Analytics() {
           <Reveal as="div">
             <div className="relative h-full min-h-[280px] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={MEASURE.imageCard.img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={MEASURE.imageCard.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e] via-[#0b0c0e]/30 to-transparent" />
               <span className="absolute left-5 top-5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink">
                 <span className="text-flame">{MEASURE.imageCard.accent}</span> {MEASURE.imageCard.label}

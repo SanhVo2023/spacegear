@@ -55,7 +55,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
               {pillar && (
                 <div className="relative mt-auto h-40 overflow-hidden rounded-xl border border-line">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pillar.img} alt="" className="h-full w-full object-cover" />
+                  <img src={pillar.img} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 </div>
               )}
             </div>

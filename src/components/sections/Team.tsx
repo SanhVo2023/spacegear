@@ -81,6 +81,8 @@ export default function Team() {
                     key={i}
                     src={m.img}
                     alt={m.imgAlt}
+                    loading="lazy"
+                    decoding="async"
                     draggable={false}
                     initial={{ opacity: 0, scale: 1.06 }}
                     animate={{ opacity: 1, scale: 1 }}

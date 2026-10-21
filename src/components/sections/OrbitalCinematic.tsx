@@ -7,6 +7,7 @@ import {
   type MotionValue,
 } from "motion/react";
 import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { preload } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Starfield from "@/components/Starfield";
@@ -19,6 +20,8 @@ const EarthScene = dynamic(() => import("@/components/EarthScene"), { ssr: false
 
 // Desktop, motion allowed, not on a data-saver connection → upgrade to the cinematic.
 const QUERY = "(min-width: 1024px) and (prefers-reduced-motion: no-preference)";
+// Everyone else keeps the static hero, whose galaxy backdrop is the mobile LCP.
+const STATIC_QUERY = `not all and ${QUERY}`;
 function subscribe(onChange: () => void) {
   const media = window.matchMedia(QUERY);
   media.addEventListener("change", onChange);
@@ -215,10 +218,13 @@ export default function OrbitalCinematic() {
   // Until hydration, eligible desktops reserve the cinematic's 300vh (.hero-reserve in
   // globals.css) so deep links and reloads land where they will stay.
   if (!cinematic) {
+    // Hero images go first in <head>, one per visitor: the cinematic's poster (high priority) on the
+    // desktops that will show it, the galaxy everywhere else. The galaxy <img> below reuses this
+    // media-scoped preload instead of React's automatic one, which every desktop fetched first.
+    preload("/images/hero-poster.webp", { as: "image", media: QUERY, fetchPriority: "high" });
+    preload("/images/galaxy.webp", { as: "image", media: STATIC_QUERY });
     return (
       <section id="home" className={hydrated ? "relative" : "hero-reserve relative"}>
-        {/* the cinematic's poster, fetched early on the desktops that will show it */}
-        <link rel="preload" as="image" href="/images/hero-poster.webp" media={QUERY} />
         <div className="relative overflow-hidden">
           <div className="hero-backdrop pointer-events-none absolute inset-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}

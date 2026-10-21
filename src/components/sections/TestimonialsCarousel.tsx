@@ -36,6 +36,8 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
                 key={keyOf(r)}
                 src={r.img}
                 alt={r.name}
+                loading="lazy"
+                decoding="async"
                 draggable={false}
                 initial={{ opacity: 0, scale: 1.05 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -100,7 +102,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
               className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border transition-all duration-300 ${k === i ? "border-flame ring-1 ring-flame" : "border-line opacity-60 hover:opacity-100"}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={rv.img} alt="" className={`h-full w-full object-cover ${k === i ? "" : "grayscale"}`} />
+              <img src={rv.img} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover ${k === i ? "" : "grayscale"}`} />
             </button>
           ))}
         </div>

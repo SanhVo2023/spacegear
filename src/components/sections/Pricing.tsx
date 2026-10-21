@@ -59,7 +59,7 @@ function EngagementRow({ item, selected, onSelect }: { item: Engagement; selecte
       {/* image tile */}
       <div className="relative h-44 overflow-hidden lg:h-auto">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={item.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e]/70 to-transparent" />
         <span className="absolute left-5 top-5 text-[15px] font-medium text-ink">{item.short}</span>
         {item.featured && (
