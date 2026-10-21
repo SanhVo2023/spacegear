@@ -264,6 +264,40 @@ test("the 4k set streams only to capable desktops with a hardware GPU", () => {
   assert.equal(tiers.GLOBE_MAPS, manifest.GLOBE_MAPS, "the map list is the manifest's own, never restated");
 });
 
+test("the 4k stream waits for the intro and for the globe's reveal and flare to end", () => {
+  const end = constants.REVEAL_END_SECONDS;
+  assert.equal(end, constants.REVEAL_DELAY_SECONDS + Math.max(constants.REVEAL_SECONDS, constants.FLARE_SECONDS), "the reveal ends after its delay, fade-up and flare");
+  // No intro, or one that ended before the globe was ready (the canvas then fades in over the poster).
+  assert.equal(tiers.streamMayStart({ phase: "off", played: false, revealElapsed: -1 }), true);
+  assert.equal(tiers.streamMayStart({ phase: "done", played: false, revealElapsed: -1 }), true);
+  // Never while the overlay covers the page or lifts.
+  for (const phase of ["loading", "reveal"]) {
+    for (const played of [false, true]) assert.equal(tiers.streamMayStart({ phase, played, revealElapsed: 99 }), false, `${phase} ${played}`);
+  }
+  // A globe revealed by the intro streams only once its fade-up and flare are over.
+  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: -1 }), false, "the reveal has not started");
+  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: end - 0.01 }), false);
+  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: end }), true);
+  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: Number.NaN }), false, "an unknown reveal time never streams");
+});
+
+test("the GPU renderer string comes from RENDERER when it is unmasked, else from the debug extension", async () => {
+  const { rendererName } = await import("../src/components/globe/device.ts");
+  const UNMASKED = 0x9246;
+  const context = (renderer, unmasked) => ({
+    RENDERER: 0x1f01,
+    getParameter: (name) => (name === 0x1f01 ? renderer : name === UNMASKED ? unmasked : null),
+    getExtension: (name) => (name === "WEBGL_debug_renderer_info" && unmasked !== undefined ? { UNMASKED_RENDERER_WEBGL: UNMASKED } : null),
+  });
+  const gtx = "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)";
+  // Chromium and Safari mask RENDERER.
+  assert.equal(rendererName(context("WebKit WebGL", gtx)), gtx);
+  // Firefox reports the (sanitised) renderer in RENDERER and deprecates the extension: it is not asked.
+  assert.equal(rendererName(context("NVIDIA GeForce GTX 980, or similar", "unused")), "NVIDIA GeForce GTX 980, or similar");
+  // No extension: the masked string is all there is.
+  assert.equal(rendererName(context("WebKit WebGL", undefined)), "WebKit WebGL");
+});
+
 test("intro progress only moves forward and the phases run in order", () => {
   const store = intro.createIntroStore("off");
   let calls = 0;

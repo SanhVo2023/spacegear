@@ -61,3 +61,12 @@ export const REVEAL_DELAY_SECONDS = 0.6;
 export const REVEAL_SECONDS = 1.4;
 export const FLARE_SECONDS = 1.8;
 export const FLARE_GAIN = 2.2;
+/** From the start of the overlay's lift until the globe's fade-up and flare are over. */
+export const REVEAL_END_SECONDS = REVEAL_DELAY_SECONDS + Math.max(REVEAL_SECONDS, FLARE_SECONDS);
+
+/**
+ * The 4k stream (capable desktops) starts in an idle callback, forced after this long if the page
+ * never goes idle. Safari has no requestIdleCallback: a plain timer of the fallback length stands in.
+ */
+export const STREAM_IDLE_TIMEOUT_MS = 3000;
+export const STREAM_IDLE_FALLBACK_MS = 1000;
