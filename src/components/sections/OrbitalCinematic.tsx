@@ -181,7 +181,7 @@ const copyState = (phase: IntroPhase, start: IntroPhase): CopyState =>
 const EASE = [0.44, 0, 0.56, 1] as const;
 const RISE = [0.16, 1, 0.3, 1] as const;
 /** On intro visits the eyebrow, pitch and stats wait this much longer for the curtain to clear. */
-const INTRO_COPY_DELAY = 0.3;
+const INTRO_COPY_DELAY = 0.45;
 const fade = (delay: number): Variants => {
   const hidden = { opacity: 0, y: 28, filter: "blur(6px)" };
   const visible = { opacity: 1, y: 0, filter: "blur(0px)" };
@@ -199,7 +199,7 @@ const HEADLINE: Variants = {
   hidden: {},
   held: {},
   shown: { transition: { delayChildren: 0.12, staggerChildren: 0.045 } },
-  revealed: { transition: { delayChildren: 0.35, staggerChildren: 0.055 } },
+  revealed: { transition: { delayChildren: 0.55, staggerChildren: 0.055 } },
 };
 // 125 %, not 110 %: at the display face's 0.92 line height the ascenders of a word moved down by
 // 110 % still reach into its mask's bottom padding, which would show slivers before the rise. Under

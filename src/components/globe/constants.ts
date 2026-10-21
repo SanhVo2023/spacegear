@@ -54,10 +54,10 @@ export const STAR_PARALLAX = 0.03;
 
 /**
  * Intro reveal: the globe holds as a black silhouette against the galaxy (an eclipse) for
- * REVEAL_DELAY_SECONDS after the overlay starts to lift, then fades up while the atmosphere flares
- * once, peaking just after the curtain has cleared (0.12 s + 0.9 s, globals.css).
+ * REVEAL_DELAY_SECONDS after the overlay starts to lift, while the curtain clears (0.12 s + 0.9 s,
+ * globals.css), then fades up while the atmosphere flares once, peaking about 1.5 s into the reveal.
  */
-export const REVEAL_DELAY_SECONDS = 0.25;
-export const REVEAL_SECONDS = 1.6;
-export const FLARE_SECONDS = 2.0;
+export const REVEAL_DELAY_SECONDS = 0.6;
+export const REVEAL_SECONDS = 1.4;
+export const FLARE_SECONDS = 1.8;
 export const FLARE_GAIN = 2.2;
