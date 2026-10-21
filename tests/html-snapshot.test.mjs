@@ -151,6 +151,16 @@ test("references into the same row resolve from the raw row; only a containing v
   assert.deepEqual(treeOf(rscPage('0:["$","div",null,{"self":"$0:props","row":"$0"}]\n'))[3], { self: { $cycle: 1 }, row: { $cycle: 2 } });
 });
 
+test("a reference graph that resolves to more than a million values fails fast", () => {
+  const hex = (n) => n.toString(16);
+  // Each row holds two references to the next, so the tree doubles at every level.
+  const dag = (levels) => rscPage([...Array.from({ length: levels }, (_, i) => `${hex(i + 1)}:["$${hex(i + 2)}","$${hex(i + 2)}"]\n`), `${hex(levels + 1)}:"leaf"\n`, '0:{"x":"$1"}\n'].join(""));
+  assert.doesNotThrow(() => normalize(dag(10)));
+  const start = performance.now();
+  assert.throws(() => normalize(dag(22)), /resolves to more than 1000000 values/);
+  assert.ok(performance.now() - start < 5000, `took ${(performance.now() - start).toFixed(0)} ms`);
+});
+
 test("a path through another reference follows that reference and its own path; it cannot index a Set", () => {
   const html = rscPage('1:{"a":{"b":"x"}}\n2:["$","p",null,{"children":"lazy"}]\n0:{"inner":"$1:a","outer":"$0:inner:b","viaLazy":"$0:el:props:children","el":"$L2"}\n');
   assert.deepEqual(treeOf(html), { inner: { b: "x" }, outer: "x", viaLazy: "lazy", el: ["$", "p", null, { children: "lazy" }] });
@@ -226,16 +236,36 @@ test("save writes the format marker and compare refuses a folder saved in anothe
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Rendered HTML identical to artifacts[\\/]snap: 2 pages\./);
 
-    // Only the client module id changes: refused, unless --loose-client-ids (which warns).
+    // Only the client module id changes: refused with the changed ids listed, unless
+    // --loose-client-ids (which warns) or --explain-client-ids finds the same factory code.
     fs.writeFileSync(path.join(root, "dist", "index.html"), page(base({ rows: base().rows.map((row) => row.replace("2:I[123,", "2:I[124,")) })));
     result = run("compare", snap);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /changed page: index\.html/);
+    assert.match(result.stderr, /index\.html: only client module ids changed:\n {4}"default" 123 → 124 \(line \d+\)/);
     result = run("compare", snap, "--loose-client-ids");
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stderr, /Warning: --loose-client-ids ignores client module ids/);
     assert.match(result.stdout, /identical to artifacts[\\/]snap: 2 pages \(client module ids ignored\)\./);
     assert.equal(run("save", snap, "--loose-client-ids").status, 2, "the flag is for compare only");
+
+    const chunk = (dir, id, body) => {
+      fs.mkdirSync(path.join(root, dir, "_next", "static", "chunks"), { recursive: true });
+      fs.writeFileSync(path.join(root, dir, "_next", "static", "chunks", "a1.js"), `(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,${id},e=>{"use strict";${body}},777,(e,t)=>{other()}]);`);
+    };
+    chunk("old-dist", 123, 'e.s(["default",0,function(){return"Pricing"}])');
+    chunk("dist", 124, 'e.s(["default",0,function(){return"Pricing"}])');
+    result = run("compare", snap, "--explain-client-ids", "old-dist");
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /identical to artifacts[\\/]snap: 2 pages \(1 client module id changed; each has the same export, place and factory code\)\./);
+    chunk("dist", 124, 'e.s(["default",0,function(){return"Contact"}])');
+    result = run("compare", snap, "--explain-client-ids", "old-dist");
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /"default" 123 → 124 \(line \d+\): the factory code differs/);
+    fs.rmSync(path.join(root, "dist", "_next"), { recursive: true });
+    result = run("compare", snap, "--explain-client-ids", "old-dist");
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /"default" 123 → 124 \(line \d+\): module 124 not found in dist/);
+    assert.equal(run("compare", snap, "--explain-client-ids").status, 2, "the option needs the other build's dist folder");
 
     fs.writeFileSync(path.join(root, "dist", "terms", "index.html"), page(base({ markupClass: "p-9" })));
     result = run("compare", snap, "--loose-client-ids");

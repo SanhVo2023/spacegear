@@ -43,6 +43,8 @@ const OTHER_REFERENCE = /^\$[A-Za-z@][0-9a-f]+(?::|$)/;
 const ELEMENT_KEYS = { type: "1", key: "2", props: "3", _owner: "4" };
 const WRAPPERS = { W: "$Set", Q: "$Map", "@": "$promise" };
 const MAX_DEPTH = 64;
+// No exported page comes near this; a graph that repeats itself (a doubling DAG) fails fast instead.
+const MAX_NODES = 1_000_000;
 
 /** Splits the decoded RSC stream into rows (id → row) and the id-less hint rows, in order. */
 export function decodeRows(stream) {
@@ -160,7 +162,9 @@ export function resolveTree(rows) {
     const wrapper = WRAPPERS[reference.kind];
     return wrapper ? { [wrapper]: resolved } : resolved;
   };
+  let nodes = 0;
   const resolve = (value) => {
+    if (++nodes > MAX_NODES) throw new Error(`the RSC tree resolves to more than ${MAX_NODES} values: its references repeat themselves far beyond any real page`);
     if (typeof value === "string") return resolveString(value);
     const frame = frames.at(-1);
     const child = (key, item) => {
@@ -205,6 +209,40 @@ export function normalize(html) {
 /** A normalized page without client module ids (for `compare --loose-client-ids`). */
 export const withoutClientIds = (text) => text.replace(/^[ ]*"\$module": [^\n]*\n/gm, "");
 
+const CLIENT = /"\$client": ("(?:[^"\\]|\\.)*"),\n[ ]*"\$module": ([^,\n]+),/g;
+/**
+ * The client module ids that differ between two normalized pages that are identical apart from
+ * those ids, in page order: [{ name, from, to, line }] (line of the client in the new page).
+ */
+export function changedClientIds(before, after) {
+  const read = (text) => [...text.matchAll(CLIENT)].map((match) => ({ name: JSON.parse(match[1]), id: JSON.parse(match[2]), line: text.slice(0, match.index).split("\n").length }));
+  const next = read(after);
+  return read(before).flatMap((client, index) => (next[index] && next[index].id !== client.id ? [{ name: client.name, from: client.id, to: next[index].id, line: next[index].line }] : []));
+}
+
+/**
+ * The factory code of module `id` in a build's chunks, or null. Turbopack lists modules as
+ * `…void 0,<id>,e=>{…},<id>,<id>,(e,t,r)=>{…}])` (one factory may serve several ids), so a
+ * factory runs from its ids to the next "},<ids>,<arrow>=>{" or the end of the list. A triage
+ * aid: both builds are cut the same way.
+ */
+export function moduleFactory(distDir, id) {
+  const dir = path.join(distDir, "_next", "static", "chunks");
+  if (!fs.existsSync(dir)) return null;
+  const arrow = String.raw`(?:\([\w$,]*\)|[\w$]+)=>\{`;
+  const start = new RegExp(`(?:\\}|void 0),(?:\\d{1,9},){0,32}?${String(id).replace(/[^\w]/g, "\\$&")},(?:\\d{1,9},){0,32}(?=${arrow})`);
+  const next = new RegExp(`\\},(?:\\d{1,9},){1,33}${arrow}|\\}\\]\\);?\\s*$`);
+  for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".js")).sort()) {
+    const text = fs.readFileSync(path.join(dir, name), "utf8");
+    const found = start.exec(text);
+    if (!found) continue;
+    const rest = text.slice(found.index + found[0].length);
+    const end = rest.search(next);
+    return { chunk: name, code: end < 0 ? rest : rest.slice(0, end) };
+  }
+  return null;
+}
+
 function htmlFiles(base) {
   const walk = (current) => fs.readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(current, entry.name);
@@ -217,9 +255,12 @@ function htmlFiles(base) {
 function main() {
   const args = process.argv.slice(2);
   const loose = args.includes("--loose-client-ids");
-  const [mode, dir] = args.filter((arg) => arg !== "--loose-client-ids");
-  if (!["save", "compare"].includes(mode) || !dir || (loose && mode !== "compare")) {
-    console.error("Usage: node scripts/html-snapshot.mjs save <snapshot-dir> | compare <snapshot-dir> [--loose-client-ids]");
+  const explainAt = args.indexOf("--explain-client-ids");
+  const explain = explainAt >= 0 ? args[explainAt + 1] : undefined;
+  const [mode, dir] = args.filter((arg, index) => arg !== "--loose-client-ids" && (explainAt < 0 || (index !== explainAt && index !== explainAt + 1)));
+  const usage = "Usage: node scripts/html-snapshot.mjs save <snapshot-dir> | compare <snapshot-dir> [--loose-client-ids | --explain-client-ids <dist of the saved build>]";
+  if (!["save", "compare"].includes(mode) || !dir || ((loose || explainAt >= 0) && mode !== "compare") || (explainAt >= 0 && (!explain || explain.startsWith("--") || loose))) {
+    console.error(usage);
     process.exit(2);
   }
   const root = "dist";
@@ -257,17 +298,39 @@ function main() {
     console.error(`${dir} was saved in format ${format}; this script compares format ${FORMAT}. Save it again from the build it records.`);
     process.exit(1);
   }
-  if (loose) console.warn("Warning: --loose-client-ids ignores client module ids, so a page that swaps one client component for another goes unnoticed. Use it only to triage a module that moved.");
-  const view = loose ? withoutClientIds : (text) => text;
+  if (loose) console.warn("Warning: --loose-client-ids ignores client module ids, so a page that swaps one client component for another goes unnoticed. Use it only to triage a changed module set.");
   const problems = [];
+  let explained = 0;
+  const describe = ({ name, from, to, line }) => `${JSON.stringify(name)} ${from} → ${to} (line ${line})`;
   for (const file of saved) {
     if (!current.includes(file)) {
       problems.push(`missing page: ${file}`);
       continue;
     }
-    const before = view(fs.readFileSync(path.join(dir, file), "utf8"));
-    const after = view(normalize(fs.readFileSync(path.join(root, file), "utf8")));
-    if (before === after) continue;
+    const savedText = fs.readFileSync(path.join(dir, file), "utf8");
+    const currentText = normalize(fs.readFileSync(path.join(root, file), "utf8"));
+    if (savedText === currentText) continue;
+    const before = withoutClientIds(savedText);
+    const after = withoutClientIds(currentText);
+    if (before === after) {
+      // Only client module ids changed: the same export at the same place in an identical page.
+      if (loose) continue;
+      const changes = changedClientIds(savedText, currentText);
+      if (explain) {
+        const unexplained = changes.flatMap((change) => {
+          const old = moduleFactory(explain, change.from);
+          const now = moduleFactory(root, change.to);
+          if (!old) return [`${describe(change)}: module ${change.from} not found in ${explain}`];
+          if (!now) return [`${describe(change)}: module ${change.to} not found in ${root}`];
+          return old.code === now.code ? [] : [`${describe(change)}: the factory code differs (${old.chunk}, ${now.chunk})`];
+        });
+        if (!unexplained.length) { explained += changes.length; continue; }
+        problems.push(`${file}: client module ids changed that --explain-client-ids cannot explain:\n${unexplained.map((line) => `    ${line}`).join("\n")}`);
+      } else {
+        problems.push(`${file}: only client module ids changed:\n${changes.map((change) => `    ${describe(change)}`).join("\n")}\n  Check them with --explain-client-ids <dist of the saved build> (same export, place and factory code).`);
+      }
+      continue;
+    }
     let at = 0;
     while (before[at] === after[at]) at++;
     const context = (text) => JSON.stringify(text.slice(Math.max(0, at - 80), at + 120));
@@ -275,10 +338,11 @@ function main() {
   }
   const added = current.filter((file) => !saved.includes(file));
   if (added.length) console.log(`New pages (not in the snapshot): ${added.join(", ")}`);
+  const note = loose ? " (client module ids ignored)" : explained ? ` (${explained} client module id${explained === 1 ? "" : "s"} changed; each has the same export, place and factory code)` : "";
   if (problems.length) {
     console.error(problems.join("\n"));
     process.exitCode = 1;
-  } else console.log(`Rendered HTML identical to ${dir}: ${saved.length} pages${loose ? " (client module ids ignored)" : ""}.`);
+  } else console.log(`Rendered HTML identical to ${dir}: ${saved.length} pages${note}.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();
