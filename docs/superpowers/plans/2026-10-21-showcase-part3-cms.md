@@ -3497,3 +3497,11 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - **Uploaded SVGs (from the Task 2 re-review).** The schema refuses references to `/uploads/*.svg`, but the media library can still upload one, and `shipFolder("uploads")` would ship it. Do both of these:
   - **Task 7:** `shipFolder("uploads")` ships only `.webp`, `.png`, `.jpg`, `.jpeg`, `.avif` and `.gif`. `check-content` fails on any other file under `public/uploads/` (dotfiles such as `.gitkeep` excepted). Add tests for both.
   - **Task 10:** add a `/uploads/*` rule to `public/_headers`: `! Content-Security-Policy`, then `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox`. Also add `X-Content-Type-Options: nosniff`, which `/*` already sets. The header check in `check-export` and the browser check must assert it. It does not affect `<img>` rendering on site pages.
+- **Frozen-fixture value tests must not block CMS editing** (from the Task 3 review).
+  - **Problem:** `content-loader.test.mjs` and Task 4's `content-roundtrip.test.mjs` require content values to equal `tests/fixtures/content-v1.json`. Once editors use the CMS, every legitimate copy edit would turn `npm test` red.
+  - **Tasks 4–10:** keep the tests as written. They prove the migration changed nothing.
+  - **Task 11:**
+    - Move every value-equality assertion against the fixture out of `npm test` into a one-off `scripts/check-migration.mjs`. The same goes for the HTML snapshot comparison, which is local-only anyway.
+    - Keep these in `npm test`: the compile-time type contract against `content-v1.d.ts`, the key and shape checks, the schema and uniqueness rules, the honesty scan and the index freshness check.
+    - In the README, say that `check-migration` documents the original migration, and that it is expected to fail after deliberate copy edits.
+  - **Uniqueness gaps, out of scope for now:** some list values used as React keys are still not checked: the Analytics labels and glyphs, process `step`, pillar `no`, and footer link hrefs. A duplicate only causes a React key warning; there is no build or data failure.
