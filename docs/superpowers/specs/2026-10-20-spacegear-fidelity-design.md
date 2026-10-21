@@ -74,7 +74,7 @@ A development-only sample mode (`NEXT_PUBLIC_SHOW_SAMPLES=true` with `next dev`)
 4. **Keyboard access, same look.** Dropdowns open on hover *and* focus, and Escape closes them. The mobile menu and FAQ use native `<details>`, which also works without JavaScript.
 5. **Content stays visible without JavaScript.** A `<noscript>` stylesheet resets entrance states (`data-reveal`, `data-scroll-word`, `data-fill*`). Count-ups render their final value on the server.
 6. **Reduced motion** shows the static hero and skips entrance animations. *Same layout, no motion.*
-7. **Globe asset.** Surface textures stay at full 4096 px. Only the two cloud textures drop to 2048 px (≈3.7 MB total, versus 10.4 MB original and 1.45 MB in Codex's version), and the result must be visually indistinguishable in the fidelity sheets.
+7. **Globe asset.** Surface textures stay at full 4096 px. Only the two cloud textures drop, to 3072 px: during the hero task, 2048 px clouds looked soft beside the original. `earth-hq.glb` is 6,320,916 bytes (≈6.3 MB), versus 10.4 MB original and 1.45 MB in Codex's version, and the result must be visually indistinguishable in the fidelity sheets.
 
 ## Architecture
 

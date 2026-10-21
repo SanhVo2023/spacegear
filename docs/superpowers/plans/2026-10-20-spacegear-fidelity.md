@@ -12,6 +12,22 @@
 
 ---
 
+## Amendments made during execution
+
+- Reduced motion: rendered markup never branches on `useReducedMotion()` (static export renders with `null`, so a reduced-motion client would hydrate differently). Reduced motion is handled by `MotionProvider` (`skipAnimations`) plus reduced-motion end-state CSS on the `data-reveal`/`data-scroll-word`/`data-fill`/`data-fill-h`/`data-fill-svg`/`data-line`/`data-dot` hooks; the code shown for Tasks 10, 13 and 14 was amended accordingly.
+- The hidden-text gate in `scripts/browser-check.mjs` runs on every route in the no-JS and reduced-motion profiles; hidden-by-design text sits under `[data-hover-reveal]`; disabled controls are exempt. Task 12's inactive accordion panel wrapper carries `data-hover-reveal`.
+- Globe cloud textures at 3072 px (≈6.3 MB), not 2048 px.
+- Testimonials split into a server component that selects entries and a client carousel, so dev-only sample quotes never reach production JS; `check-export` scans all exported text files for the sample marker.
+- Footer wordmark capped at 104 px; footer is 876 px tall versus the original's 898 px, so the curtain also engages at 1440×900 (accepted).
+- Quick start on `/contact/` fills the mounted form directly instead of storing and navigating.
+- Task 21 also removed `scripts/prune-legacy-css.mjs` and restored two contact-form button/link styles into `globals.css`; `check-export` now fails on missing referenced local assets; `check-content` refuses samples outside development.
+- The same-page quick start never overwrites typed input, and `check-export` also verifies assets referenced from JS chunks, Draco files and og:image.
+- Task 22 sign-off: the two What We Measure right-column tags use a tighter line box at `lg`, so the bottom row keeps the original 280 px height despite the longer labels wrapping.
+
+The task code blocks below are left as originally written.
+
+---
+
 ## Conventions for every task
 
 - **Working directory:** `E:\Personal\clone website\spacegear` (Git worktree, branch `feat/spacegear-fidelity`). Use Git Bash. Never edit files in `E:\Personal\clone website\platform-clone`: it is the reference.
