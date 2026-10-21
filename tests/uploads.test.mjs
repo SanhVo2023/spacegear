@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import sharp from "sharp";
-import { buildUploadVariants, cachedVariant, variantFile, writeVariant, WIDTHS } from "../scripts/build-upload-variants.mjs";
+import { buildUploadVariants, cacheFolderProblem, cachedVariant, variantFile, writeVariant, WIDTHS } from "../scripts/build-upload-variants.mjs";
 import { imageReferenceProblems, missingImageFiles, referencedImages } from "../scripts/lib/content-assets.mjs";
 import { existsExact, LOCAL_REF, wrongCaseReferences } from "../scripts/lib/exact-paths.mjs";
 import { RASTER, SITE_IMAGE_PATH, UPLOAD_EXTENSIONS, UPLOAD_PATH, UPLOAD_REF, VARIANT, readManifest, shipUploads, uploadProblems, variantOriginal } from "../scripts/lib/uploads.mjs";
@@ -197,6 +197,101 @@ test("a folder (or anything but a file) where a cached variant belongs is replac
   } finally { remove(p.root); }
 });
 
+test("a link at the cache's files/ or manifest.json is removed, never followed: what it points at is never deleted", async () => {
+  const p = project();
+  try {
+    await solid(1600, 900).jpeg().toFile(path.join(p.uploads, "a.jpg"));
+    // The reviewer's probe: files/ pointed at a folder holding keep.txt and sub/notes.md.
+    const precious = path.join(p.root, "precious");
+    fs.mkdirSync(path.join(precious, "sub"), { recursive: true });
+    fs.writeFileSync(path.join(precious, "keep.txt"), "do not delete");
+    fs.writeFileSync(path.join(precious, "sub", "notes.md"), "do not delete");
+    fs.mkdirSync(p.cache);
+    fs.symlinkSync(precious, path.join(p.cache, "files"), "junction");
+    fs.symlinkSync(precious, path.join(p.cache, "manifest.json"), "junction");
+    const result = await p.run();
+    assert.deepEqual([result.errors, result.written.length, result.removed], [[], 2, ["files"]]);
+    assert.deepEqual(listFiles(precious), ["keep.txt", "sub/notes.md"], "both files survive");
+    for (const name of ["files", "manifest.json"]) assert.equal(fs.lstatSync(path.join(p.cache, name)).isSymbolicLink(), false, name);
+    assert.deepEqual(p.cached(), ["a.jpg.w1280.webp", "a.jpg.w640.webp"]);
+    // A files/ link that appears after the variant step is not followed when packaging either,
+    // even when the folder it points at holds exactly the recorded variants.
+    const stash = path.join(p.root, "stash");
+    fs.cpSync(path.join(p.cache, "files"), stash, { recursive: true });
+    fs.rmSync(path.join(p.cache, "files"), { recursive: true });
+    fs.symlinkSync(stash, path.join(p.cache, "files"), "junction");
+    assert.deepEqual(await shipUploads(p.uploads, path.join(p.root, "dist"), p.cache), ["a.jpg"]);
+    assert.deepEqual(listFiles(stash), ["a.jpg.w1280.webp", "a.jpg.w640.webp"]);
+  } finally { remove(p.root); }
+});
+
+test("the cache folder and the folders above it must be real folders: a junction there is refused before anything is written", async () => {
+  const p = project();
+  try {
+    await solid(800, 600).jpeg().toFile(path.join(p.uploads, "a.jpg"));
+    // The reviewer's probe: the cache's parent is a junction to a folder elsewhere.
+    const elsewhere = path.join(p.root, "elsewhere");
+    fs.mkdirSync(elsewhere);
+    fs.symlinkSync(elsewhere, path.join(p.root, "dotcache"), "junction");
+    const result = await buildUploadVariants(p.uploads, { cacheDir: path.join(p.root, "dotcache", "upload-variants") });
+    assert.equal(result.errors.length, 1);
+    assert.match(result.errors[0], /dotcache: is a link \(symbolic link or junction\); the variant cache and the folders above it must be real folders, .*remove the link/);
+    assert.deepEqual([result.written, fs.readdirSync(elsewhere)], [[], []], "nothing is written into the junction's target");
+    // Inside the project, every folder from the project down counts: a .cache junction is refused.
+    fs.mkdirSync(path.join(p.root, "outside-cache"));
+    fs.symlinkSync(path.join(p.root, "outside-cache"), path.join(p.root, ".cache"), "junction");
+    assert.match(cacheFolderProblem(path.join(p.root, ".cache", "upload-variants"), p.root), /\.cache: is a link/);
+    assert.equal(cacheFolderProblem(path.join(p.root, "real", "upload-variants"), p.root), "", "folders that do not exist yet are created as real ones");
+    fs.mkdirSync(path.join(p.root, "plain"));
+    fs.writeFileSync(path.join(p.root, "plain", "upload-variants"), "x");
+    assert.match(cacheFolderProblem(path.join(p.root, "plain", "upload-variants"), p.root), /upload-variants: is not a folder/);
+  } finally { remove(p.root); }
+});
+
+test("a truncated or replaced variant is rebuilt, and never shipped meanwhile", async () => {
+  const p = project();
+  try {
+    await solid(1600, 900).jpeg().toFile(path.join(p.uploads, "a.jpg"));
+    await p.run();
+    // The reviewer's probe: the 1280 variant cut to 64 bytes, with the manifest still current.
+    const large = p.variant("a.jpg", 1280);
+    fs.writeFileSync(large, fs.readFileSync(large).subarray(0, 64));
+    assert.deepEqual(await shipUploads(p.uploads, path.join(p.root, "dist"), p.cache), ["a.jpg"], "packaged before the next variant step: the original alone");
+    const result = await p.run();
+    assert.deepEqual([result.written, result.upToDate.length], [[large], 1]);
+    assert.equal((await meta(large)).width, 1280, "it decodes again");
+    assert.deepEqual(readManifest(p.cache).uploads["a.jpg"].variants[1280].size, fs.statSync(large).size);
+    // The same size with other bytes is caught too.
+    const bytes = fs.readFileSync(large);
+    bytes[bytes.length - 1] ^= 0xff;
+    fs.writeFileSync(large, bytes);
+    assert.deepEqual((await p.run()).written, [large]);
+    assert.deepEqual(await shipUploads(p.uploads, path.join(p.root, "dist"), p.cache), ["a.jpg", "a.jpg.w1280.webp", "a.jpg.w640.webp"]);
+  } finally { remove(p.root); }
+});
+
+test("on Windows, a long cache path is fine, and an upload path too long for the image library is a clear problem", async (t) => {
+  if (process.platform !== "win32") return t.skip("Windows path limits only");
+  const p = project();
+  try {
+    /** An upload whose full path is exactly `length` characters (one long folder name). */
+    const place = async (length, name) => {
+      const folder = "y".repeat(length - p.uploads.length - name.length - 2);
+      const file = path.join(p.uploads, folder, name);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, await solid(800, 600).jpeg().toBuffer());
+      assert.equal(file.length, length);
+      return { file, rel: `${folder}/${name}` };
+    };
+    const fine = await place(245, "ok.jpg");
+    const long = await place(252, "no.jpg");
+    assert.ok(p.variant(fine.rel, 1280).length >= 260, "the cache path is past Windows' 260 characters");
+    const result = await p.run();
+    assert.deepEqual(result.written.sort(), [p.variant(fine.rel, 1280), p.variant(fine.rel, 640)]);
+    assert.deepEqual(result.errors, [`${long.file}: its path is 252 characters long, and the image library cannot open paths of 250 or more on Windows: shorten the folder or file names`]);
+  } finally { remove(p.root); }
+});
+
 test("a missing uploads folder is not an error, and another folder needs a cache of its own", async () => {
   const root = tempDir();
   try {
@@ -347,7 +442,7 @@ test("links in the uploads folder are refused and never followed", async () => {
     fs.rmSync(path.join(p.uploads, ".hidden-link"));
     fs.rmSync(p.cache, { recursive: true, force: true });
     fs.symlinkSync(outside, p.cache, "junction");
-    assert.match((await p.run()).errors.join("\n"), /the variant cache must be a folder, not a link/);
+    assert.match((await p.run()).errors.join("\n"), /cache: is a link \(symbolic link or junction\); the variant cache and the folders above it must be real folders/);
     assert.deepEqual(fs.readdirSync(outside), ["secret.jpg"]);
   } finally { remove(p.root); }
 });
@@ -465,23 +560,38 @@ test("package-site ships only regular images from public/uploads/ plus the varia
   } finally { remove(p.root); }
 });
 
-test("check-export's view of dist/uploads/: variants need their original and must be WebP; everything else follows the upload rules", async () => {
+test("check-export's view of dist/uploads/: nothing hidden, variants need their original and must be WebP, everything else follows the upload rules", async () => {
   const root = tempDir();
   try {
     const dist = path.join(root, "uploads");
     fs.mkdirSync(path.join(dist, "team"), { recursive: true });
+    fs.mkdirSync(path.join(dist, ".hidden"));
     await solid(64, 64).jpeg().toFile(path.join(dist, "team", "a.jpg"));
     await solid(64, 64).webp().toFile(path.join(dist, "team", "a.jpg.w640.webp"));
     await solid(64, 64).webp().toFile(path.join(dist, "orphan.png.w640.webp"));
     fs.copyFileSync(path.join(dist, "team", "a.jpg"), path.join(dist, "team", "a.jpg.w1280.webp"));
     fs.writeFileSync(path.join(dist, "saved-mid-build.png"), "<!doctype html>");
     fs.writeFileSync(path.join(dist, "x.svg"), "<svg/>");
+    // The reviewer's case: main's excluded-asset rule would have named .env, but its uploads/
+    // errors are dropped (upload names are judged here), so these must fail here.
+    fs.writeFileSync(path.join(dist, ".env"), "SECRET=1");
+    fs.writeFileSync(path.join(dist, ".hidden", "page.html"), "<script>alert(1)</script>");
+    await solid(64, 64).webp().toFile(path.join(dist, ".hidden", "a.webp"));
+    fs.writeFileSync(path.join(dist, "x.map"), "{}");
+    const hidden = "is hidden (a dotfile or inside a dot-folder), and nothing hidden may ship: remove it";
+    const notImage = "only .webp, .png, .jpg, .jpeg, .avif and .gif images can be uploaded (SVG and other files are refused): remove it";
     assert.deepEqual(uploadProblems(dist, { label: "dist/uploads", variants: true }), [
+      `dist/uploads/.env: ${hidden}`,
+      `dist/uploads/.hidden/a.webp: ${hidden}`,
+      `dist/uploads/.hidden/page.html: ${hidden}`,
       "dist/uploads/orphan.png.w640.webp: is a variant of orphan.png, which is not there",
       "dist/uploads/saved-mid-build.png: is not a real PNG image: export it again, or fix its extension",
       "dist/uploads/team/a.jpg.w1280.webp: is not a real WebP image",
-      "dist/uploads/x.svg: only .webp, .png, .jpg, .jpeg, .avif and .gif images can be uploaded (SVG and other files are refused): remove it",
+      `dist/uploads/x.map: ${notImage}`,
+      `dist/uploads/x.svg: ${notImage}`,
     ]);
+    // In public/uploads/ the same dotfiles are exempt: they never ship.
+    assert.deepEqual(uploadProblems(dist).filter((problem) => problem.includes("/.")), []);
   } finally { remove(root); }
 });
 

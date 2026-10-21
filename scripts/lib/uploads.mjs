@@ -43,8 +43,8 @@ export const SITE_IMAGE_PATH = new RegExp(String.raw`^${DEVICE}${NAMES}\.(?:webp
 export const VARIANT = /\.w(?:640|1280)\.webp$/i;
 /** An /uploads/ path in a page, payload or chunk: not part of a longer URL or name. */
 export const UPLOAD_REF = /(?<![\w.:/%-])\/uploads\/[\w./-]+\.(?:webp|png|jpe?g|avif|gif|svg)(?![\w.-])/gi;
-/** Changes whenever the encoding changes, so every variant is rebuilt. */
-export const RECIPE = "webp quality 80, sRGB, EXIF orientation applied, widths 640 and 1280, v1";
+/** Changes whenever the encoding (or the manifest's form) changes, so every variant is rebuilt. */
+export const RECIPE = "webp quality 80, sRGB, EXIF orientation applied, widths 640 and 1280, variant hashes, v2";
 
 export const variantFile = (original, width) => `${original}.w${width}.webp`;
 export const variantFiles = (original) => WIDTHS.map((width) => variantFile(original, width));
@@ -65,10 +65,10 @@ const byRel = (a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0);
  * Everything in an uploads folder, without following links: `files` (regular files), `links`,
  * `hardLinks` (regular files with more than one name, with `nlink`) and `others` (pipes,
  * devices), each as `{ file, rel }`, with `rel` relative to the folder and using forward slashes.
- * Dot entries are skipped, except links. Returns null when the folder does not exist. When the
- * folder itself is a link (or not a folder), it is the only entry, with rel "".
+ * Dot entries are skipped, except links, unless `dotted` is set. Returns null when the folder does
+ * not exist. When the folder itself is a link (or not a folder), it is the only entry, with rel "".
  */
-export function listUploads(dir) {
+export function listUploads(dir, { dotted = false } = {}) {
   let stat;
   try {
     stat = fs.lstatSync(dir);
@@ -85,7 +85,7 @@ export function listUploads(dir) {
         const file = path.join(folder, entry.name);
         const rel = prefix + entry.name;
         if (entry.isSymbolicLink()) listing.links.push({ file, rel });
-        else if (entry.name.startsWith(".")) continue;
+        else if (entry.name.startsWith(".") && !dotted) continue;
         else if (entry.isDirectory()) walk(file, `${rel}/`);
         else if (entry.isFile()) {
           const { nlink } = fs.lstatSync(file);
@@ -132,25 +132,63 @@ export const isRegularFile = (file) => {
 };
 
 /**
- * The cache manifest: `{ recipe, uploads: { "<rel>": { sha1, size } } }`. A missing, unreadable or
- * outdated manifest (another RECIPE) counts as empty, so every variant is rebuilt.
+ * True when `rel` (forward slashes) below `base` is a regular file reached through real folders
+ * only: no segment on the way is a link, so a link inside the cache can never lead elsewhere.
+ */
+export function isRealFile(base, rel) {
+  const segments = rel.split("/");
+  let current = base;
+  for (const [index, segment] of segments.entries()) {
+    current = path.join(current, segment);
+    const stat = fs.lstatSync(current, { throwIfNoEntry: false });
+    if (!stat || stat.isSymbolicLink()) return false;
+    if (index < segments.length - 1 ? !stat.isDirectory() : !stat.isFile()) return false;
+  }
+  return true;
+}
+
+/** The size and SHA-1 of a file, as the manifest records them. */
+export const fingerprint = (file) => ({ size: fs.statSync(file).size, sha1: hashFile(file) });
+
+/**
+ * The cache manifest:
+ * `{ recipe, uploads: { "<rel>": { sha1, size, variants: { "640": { sha1, size }, "1280": … } } } }`.
+ * A missing, unreadable or outdated manifest (another RECIPE), or one that is not a regular file
+ * (a link is never followed), counts as empty, so every variant is rebuilt.
  */
 export function readManifest(cacheDir) {
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(cacheDir, "manifest.json"), "utf8"));
-    if (manifest?.recipe === RECIPE && manifest.uploads && typeof manifest.uploads === "object") return manifest;
+    if (isRealFile(cacheDir, "manifest.json")) {
+      const manifest = JSON.parse(fs.readFileSync(path.join(cacheDir, "manifest.json"), "utf8"));
+      if (manifest?.recipe === RECIPE && manifest.uploads && typeof manifest.uploads === "object") return manifest;
+    }
   } catch {
     // rebuilt below
   }
   return { recipe: RECIPE, uploads: {} };
 }
 
-/** The cached variants of one upload, when the manifest says they were made from these exact bytes; else null. */
+/**
+ * True when the cached variant of `rel` at `width` is exactly the file the manifest entry records
+ * (same size and SHA-1), reached through real folders only. A truncated or replaced variant is not.
+ */
+export function isRecordedVariant(cacheDir, rel, width, entry) {
+  const recorded = entry?.variants?.[width];
+  const variant = `files/${variantFile(rel, width)}`;
+  if (!recorded || !isRealFile(cacheDir, variant)) return false;
+  const file = path.join(cacheDir, ...variant.split("/"));
+  return fs.statSync(file).size === recorded.size && hashFile(file) === recorded.sha1;
+}
+
+/**
+ * The cached variants of one upload, when the manifest says they were made from these exact
+ * bytes and they are still the files it recorded; else null.
+ */
 export function currentVariants(cacheDir, rel, file, manifest = readManifest(cacheDir)) {
   const entry = Object.hasOwn(manifest.uploads, rel) ? manifest.uploads[rel] : undefined;
   if (!entry || entry.sha1 !== hashFile(file)) return null;
-  const files = WIDTHS.map((width) => cachedVariant(cacheDir, rel, width));
-  return files.every(isRegularFile) ? files : null;
+  if (!WIDTHS.every((width) => isRecordedVariant(cacheDir, rel, width, entry))) return null;
+  return WIDTHS.map((width) => cachedVariant(cacheDir, rel, width));
 }
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -204,12 +242,13 @@ export function flattenedAnimation(file) {
 /**
  * What may not sit in an uploads folder: links and hard links, anything that is not a regular
  * file, files that are not images (SVG included), names the site cannot show, and files whose
- * bytes are not the image type their extension says. Sorted; dotfiles are exempt. With
- * `variants: true` (a packaged dist/uploads/), generated variants are accepted when they are WebP
- * and their original is there too.
+ * bytes are not the image type their extension says. Sorted. In public/uploads/, dotfiles and
+ * dot-folders are exempt (they never ship). With `variants: true` (a packaged dist/uploads/), nothing
+ * hidden may be there at all, and generated variants are accepted when they are WebP and their
+ * original is there too.
  */
 export function uploadProblems(dir, { label = "public/uploads", variants = false } = {}) {
-  const listing = listUploads(dir);
+  const listing = listUploads(dir, { dotted: variants });
   if (!listing) return [];
   const at = (rel) => (rel ? `${label}/${rel}` : label);
   const names = new Set(listing.files.map(({ rel }) => rel));
@@ -220,7 +259,8 @@ export function uploadProblems(dir, { label = "public/uploads", variants = false
   for (const { file, rel } of listing.files) {
     const original = variants ? variantOriginal(rel) : null;
     const extension = path.extname(rel).slice(1).toLowerCase();
-    if (original) {
+    if (rel.split("/").some((segment) => segment.startsWith("."))) problems.push(`${at(rel)}: is hidden (a dotfile or inside a dot-folder), and nothing hidden may ship: remove it`);
+    else if (original) {
       if (!names.has(original)) problems.push(`${at(rel)}: is a variant of ${original}, which is not there`);
       else if (!SIGNATURES.webp.matches(readHead(file))) problems.push(`${at(rel)}: is not a real WebP image`);
     } else if (!UPLOAD_EXTENSIONS.includes(extension)) problems.push(`${at(rel)}: only .webp, .png, .jpg, .jpeg, .avif and .gif images can be uploaded (SVG and other files are refused): remove it`);

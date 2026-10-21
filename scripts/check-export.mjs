@@ -31,8 +31,9 @@ for(const file of ["draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","dra
 // scripts/lib/exact-paths.mjs):
 // - every /uploads/ file a page or chunk names must ship under exactly that name (srcset variants
 //   included), and no such path may step out of uploads/;
-// - what ships under uploads/ passes the upload rules again (types, bytes, names), so a file that
-//   changed during the build cannot ship unchecked;
+// - what ships under uploads/ passes the upload rules again (types, bytes, names, nothing hidden:
+//   the excluded-asset rule's .env and .map cases included), so a file that changed during the
+//   build cannot ship unchecked;
 // - no page, payload or chunk may name a shipped file in another letter case (Windows finds it,
 //   Cloudflare does not);
 // - the excluded-asset rule at the top is for site assets, so it does not judge upload names.
