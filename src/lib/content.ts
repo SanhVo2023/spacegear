@@ -96,11 +96,6 @@ export const ENGAGEMENTS: Engagement[] = [
   },
 ];
 export const ENGAGEMENTS_FOOTER = { text: "Not sure where to start? Tell us what you want to improve", href: "/contact/" };
-export const USE_CASES = [
-  { title: "Too much repeated work?", text: "Connect tools and automate the handoffs that keep pulling people away from useful work.", service: "automation-integration", image: "/images/suite/scale-matrix.webp" },
-  { title: "Data that is hard to use?", text: "Make documents and disconnected information easier to find, understand and act on.", service: "applied-ai", image: "/images/suite/neural-net.webp" },
-  { title: "Ideas stuck before delivery?", text: "Turn a promising direction into a clear scope, a tested solution and a practical rollout.", service: "product-delivery", image: "/images/suite/design-engine.webp" }
-];
 export const FAQS = [
   { question: "What does spacegear.tech do?", answer: "We help organizations change how work gets done: deciding where digital change and AI will help, building the systems, and supporting your team as they put them to use." },
   { question: "Where do we start?", answer: "Tell us what you would like to improve. If the next step is unclear, an Opportunity Assessment can map the workflow, identify options and recommend a first initiative. If you already have a brief, we can discuss delivery directly." },
@@ -263,7 +258,9 @@ export const TEAM_ROLES: Person[] = [
 
 // Render only real, permission-confirmed quotes and published articles.
 export type Testimonial = { img: string; name: string; role: string; company: string; quote: string; permissionConfirmed: true };
+// Images referenced here must also be added to `assets` in scripts/package-site.mjs, or the export will not ship them.
 export const TESTIMONIALS: Testimonial[] = [];
+// Images referenced here must also be added to `assets` in scripts/package-site.mjs, or the export will not ship them.
 export type Article = { slug: string; author: string; title: string; sub: string; img: string; href: string };
 export const ARTICLES: Article[] = [];
 

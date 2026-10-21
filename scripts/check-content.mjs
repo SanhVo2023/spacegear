@@ -7,6 +7,6 @@ for (const service of SERVICES) {
   if (!service.summary || !service.buyerProblem || !service.deliverables.length || !service.faqs.length) errors.push(`incomplete service: ${service.slug}`);
 }
 if (CASE_STUDIES.some((study) => study.published && !study.approved)) errors.push("unverified published case study");
-if (mode === "production" && process.env.NEXT_PUBLIC_SHOW_SAMPLES === "true") errors.push("sample sections cannot be enabled for production");
+if (process.env.NODE_ENV !== "development" && process.env.NEXT_PUBLIC_SHOW_SAMPLES === "true") errors.push("sample sections cannot be enabled for production");
 if (errors.length) { console.error(errors.join("\n")); process.exitCode = 1; }
 else console.log(`Content valid: ${routes.length} routes; ${mode} mode.`);
