@@ -34,6 +34,9 @@ const LEGAL = (where) => where.startsWith("content/legal/");
 const FIGURE_FIELD = /^(?:workflow\.center|workflow\.segments\[\d+\](?:\.value)?|stages\[\d+\]\.detail|accuracy(?:\.value|\.unit)?|throughput\.legend\[\d+\](?:\.value)?|readiness(?:\.score|\.bars\[\d+\](?:\.v)?)?|coverage(?:\.value|\.progress)?)$/;
 const MEASURE_FIGURE = (where, field) => (where === "content/measure.json" || where === "MEASURE") && FIGURE_FIELD.test(field);
 const SPELLED = "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand";
+const MODEL = "Llama|Mistral|Mixtral|Qwen|Gemma|Falcon|Phi|DeepSeek|Yi";
+const AUDIENCE = String.raw`\s?(?:clients?|customers?|users?|people|downloads|installs|companies|businesses|teams|organi[sz]ations|revenue|sales|ARR|MRR)\b`;
+const VENDORS = "Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenAI|Anthropic|NVIDIA|IBM|Cloudflare";
 
 /** [pattern, what, { skip }]: `skip(where, field)` is true where the rule does not apply. */
 export const FORBIDDEN = [
@@ -44,9 +47,11 @@ export const FORBIDDEN = [
   // A number with a rate ("499 per month", "49 a month", "49/mo"); "one team per project" is not a price.
   [/(?<![\w.,])\d[\d,.]{0,12}\s{0,3}(?:(?:per|a|an)\s{1,3}|\/\s{0,3})(?:month|year|yr|mo|hour|hr|day|week|project|user|seat|sprint)s?\b/i, "a price"],
   [/\b(?:hourly|daily|day) rates?\b|\b(?:price[sd]?|pricing|fees?|costs?|rates?)\s{0,3}(?:from|of|start(?:s|ing)?\s(?:at|from)|:)\s{0,3}\d|\bstarting (?:at|from)\s{0,3}\d/i, "a price"],
-  // Not a model size ("Llama 3 70B", "7B and 13B parameter models"), a context window ("128k
-  // context") or a screen ("4K display").
-  [/(?<![\w.,])(?<!\b(?:Llama|Mistral|Mixtral|Qwen|Gemma|Falcon|Phi|DeepSeek|Yi)[\w.\- ]{0,8})\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[kKmMbB]\b){0,3}\s?(?:display|screen|monitor|video|resolution|TV|UHD|HDR|context|tokens?|parameters?|params|models?)\b)/, "a price or scale figure", { skip: MEASURE_FIGURE }],
+  // Sizes are not claims, in their plain shapes only: a B or M parameter count right after a model
+  // name and an optional version ("Llama 3 70B", "Qwen 2.5 72B"), never followed by an audience or
+  // revenue noun; B sizes before "parameters" or "models" ("7B and 13B parameter models"); a k
+  // context window ("a 128k context window"); a K screen ("4K display").
+  [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM]\b(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`), "a price or scale figure", { skip: MEASURE_FIGURE }],
   // The original site and the old identity.
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
   [/Platform®|Platform B\.V\.|Platform Labs|plat—form/, "the old brand"],
@@ -69,11 +74,13 @@ export const FORBIDDEN = [
   [/TechCrunch/, "an unverified press or partnership claim"],
   [/\bAWS\b/, "an unverified press or partnership claim", { skip: LEGAL }],
   [/\b(?:[Aa]s [Ss]een (?:in|on)|[Ff]eatured (?:in|on|by)|[Ii]n the press|[Pp]ress coverage)\b|\b(?:Forbes|Wired|Bloomberg|Reuters|Gartner|Forrester|VentureBeat|Clutch)\b/, "an unverified press claim"],
-  // "Microsoft 365 and partner tools" lists products: no "and", "or" or comma between vendor and "partner".
-  [/\b(?:Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenAI|Anthropic|NVIDIA|IBM|Cloudflare)\s{1,3}(?:(?!(?:and|or)\b)\w{1,20}\s{1,3}){0,2}?partner\b|\b(?:certified|official|premier|gold|silver|platinum|advanced|registered)\s{1,3}(?:tier\s{1,3})?partner\b/i, "an unverified partnership claim"],
+  // "Microsoft 365 and partner tools" lists products: no "and", "or" or comma between vendor and
+  // "partner". "Use your preferred partner" and "We select partner tools" are not claims; "a
+  // select partner", "a preferred partner of Google" and "Salesforce's preferred partner" are.
+  [new RegExp(String.raw`\b(?:${VENDORS})\s{1,3}(?:(?!(?:and|or)\b)\w{1,20}\s{1,3}){0,2}?partner\b|\b(?:${VENDORS})['’]s\s{1,3}(?:\w{1,20}\s{1,3}){0,2}?partner\b|\b(?:certified|official|premier|gold|silver|platinum|advanced|registered)\s{1,3}(?:tier\s{1,3})?partner\b|\b(?:preferred|select)\s{1,3}partner\s{1,3}(?:of|for|to)\b|\ba\s{1,3}(?:preferred|select)\s{1,3}partner\b`, "i"), "an unverified partnership claim"],
   [/\baward[- ]winning\b|\bwinner of\b|\brated\s{1,3}\d|\b\d\.\d\s?\/\s?(?:5|10)\b|\bout of (?:5|five|10)\b|\b(?:\d|five|four)[- ]star\b|(?:#\s?1|\bnumber one)\s{1,3}(?:\w{1,20}\s{1,3}){0,2}?(?:agency|agencies|consultancy|consultancies|firm|company|provider|studio|choice|partner|developer|team)\b|\btop[- ]rated\b/i, "an unverified rating or award"],
   [/[★☆]|(?<![\w.,])\d(?:\.\d)?\s?stars?\b/i, "an unverified rating or award"],
-  [/\bISO\s?\d{4,5}(?:[:-]\d{4})?\s{1,3}(?:certified|certification|compliant|accredited)\b|\bSOC\s?[123]\s{1,3}(?:Type\s{1,3}(?:II|I|1|2)\b|certified|compliant|audited)|\b(?:certified|accredited)\s{1,3}(?:ISO|SOC)\b/i, "an unverified certification"],
+  [/\bISO\s?\d{4,5}(?:[:-]\d{4})?\s{1,3}(?:certified|certification|compliant|accredited)\b|\bSOC\s?[123]\s{1,3}(?:Type\s{1,3}(?:II|I|1|2)\b|certified|compliant|audited)|\bour\s{1,3}SOC\s?[123]\b|\bSOC\s?[123]\s{1,3}reports?\s{1,3}(?:(?:is|are)\s{1,3})?(?:available|on request)\b|\b(?:certified|accredited)\s{1,3}(?:ISO|SOC)\b/i, "an unverified certification"],
   // Offices.
   [/Amsterdam|New York|Dubai|Keizersgracht/, "an office location"],
   [/\boffices?\s{1,3}(?:in|across|around)\b|\bheadquarter(?:s|ed)\b|\bHQ\s{1,3}(?:in|at)\b|\b(?:our|global|regional)\s{1,3}HQ\b|\bbased (?:in|out of) (?!part\b)|\bour\s{1,3}[A-Z]\w{0,30}\s{1,3}(?:office|studio)\b/i, "an office location"],

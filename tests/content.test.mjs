@@ -44,6 +44,11 @@ const CLAIMS = [
   "Client satisfaction of 98", "customers served: 10,000", "Customer retention up 30", "Gold Partner of Microsoft", "an AWS partner",
   "Google Cloud partner", "SOC2 Type 2", "SOC 2 compliant", "ISO 27001 compliant", "a 70B revenue run rate", "from 5k", "100% uptime",
   "Typical engagements run 6–12 weeks", "We delete inquiry data within 90 days",
+  // Bypasses the narrowed figure, certification and partner rules must not open (final Task 6b round).
+  "Llama 2M users", "Qwen 10k clients", "Yi 200k customers", "Mistral serves 5M users", "Phi 3 500k users", "DeepSeek 2B revenue",
+  "Philip 5M users", "Falcon 5M downloads", "1B tokens processed for clients", "2M models deployed for clients",
+  "500k context windows served", "SOC 2 report available", "our SOC 2 report", "SOC 2 report on request", "a preferred partner of Google",
+  "Salesforce's preferred partner", "Google's partner for AI", "a select partner",
 ];
 const ORDINARY = [
   "Digital transformation and AI consulting, from strategy to working systems.", "Step 01", "Phase 2", "Two weeks of discovery",
@@ -71,6 +76,8 @@ const ORDINARY = [
   "One pilot, one team, one metric", "Start with one challenge", "Share the challenge. We’ll suggest a sensible first step.",
   "We work 100% remotely", "Featured service", "Our team of specialists", "Thousands of documents processed in a pilot",
   "Process thousands of invoices", "We complete a readiness review in each engagement", "We ship small, reviewed changes",
+  // Plain sizing shapes that stay allowed.
+  "Fine-tune 7B models on your data", "A 70B parameter model", "Llama 3.1 8B or Mistral 7B", "Qwen 2.5 72B", "4K displays in the control room",
 ];
 
 test("every probe claim is caught in ordinary copy, including look-alike and invisible characters", () => {
