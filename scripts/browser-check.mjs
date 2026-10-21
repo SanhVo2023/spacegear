@@ -24,11 +24,13 @@ assert.ok(tierHeaders.every(h => h.status === 200 && h.type === "image/webp" && 
 const introSource = await fs.readFile(new URL("../src/components/globe/intro-store.ts", import.meta.url), "utf8");
 const introConstant = name => Number(introSource.match(new RegExp(`export const ${name} = (\\d+);`))?.[1]);
 const INTRO = { loadCap: introConstant("INTRO_LOAD_CAP_MS"), extraCap: introConstant("INTRO_EXTRA_CAP_MS"), hold: introConstant("INTRO_HOLD_MS"), reveal: introConstant("INTRO_REVEAL_MS") };
-// The globe's own reveal after the overlay starts to lift (constants.ts): the 4k stream waits for it to end.
+// The globe's own reveal after the overlay starts to lift (constants.ts): the 4k stream waits for it to
+// end. Without the reveal it waits STREAM_SETTLE_SECONDS after the first frame (the canvas fade-in).
 const globeSource = await fs.readFile(new URL("../src/components/globe/constants.ts", import.meta.url), "utf8");
 const globeConstant = name => Number(globeSource.match(new RegExp(`export const ${name} = (\\d+(?:\\.\\d+)?);`))?.[1]);
 const REVEAL_END_MS = 1000 * (globeConstant("REVEAL_DELAY_SECONDS") + Math.max(globeConstant("REVEAL_SECONDS"), globeConstant("FLARE_SECONDS")));
-assert.ok(REVEAL_END_MS > 0, `the globe's reveal timing is readable from constants.ts (${REVEAL_END_MS} ms)`);
+const STREAM_SETTLE_MS = 1000 * globeConstant("STREAM_SETTLE_SECONDS");
+assert.ok(REVEAL_END_MS > 0 && STREAM_SETTLE_MS > 0, `the globe's reveal and stream timing is readable from constants.ts (${REVEAL_END_MS} ms, ${STREAM_SETTLE_MS} ms)`);
 const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
 INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
 const browser = await launchBrowser();
@@ -673,8 +675,9 @@ try {
     await context.close();
   }
   // 4k streaming on a page that reports a capable desktop GPU and 8 GB of device memory; a texture probe
-  // records its WebGL calls (scripts/globe-stream.mjs).
-  const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS });
+  // records its WebGL calls (scripts/globe-stream.mjs). An intro visit, the hero scrolled away and back,
+  // a lost context, then reloads: a stream paused off screen, and a stream that fails.
+  const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS, settleMs: STREAM_SETTLE_MS });
   report.stream = stream.summary;
   report.interactions.push(stream.line);
 

@@ -11,6 +11,8 @@
 // tasks. `streamSummary` turns a probe dump into the numbers the checks assert, and `streamingCheck`
 // is the browser check itself.
 import assert from "node:assert/strict";
+import sharp from "sharp";
+import { canvasShot } from "./globe-drag.mjs";
 
 export const CAPABLE_GPU = "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)";
 export const SOFTWARE_GPU = "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)";
@@ -220,59 +222,241 @@ export function streamSummary({ probe, log, resources }) {
   };
 }
 
+const SCENE = "#home .hero-scene";
+const tierOf = (page) => page.locator(SCENE).getAttribute("data-globe-tier");
+const uploads4kSoFar = (page) => page.evaluate(() => window.__texProbe.uploads.filter((u) => window.__texProbe.textures[u.id]?.width === 4096).length);
+const firstRequestSeen = (page) => page.waitForFunction(() => performance.getEntriesByType("resource").some((e) => e.name.includes("/textures/earth/4k/")), null, { timeout: 30000, polling: "raf" });
+const scrollHeroAway = (page) => page.evaluate(() => window.scrollTo({ top: document.getElementById("home").offsetHeight + 400, behavior: "instant" }));
+const scrollHeroBack = (page) => page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+/** Waits until the hero canvas has drawn nothing for 400 ms (its frame loop stopped off screen). */
+async function framesStopped(page, label) {
+  const stopped = await page.waitForFunction(() => {
+    const last = window.__texProbe.frames.at(-1);
+    return Boolean(last) && performance.now() - last.t > 400;
+  }, null, { timeout: 5000, polling: 50 }).then(() => true, () => false);
+  assert.ok(stopped, `${label}: the hero canvas stops drawing once the hero is off screen`);
+}
+/** Resolves once the hero canvas has drawn `count` more frames. */
+async function framesDrawn(page, count) {
+  const start = await page.evaluate(() => window.__texProbe.frames.length);
+  await page.waitForFunction((n) => window.__texProbe.frames.length >= n, start + count, { timeout: 10000, polling: 20 });
+}
+
+/** Mean luma of the globe's part of the hero canvas (the copy layers hidden), 0–255. */
+export async function globeLuma(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }) {
+  const png = await canvasShot(page);
+  const image = sharp(png);
+  const { width, height } = await image.metadata();
+  const data = await image
+    .extract({ left: Math.round(width * region.x), top: Math.round(height * region.y), width: Math.round(width * region.w), height: Math.round(height * region.h) })
+    .removeAlpha().resize(96, 64, { fit: "fill" }).raw().toBuffer();
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 3) sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+  return Math.round((sum / (data.length / 3)) * 10) / 10;
+}
+
+/** Errors, and three's texture and renderer warnings; R3F's own THREE.Clock deprecation notice is not about textures. */
+function watchProblems(page) {
+  const problems = [];
+  page.on("pageerror", (error) => problems.push(`pageerror ${error.message.slice(0, 300)}`));
+  page.on("console", (message) => {
+    if (message.type() === "error" || (message.type() === "warning" && /THREE\.WebGL|texture/i.test(message.text()))) problems.push(`console.${message.type()} ${message.text().slice(0, 300)}`);
+  });
+  return problems;
+}
+
 /**
- * The 4k streaming check on a page that reports a capable desktop (1440×1000, first visit, so the
- * intro plays). `watchCsp` and `heroLogScript` are browser-check.mjs's; `revealEndMs` is how long the
- * globe's own reveal runs after the overlay starts to lift. Every wait polls. Returns the summary and a
- * report line.
+ * An intro visit (the page's first load in its tab): the 2k set first, then the 4k stream after the
+ * intro, its reveal and an idle callback, one upload per frame, a swap without a mixed frame, no 2k
+ * texture left alive, and no long task over 100 ms while it streams (the spec's rule after the intro).
  */
-export async function streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs, viewport = { width: 1440, height: 1000 } }) {
+export async function introVisit(page, { revealEndMs }) {
+  await page.waitForSelector(`${SCENE}[data-globe="ready"]`, { timeout: 45000 });
+  assert.equal(await tierOf(page), "2k", "capable desktop: the 2k tier is on screen first");
+  try {
+    await page.waitForFunction((scene) => document.querySelector(scene)?.dataset.globeTier === "4k", SCENE, { timeout: 60000 });
+  } catch {
+    throw new Error(`capable desktop: the 4k tier never came on screen (${JSON.stringify(streamSummary(await readStream(page)))})`);
+  }
+  // A few more frames, so a 2k map that was still referenced would show up at draw time.
+  await framesDrawn(page, 3);
+  const stream = streamSummary(await readStream(page));
+  const facts = JSON.stringify({ intro: stream.intro, firstRequest4k: stream.firstRequest4k, lastUpload2k: stream.lastUpload2k, idle: stream.idleBeforeStream, uploads4k: stream.uploads4k });
+  assert.ok(stream.intro.play !== null, `capable desktop: the intro plays (precondition; ${facts})`);
+  assert.equal(stream.requests4k.length, 5, `capable desktop: the five 4k maps are fetched once each (${JSON.stringify(stream.requests4k)})`);
+  assert.ok(stream.intro.done !== null && stream.firstRequest4k >= stream.intro.done && stream.firstRequest4k >= stream.intro.ready, `capable desktop: the 4k maps are requested only after the intro is done and the first frame is on screen (${facts})`);
+  assert.ok(stream.firstRequest4k >= stream.intro.reveal + revealEndMs, `capable desktop: the 4k stream waits for the globe's reveal and flare to end (${revealEndMs} ms after the lift; ${facts})`);
+  assert.ok(stream.lastUpload2k !== null && stream.firstRequest4k > stream.lastUpload2k, `capable desktop: the 4k stream starts after the 2k uploads (${facts})`);
+  assert.ok(stream.idleBeforeStream, `capable desktop: the 4k stream starts from an idle callback (${facts})`);
+  assert.equal(stream.uploads4k.length, 5, `capable desktop: each 4k map is uploaded once (${facts})`);
+  assert.equal(stream.uploadFrames4k, 5, `capable desktop: the 4k maps upload one per frame (${facts})`);
+  assert.equal(await tierOf(page), "4k", "capable desktop: the hero reports the 4k tier");
+  assert.deepEqual(
+    { live4k: stream.live4k, live2k: stream.live2k, deleted2k: stream.deleted2k, reallocated2k: stream.allocated2kAfterStream },
+    { live4k: 5, live2k: 0, deleted2k: 5, reallocated2k: 0 },
+    "capable desktop: after the swap the 2k maps are freed and only the 4k maps remain",
+  );
+  assert.ok(stream.mixedFrames === 0 && stream.last2kFrame < stream.first4kFrame, `capable desktop: the maps swap together, so no frame mixes the 2k and 4k sets (${JSON.stringify({ mixed: stream.mixedFrames, last2k: stream.last2kFrame, first4k: stream.first4kFrame })})`);
+  assert.ok(stream.longestTaskDuringStream < 100, `capable desktop: no long task over 100 ms while the 4k set streams (${JSON.stringify(stream.longTasksDuringStream)} ms)`);
+  return stream;
+}
+
+/**
+ * The hero scrolled away and back after an intro visit: the globe stays lit. R3F restarts its clock
+ * whenever the frame loop pauses and resumes, so a reveal timed on that clock would replay from black.
+ */
+export async function checkResumeLit(page) {
+  const before = await globeLuma(page);
+  await scrollHeroAway(page);
+  await framesStopped(page, "capable desktop");
+  await scrollHeroBack(page);
+  await framesDrawn(page, 4);
+  const rightAfter = await globeLuma(page);
+  await page.waitForTimeout(1200);
+  const later = await globeLuma(page);
+  const luma = { before, rightAfter, later };
+  assert.ok(rightAfter >= before * 0.8 && later >= before * 0.8, `capable desktop: the globe stays lit when the hero comes back on screen (luma ${JSON.stringify(luma)})`);
+  return luma;
+}
+
+/** A scene that fails after the swap (a lost context) drops back to the poster and never claims the 4k tier. */
+export async function checkLossResetsTier(page) {
+  await page.evaluate((scene) => document.querySelector(`${scene} canvas`).getContext("webgl2").getExtension("WEBGL_lose_context").loseContext(), SCENE);
+  await page.waitForFunction((scene) => document.querySelector(scene)?.dataset.globe === "failed", SCENE, { timeout: 10000, polling: 50 });
+  assert.equal(await tierOf(page), "2k", "capable desktop: a scene that fails after the swap no longer reports the 4k tier");
+}
+
+/**
+ * A repeat visit (a reload in the same tab: no intro). The stream waits out the canvas's fade-in over the
+ * poster and the copy's entrance (`settleMs` after the first frame), and pauses while the hero is off
+ * screen: scrolled away just after the 4k requests, no map uploads; back on screen, the swap completes
+ * without fetching anything twice.
+ */
+export async function repeatVisit(page, { settleMs }) {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector(`${SCENE}[data-globe="ready"]`, { timeout: 45000 });
+  assert.equal(await tierOf(page), "2k", "repeat visit: the 2k tier is on screen first");
+  await firstRequestSeen(page);
+  const early = streamSummary(await readStream(page));
+  const timing = JSON.stringify({ intro: early.intro, firstRequest4k: early.firstRequest4k });
+  assert.equal(early.intro.play, null, `repeat visit: no intro (precondition; ${timing})`);
+  // The ready attribute lands a moment after the frame that announced it; 50 ms covers that commit.
+  assert.ok(early.firstRequest4k >= early.intro.ready + settleMs - 50, `repeat visit: the 4k stream waits ${settleMs} ms after the first frame, past the canvas fade-in and the copy's entrance (${timing})`);
+  await scrollHeroAway(page);
+  await framesStopped(page, "repeat visit");
+  const away = await uploads4kSoFar(page);
+  await page.waitForTimeout(1500); // the whole stream takes about 0.6 s when it is not paused
+  const stillAway = { uploads: await uploads4kSoFar(page), tier: await tierOf(page) };
+  assert.ok(away < 5, `repeat visit: the stream is still under way when the hero leaves the screen (precondition; ${away} uploads)`);
+  assert.deepEqual(stillAway, { uploads: away, tier: "2k" }, "repeat visit: no 4k map uploads while the hero is off screen");
+  await scrollHeroBack(page);
+  await page.waitForFunction((scene) => document.querySelector(scene)?.dataset.globeTier === "4k", SCENE, { timeout: 30000, polling: 50 });
+  await framesDrawn(page, 3);
+  const stream = streamSummary(await readStream(page));
+  assert.deepEqual(
+    { requests: stream.requests4k.length, uploads: stream.uploads4k.length, uploadFrames: stream.uploadFrames4k, mixed: stream.mixedFrames, live2k: stream.live2k, live4k: stream.live4k },
+    { requests: 5, uploads: 5, uploadFrames: 5, mixed: 0, live2k: 0, live4k: 5 },
+    "repeat visit: back on screen the stream resumes, one upload per frame, and swaps without fetching anything twice",
+  );
+  assert.ok(stream.idleBeforeStream, "repeat visit: the 4k stream starts from an idle callback");
+  return { ...stream, pausedAt: away };
+}
+
+/**
+ * A 4k map that arrives late and then fails (404): the maps already made are freed, the 2k set stays on
+ * screen, nothing is fetched again (watched for `watchMs` from the first 4k request), and nothing throws.
+ */
+export async function failedStream(page, { watchMs = 8000 } = {}) {
+  const failing = "**/textures/earth/4k/clouds.webp";
+  await page.route(failing, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await route.fulfill({ status: 404, body: "" }).catch(() => {});
+  });
+  const requested = [];
+  const onRequest = (request) => { if (request.url().includes("/textures/earth/4k/")) requested.push(new URL(request.url()).pathname); };
+  const errors = [];
+  const onError = (error) => errors.push(`pageerror ${error.message.slice(0, 300)}`);
+  const onConsole = (message) => {
+    if (message.type() === "error" && !/status of 404/.test(message.text())) errors.push(`console.error ${message.text().slice(0, 300)}`);
+  };
+  page.on("request", onRequest);
+  page.on("pageerror", onError);
+  page.on("console", onConsole);
+  try {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await firstRequestSeen(page);
+    const started = Date.now();
+    // The failure has landed once some 4k map was made and every 4k map made is freed again.
+    await page.waitForFunction(() => {
+      const made = Object.values(window.__texProbe.textures).filter((t) => t.width === 4096);
+      return made.length > 0 && made.every((t) => t.deletedT !== null);
+    }, null, { timeout: 30000, polling: 50 });
+    await page.waitForTimeout(Math.max(0, started + watchMs - Date.now()));
+    const stream = streamSummary(await readStream(page));
+    const counts = Object.fromEntries([...new Set(requested)].map((url) => [url.split("/").pop(), requested.filter((r) => r === url).length]));
+    const facts = JSON.stringify({ counts, uploads4k: stream.uploads4k.length, live4k: stream.live4k, live2k: stream.live2k });
+    assert.ok(stream.uploads4k.length > 0, `failed stream: some 4k maps were uploaded before the failure (precondition; ${facts})`);
+    assert.deepEqual(
+      { tier: await tierOf(page), globe: await page.locator(SCENE).getAttribute("data-globe"), live4k: stream.live4k, live2k: stream.live2k },
+      { tier: "2k", globe: "ready", live4k: 0, live2k: 5 },
+      `failed stream: the 2k set stays on screen and every 4k map is freed (${facts})`,
+    );
+    assert.ok(Object.keys(counts).length === 5 && Object.values(counts).every((count) => count === 1), `failed stream: each 4k map is requested once, with no retry within ${watchMs} ms (${facts})`);
+    assert.deepEqual(errors, [], "failed stream: no page errors (the 404 itself is expected)");
+    return { counts, uploads4k: stream.uploads4k.length, freed: stream.live4k === 0 };
+  } finally {
+    page.off("request", onRequest);
+    page.off("pageerror", onError);
+    page.off("console", onConsole);
+    await page.unroute(failing);
+  }
+}
+
+/**
+ * The 4k streaming checks on one page that reports a capable desktop (1440×1000): an intro visit
+ * (then the hero scrolled away and back, then a lost context), a repeat visit that pauses mid-stream,
+ * and a repeat visit whose stream fails. `watchCsp` and `heroLogScript` are browser-check.mjs's;
+ * `revealEndMs` is how long the globe's own reveal runs after the overlay starts to lift, and
+ * `settleMs` how long a stream without the reveal waits after the first frame. Returns the summary
+ * and a report line.
+ */
+export async function streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs, settleMs, viewport = { width: 1440, height: 1000 } }) {
   const context = await browser.newContext({ viewport });
   try {
     const cspProblems = await watchCsp(context);
-    const page = await context.newPage(), problems = [];
-    page.on("pageerror", error => problems.push(`pageerror ${error.message.slice(0, 300)}`));
-    // Errors, and three's texture and renderer warnings (an upload from a released bitmap, for one).
-    // R3F's own THREE.Clock deprecation notice is not about textures.
-    page.on("console", message => {
-      if (message.type() === "error" || (message.type() === "warning" && /THREE\.WebGL|texture/i.test(message.text()))) problems.push(`console.${message.type()} ${message.text().slice(0, 300)}`);
-    });
+    const page = await context.newPage();
+    const problems = watchProblems(page);
     await page.addInitScript(fakeGpu, CAPABLE_DESKTOP);
     await page.addInitScript(textureProbe);
     await page.addInitScript(heroLogScript);
-    await page.goto(base, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
-    assert.equal(await page.locator("#home .hero-scene").getAttribute("data-globe-tier"), "2k", "capable desktop: the 2k tier is on screen first");
-    try {
-      await page.waitForFunction(() => document.querySelector("#home .hero-scene")?.dataset.globeTier === "4k", null, { timeout: 60000 });
-    } catch {
-      throw new Error(`capable desktop: the 4k tier never came on screen (${JSON.stringify({ ...streamSummary(await readStream(page)), problems })})`);
-    }
-    // A few more frames, so a 2k map that was still referenced would show up at draw time.
-    const swapFrame = await page.evaluate(() => window.__texProbe.frame);
-    await page.waitForFunction(frame => window.__texProbe.frame >= frame + 3, swapFrame, { timeout: 20000, polling: "raf" });
-    const stream = { ...streamSummary(await readStream(page)), realRenderer: await page.evaluate(() => window.__realRenderer?.() ?? null) };
-    const facts = JSON.stringify({ intro: stream.intro, firstRequest4k: stream.firstRequest4k, lastUpload2k: stream.lastUpload2k, idle: stream.idleBeforeStream, uploads4k: stream.uploads4k });
-    assert.equal(stream.requests4k.length, 5, `capable desktop: the five 4k maps are fetched once each (${JSON.stringify(stream.requests4k)})`);
-    assert.ok(stream.intro.done !== null && stream.firstRequest4k >= stream.intro.done && stream.firstRequest4k >= stream.intro.ready, `capable desktop: the 4k maps are requested only after the intro is done and the first frame is on screen (${facts})`);
-    assert.ok(stream.firstRequest4k >= stream.intro.reveal + revealEndMs, `capable desktop: the 4k stream waits for the globe's reveal and flare to end (${revealEndMs} ms after the lift; ${facts})`);
-    assert.ok(stream.lastUpload2k !== null && stream.firstRequest4k > stream.lastUpload2k, `capable desktop: the 4k stream starts after the 2k uploads (${facts})`);
-    assert.ok(stream.idleBeforeStream, `capable desktop: the 4k stream starts from an idle callback (${facts})`);
-    assert.equal(stream.uploads4k.length, 5, `capable desktop: each 4k map is uploaded once (${facts})`);
-    assert.equal(stream.uploadFrames4k, 5, `capable desktop: the 4k maps upload one per frame (${facts})`);
-    assert.equal(await page.locator("#home .hero-scene").getAttribute("data-globe-tier"), "4k", "capable desktop: the hero reports the 4k tier");
-    assert.deepEqual(
-      { live4k: stream.live4k, live2k: stream.live2k, deleted2k: stream.deleted2k, reallocated2k: stream.allocated2kAfterStream },
-      { live4k: 5, live2k: 0, deleted2k: 5, reallocated2k: 0 },
-      "capable desktop: after the swap the 2k maps are freed and only the 4k maps remain",
-    );
-    assert.ok(stream.mixedFrames === 0 && stream.last2kFrame < stream.first4kFrame, `capable desktop: the maps swap together, so no frame mixes the 2k and 4k sets (${JSON.stringify({ mixed: stream.mixedFrames, last2k: stream.last2kFrame, first4k: stream.first4kFrame })})`);
-    assert.deepEqual(problems, [], "capable desktop: no console or page errors while streaming");
+    const timings = {};
+    const timed = async (name, step) => {
+      const started = Date.now();
+      const result = await step();
+      timings[name] = Date.now() - started;
+      return result;
+    };
+    const stream = await timed("intro visit", async () => {
+      await page.goto(base, { waitUntil: "domcontentloaded" });
+      return { ...(await introVisit(page, { revealEndMs })), realRenderer: await page.evaluate(() => window.__realRenderer?.() ?? null) };
+    });
+    const resumeLuma = await timed("scroll away and back", () => checkResumeLit(page));
+    assert.deepEqual(problems.splice(0), [], "capable desktop: no console or page errors while streaming");
+    await timed("lost context", () => checkLossResetsTier(page));
+    problems.splice(0); // the lost context's own messages
+    const repeat = await timed("repeat visit, paused mid-stream", () => repeatVisit(page, { settleMs }));
+    assert.deepEqual(problems.splice(0), [], "repeat visit: no console or page errors");
+    const failed = await timed("repeat visit, failed stream", () => failedStream(page));
     assert.deepEqual(cspProblems, [], "capable desktop: the 4k maps stream without CSP violations");
-    const numbers = { intro: stream.intro, firstRequest4k: Math.round(stream.firstRequest4k), bytes4k: stream.bytes4k, uploads4k: stream.uploads4k, memory: stream.memory, longestTaskDuringStream: stream.longestTaskDuringStream, longTasksDuringStream: stream.longTasksDuringStream };
+    const numbers = {
+      intro: stream.intro, firstRequest4k: Math.round(stream.firstRequest4k), bytes4k: stream.bytes4k, uploads4k: stream.uploads4k, memory: stream.memory,
+      longestTaskDuringStream: stream.longestTaskDuringStream, resumeLuma,
+      repeat: { ready: Math.round(repeat.intro.ready), firstRequest4k: Math.round(repeat.firstRequest4k), pausedAt: repeat.pausedAt, swap: Math.round(repeat.intro.swap) },
+      failed, timings,
+    };
     return {
-      summary: stream,
-      line: `capable desktop (reported as ${CAPABLE_GPU}; rendered by ${stream.realRenderer}) streams the 4k set after the intro and idle, one upload per frame, then frees the 2k set: ${JSON.stringify(numbers)}`,
+      summary: { ...stream, resumeLuma, repeat, failed, timings },
+      line: `capable desktop (reported as ${CAPABLE_GPU}; rendered by ${stream.realRenderer}) streams the 4k set after the intro and idle, one upload per frame, then frees the 2k set; it stays lit after a scroll away, pauses off screen and keeps 2k on a failure: ${JSON.stringify(numbers)}`,
     };
   } finally {
     await context.close();
