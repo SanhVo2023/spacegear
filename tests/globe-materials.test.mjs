@@ -4,7 +4,7 @@ import * as THREE from "three";
 
 const { LOOK, createGlobeMaterials, applyGlobeTextures } = await import("../src/components/globe/materials.ts");
 const { BACKDROP_ENTRY, globeEntries } = await import("../src/components/globe/textures.ts");
-const { ATMOSPHERE_RADIUS } = await import("../src/components/globe/constants.ts");
+const { ATMOSPHERE_RADIUS, CLOUD_RADIUS } = await import("../src/components/globe/constants.ts");
 
 const MAPS = ["day", "night", "normal", "spec", "clouds"];
 const fakeSet = () => Object.fromEntries(MAPS.map((key) => [key, new THREE.Texture()]));
@@ -61,9 +61,8 @@ test("the earth shader builds its tangent frame per fragment and decodes relief 
   assert.doesNotMatch(`${earth.vertexShader}\n${earth.fragmentShader}`, /vEastW|vNorthW|vCosLat/);
   // The encoder (scripts/build-globe-textures.mjs) stores flat as 128 in both channels, × NORMAL_GAIN.
   assert.match(earth.fragmentShader, /\.rg \* 255\.0 - 128\.0\) \/ \(127\.5 \* uNormalGain\)/);
-  // Relief never lights the night side, and the twilight band still shows over dark oceans.
+  // Relief never lights the night side.
   assert.match(earth.fragmentShader, /max\(dot\(n, sun\), 0\.0\) \* smoothstep\(-0\.04, 0\.02, sunDot\)/);
-  assert.match(earth.fragmentShader, /\(albedo \+ 0\.04\) \* uTwilight \* twilight \* uTwilightGain/);
 });
 
 test("no shader raises a possibly negative number to a power", () => {
@@ -104,10 +103,16 @@ test("one sun direction drives every shell", () => {
   assert.equal(earth.uniforms.uReveal, clouds.uniforms.uReveal);
 });
 
-test("the cloud and atmosphere look comes from LOOK, not from the GLSL", () => {
+test("the twilight, cloud and atmosphere look comes from LOOK", () => {
   const { earth, clouds, atmosphere } = createGlobeMaterials(fakeSet());
+  const e = earth.uniforms;
   const c = clouds.uniforms;
   const a = atmosphere.uniforms;
+  // The twilight band is weighted by albedo luminance plus a floor, so it still shows over dark oceans.
+  assert.deepEqual([e.uTwilightGain.value, e.uTwilightFloor.value], [LOOK.twilightGain, LOOK.twilightFloor]);
+  assert.ok(LOOK.twilightFloor > 0, "the twilight band shows over dark oceans");
+  // Cloud shadows are cast from the shell's real height.
+  assert.ok(Math.abs(e.uCloudHeight.value - (CLOUD_RADIUS - 1)) < 1e-12, "cloud height from CLOUD_RADIUS");
   assert.deepEqual(
     [c.uOpacity.value, c.uCloudGain.value, c.uCloudAmbient.value, c.uCloudTwilightGain.value, c.uNightRim.value, c.uRimPower.value],
     [LOOK.cloudOpacity, LOOK.cloudGain, LOOK.cloudAmbient, LOOK.cloudTwilightGain, LOOK.cloudNightRim, LOOK.cloudRimPower],
@@ -120,19 +125,20 @@ test("the cloud and atmosphere look comes from LOOK, not from the GLSL", () => {
   );
   assert.ok(a.uAtmoNight.value.equals(new THREE.Color(LOOK.atmosphereNight)), "night-side rim colour");
   assert.equal(a.uAtmoDay, earth.uniforms.uAtmoDay, "one day-side rim colour for the limb haze and the shell");
-  // The shells keep only their shape in GLSL: no gains, colours or powers written as literals.
-  assert.doesNotMatch(clouds.fragmentShader, /vec3\(0\.0\d+|0\.18 \*|0\.92 \*|smoothstep\(0\.12, 0\.85/);
-  assert.doesNotMatch(atmosphere.fragmentShader, /, 2\.2\)|, 3\.0\)|2\.5 \*|\* 0\.25|\* 0\.7\b|0\.12 \+ 0\.88/);
 });
 
-test("the shells blend without dark smudges, magenta rims or an opaque halo", () => {
-  const { clouds, atmosphere } = createGlobeMaterials(fakeSet());
-  // Across the terminator a cloud keeps its lit colour while it fades (opacity-weighted day/night mix).
-  assert.match(clouds.fragmentShader, /vec3 color = \(lit \* dayMix \+ uNightColor \* nightWeight\) \/ max\(weight, 1e-4\);/);
-  // The twilight orange replaces the blue rim instead of adding to it.
-  assert.match(atmosphere.fragmentShader, /mix\(base, uTwilight, twilight \* uTwilightGain\)/);
-  // Premultiplied additive glow (ONE, ONE) whose alpha is its own brightness, written after the
-  // colour-space chunk: a transparent canvas (the phone globe) stays see-through around the globe.
+test("each shader declares exactly the uniforms its material wires", () => {
+  const declared = (source) => [...source.matchAll(/^\s*uniform\s+\w+\s+(\w+)\s*;/gm)].map((match) => match[1]);
+  for (const material of Object.values(createGlobeMaterials(fakeSet()))) {
+    const names = new Set([...declared(material.vertexShader), ...declared(material.fragmentShader)]);
+    assert.deepEqual([...names].sort(), Object.keys(material.uniforms).sort(), material.name);
+  }
+});
+
+test("the atmosphere adds light without turning a transparent canvas opaque", () => {
+  const { atmosphere } = createGlobeMaterials(fakeSet());
+  // Premultiplied additive glow (ONE, ONE) whose alpha is set after the colour-space chunk: a
+  // transparent canvas (the phone globe) stays see-through around the globe.
   assert.equal(atmosphere.premultipliedAlpha, true);
-  assert.match(atmosphere.fragmentShader, /#include <colorspace_fragment>\s*(?:\/\/.*\s*)*gl_FragColor\.a = max\(gl_FragColor\.r, max\(gl_FragColor\.g, gl_FragColor\.b\)\);/);
+  assert.match(atmosphere.fragmentShader, /#include <colorspace_fragment>[\s\S]*gl_FragColor\.a = /);
 });

@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame, type RootState } from "@react-three/fiber";
 import type { MotionValue } from "motion/react";
-import { Suspense, use, useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
@@ -25,16 +25,35 @@ export type EarthSceneProps = {
 const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
 const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
 
-/** Scroll beats: right of centre, then shrinking to the centre (eased toward rigAt). */
-function Rig({ progress, children }: { progress: MotionValue<number>; children: ReactNode }) {
+type RigProps = { progress: MotionValue<number>; settled: RefObject<{ announced: boolean }>; children: ReactNode };
+
+/**
+ * Scroll beats: right of centre, then shrinking to the centre. Held exactly at rigAt until the scene
+ * is announced, so a mount in the middle of the hero fades in already in place; eased after that.
+ */
+function Rig({ progress, settled, children }: RigProps) {
   const rig = useRef<THREE.Group>(null);
+  // The target is recomputed only when the scroll progress changes.
+  const target = useRef({ p: Number.NaN, scale: RIG_SCALE[0], x: RIG_X[0] });
   useFrame((_, raw) => {
     const group = rig.current;
     if (!group) return;
+    const t = target.current;
+    const p = progress.get();
+    if (p !== t.p) {
+      const placement = rigAt(p);
+      t.p = p;
+      t.scale = placement.scale;
+      t.x = placement.x;
+    }
+    if (!settled.current.announced) {
+      group.scale.setScalar(t.scale);
+      group.position.x = t.x;
+      return;
+    }
     const delta = Math.min(raw, 0.1);
-    const target = rigAt(progress.get());
-    group.scale.setScalar(THREE.MathUtils.damp(group.scale.x, target.scale, 5, delta));
-    group.position.x = THREE.MathUtils.damp(group.position.x, target.x, 5, delta);
+    group.scale.setScalar(THREE.MathUtils.damp(group.scale.x, t.scale, 5, delta));
+    group.position.x = THREE.MathUtils.damp(group.position.x, t.x, 5, delta);
   });
   return (
     <group ref={rig} scale={RIG_SCALE[0]} position={RIG_START}>
@@ -64,7 +83,9 @@ function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
   const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false });
-  const sunTarget = useRef(new THREE.Vector3());
+  const sunTarget = useState(() => new THREE.Vector3())[0];
+  // Scroll targets, recomputed only when the progress changes.
+  const scroll = useRef({ p: Number.NaN, cameraZ: CAMERA_Z });
 
   // Queue the first set for one-per-frame GPU uploads.
   useEffect(() => {
@@ -107,22 +128,29 @@ function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
   // Per-frame driver, called by the Globe before it applies the frame.
   const drive = (f: GlobeFrame, delta: number, state: RootState) => {
     const p = progress?.get() ?? 0;
-    // The sun sweeps with scroll on desktop (the terminator crosses the face and the city lights
-    // come on as the globe centres); phones keep a fixed crescent.
-    const [sx, sy, sz] = variant === "cinematic" ? sunDirectionAt(p) : MOBILE_SUN;
-    sunTarget.current.set(sx, sy, sz);
-    // Eased once the globe is on screen, so a jump in scroll never snaps the light; exact before.
-    if (warm.current.announced) f.sun.lerp(sunTarget.current, 1 - Math.exp(-6 * delta)).normalize();
-    else f.sun.copy(sunTarget.current);
-    // Slow camera dolly-in across the hero.
-    if (variant === "cinematic") state.camera.position.z = THREE.MathUtils.damp(state.camera.position.z, cameraZAt(p), 3, delta);
+    const targets = scroll.current;
+    if (p !== targets.p) {
+      targets.p = p;
+      // The sun sweeps with scroll on desktop (the terminator crosses the face and the city lights
+      // come on as the globe centres); phones keep a fixed crescent.
+      const [sx, sy, sz] = variant === "cinematic" ? sunDirectionAt(p) : MOBILE_SUN;
+      sunTarget.set(sx, sy, sz);
+      // Slow camera dolly-in across the hero.
+      targets.cameraZ = cameraZAt(p);
+    }
+    // Exact until the globe is on screen, so it fades in already in place; eased after that, so a
+    // jump in scroll never snaps the light or the camera.
+    const settled = warm.current.announced;
+    if (settled) f.sun.lerp(sunTarget, 1 - Math.exp(-6 * delta)).normalize();
+    else f.sun.copy(sunTarget);
+    if (variant === "cinematic") state.camera.position.z = settled ? THREE.MathUtils.damp(state.camera.position.z, targets.cameraZ, 3, delta) : targets.cameraZ;
   };
 
   const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;
   return (
     <group ref={root} visible={false}>
       {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} />}
-      {variant === "cinematic" && progress ? <Rig progress={progress}>{globeNode}</Rig> : <group scale={MOBILE_RADIUS}>{globeNode}</group>}
+      {variant === "cinematic" && progress ? <Rig progress={progress} settled={warm}>{globeNode}</Rig> : <group scale={MOBILE_RADIUS}>{globeNode}</group>}
     </group>
   );
 }

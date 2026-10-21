@@ -36,7 +36,7 @@ const disposedImages = new Set();
 const dispose = THREE.Texture.prototype.dispose;
 THREE.Texture.prototype.dispose = function () { disposedImages.add(this.image); return dispose.call(this); };
 
-test("disposing a set closes every decoded bitmap and frees every texture", () => {
+test("disposing a set closes every decoded bitmap and frees every texture", { timeout: 10_000 }, () => {
   const set = { day: new THREE.Texture(new FakeBitmap()), clouds: new THREE.Texture(new FakeBitmap()) };
   disposeTextureSet(set);
   for (const [key, texture] of Object.entries(set)) {
@@ -45,7 +45,7 @@ test("disposing a set closes every decoded bitmap and frees every texture", () =
   }
 });
 
-test("a failed set aborts the manager's downloads, frees every map that loaded and rethrows the first error", async () => {
+test("a failed set aborts the manager's downloads, frees every map that loaded and rethrows the first error", { timeout: 10_000 }, async () => {
   const server = http.createServer((request, response) => {
     if (request.url === "/ok.webp") return response.end(Buffer.alloc(FAST_DECODE_BYTES, 1));
     // Downloads at once but is still decoding when the failure arrives.

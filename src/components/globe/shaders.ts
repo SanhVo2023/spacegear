@@ -36,10 +36,12 @@ uniform vec3 uCityColor;
 uniform vec3 uAtmoDay;
 uniform float uCityGain;
 uniform float uTwilightGain;
+uniform float uTwilightFloor;
 uniform float uRimGain;
 uniform float uRelief;
 uniform float uNormalGain;
 uniform float uCloudOffset;
+uniform float uCloudHeight;
 uniform float uCloudShadow;
 uniform float uNightAmbient;
 uniform float uGlintExp;
@@ -54,7 +56,6 @@ varying vec3 vAxisW;
 varying vec3 vPosW;
 
 const float PI = 3.141592653589793;
-const float CLOUD_HEIGHT = 0.012;
 
 void main() {
   vec3 n0 = normalize(vNormalW);
@@ -80,10 +81,10 @@ void main() {
   float twilight = exp(-band * band);
 
   // Clouds: the shell turns faster than the surface (uCloudOffset, in turns). The shadow is the
-  // cover one cloud height toward the sun.
+  // cover one cloud height (the shell's radius above the surface) toward the sun.
   vec2 cloudUv = vec2(vUv.x - uCloudOffset, vUv.y);
   vec3 toward = sun - n0 * sunDot;
-  float reach = CLOUD_HEIGHT / max(sunDot, 0.2);
+  float reach = uCloudHeight / max(sunDot, 0.2);
   vec2 shadowUv = cloudUv + vec2(
     dot(toward, east) * reach / (2.0 * PI * max(cosLat, 0.05)),
     dot(toward, north) * reach / PI
@@ -105,8 +106,10 @@ void main() {
   float glint = (uGlintGain * pow(nh, uGlintExp) + uSheenGain * pow(nh, uSheenExp)) * (0.5 + fresnel);
   color += uSunColor * glint * ocean * dayMix * (1.0 - cloudAbove);
 
-  // Twilight: brand-orange light along the terminator, with a floor so it shows over dark oceans.
-  color += (albedo + 0.04) * uTwilight * twilight * uTwilightGain;
+  // Twilight: brand-orange light along the terminator, weighted by the ground's luminance (so bright
+  // desert reads orange, not brick red) plus a floor so it still shows over dark oceans.
+  float albedoLuma = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+  color += (albedoLuma + uTwilightFloor) * uTwilight * twilight * uTwilightGain;
 
   // Night: only the city lights (sRGB-encoded luminance), warm and over-bright, dimmed under clouds.
   float lights = pow(texture2D(uNight, vUv).r, 2.2);
@@ -176,9 +179,11 @@ void main() {
   float nightWeight = uNightRim * rim * (1.0 - dayMix);
   float weight = dayMix + nightWeight;
   vec3 color = (lit * dayMix + uNightColor * nightWeight) / max(weight, 1e-4);
-  float alpha = cover * uOpacity * weight;
+  float alpha = cover * uOpacity * weight * uReveal;
+  // Clear sky covers most of the shell: skip blending it.
+  if (alpha < 0.002) discard;
 
-  gl_FragColor = vec4(color * uReveal, alpha * uReveal);
+  gl_FragColor = vec4(color * uReveal, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -187,9 +192,11 @@ void main() {
 export const ATMOSPHERE_VERTEX = /* glsl */ `
 varying vec3 vNormalW;
 varying vec3 vPosW;
+varying vec3 vCentreW;
 
 void main() {
   vNormalW = normalize(mat3(modelMatrix) * normal);
+  vCentreW = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
   vec4 world = modelMatrix * vec4(position, 1.0);
   vPosW = world.xyz;
   gl_Position = projectionMatrix * viewMatrix * world;
@@ -212,6 +219,7 @@ uniform float uForwardPower;
 
 varying vec3 vNormalW;
 varying vec3 vPosW;
+varying vec3 vCentreW;
 
 void main() {
   vec3 n = normalize(vNormalW);
@@ -221,7 +229,13 @@ void main() {
   // grazes the planet, so the glow is brightest against the limb and fades outward (fresnel rim).
   float depth = clamp(-dot(n, view) / uRimDepth, 0.0, 1.0);
   float glow = pow(depth, uPower);
-  float sunDot = dot(n, sun);
+  // Lit where the line of sight passes closest to the planet (the limb under this pixel), not at the
+  // back face: the back-face normal leans up to ~23° away from the viewer, which shifted the twilight
+  // arc onto the daylit limb.
+  vec3 rel = vPosW - vCentreW;
+  vec3 perp = rel - view * dot(rel, view);
+  vec3 limb = perp / max(length(perp), 1e-4);
+  float sunDot = dot(limb, sun);
   float dayMix = smoothstep(-0.3, 0.4, sunDot);
   float band = (sunDot - 0.02) / 0.13;
   float twilight = exp(-band * band);

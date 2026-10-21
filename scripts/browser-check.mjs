@@ -68,6 +68,25 @@ function pixelStats(data) {
   const n = data.length / 3, mean = sum / n;
   return { mean: Math.round(mean), stdev: Math.round(Math.sqrt(Math.max(0, squares / n - mean * mean))), distinct: colours.size };
 }
+// Mean colour of a capture, per channel.
+function meanRgb(data) {
+  const sum = [0, 0, 0];
+  for (let i = 0; i < data.length; i += 3) for (let k = 0; k < 3; k++) sum[k] += data[i + k];
+  return sum.map(value => Math.round(value / (data.length / 3)));
+}
+// Captures a region every 300 ms until two captures in a row agree within 2 luma levels: the rig,
+// sun and camera have eased into place, however fast the renderer is.
+async function settledStats(page, region, timeout = 30000) {
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  let previous = pixelStats(await globeCapture(page, region));
+  for (const start = Date.now(); Date.now() - start < timeout;) {
+    await page.waitForTimeout(300);
+    const next = pixelStats(await globeCapture(page, region));
+    if (Math.abs(next.mean - previous.mean) <= 2) return next;
+    previous = next;
+  }
+  throw new Error(`the hero globe did not settle within ${timeout} ms (${JSON.stringify(previous)})`);
+}
 
 // Records CSP violations and blocked-texture errors on every page and route a context opens.
 // Each page pushes its securitypolicyviolation events to window.__csp and reports them through a
@@ -141,12 +160,18 @@ try {
         const home = document.getElementById("home");
         window.scrollTo({ top: window.scrollY + home.getBoundingClientRect().top + (home.offsetHeight - innerHeight) * 0.62, behavior: "instant" });
       });
-      await page.waitForTimeout(2500); // the rig, sun and dolly ease into place
-      const nightCentre = pixelStats(await globeCapture(page, centre));
+      const nightCentre = await settledStats(page, centre);
+      // The atmosphere ring hugs the lit (left) limb of the centred globe. At 1440×1000 and p 0.62 the
+      // globe (radius 1.3, camera z 5.92) has its limb 327 px left of centre and the shell (× 1.08) ends
+      // at 354 px: compare the inner ring with open space further out on the same row.
+      const ring = meanRgb(await globeCapture(page, { x: 368 / 1440, y: 0.49, w: 22 / 1440, h: 0.02 }));
+      const space = meanRgb(await globeCapture(page, { x: 270 / 1440, y: 0.49, w: 22 / 1440, h: 0.02 }));
+      const luma = ([r, g, b]) => Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+      assert.ok(luma(ring) > luma(space) + 15 && ring[2] > ring[0], `desktop: a blue atmosphere ring lines the lit limb (ring ${ring}, space ${space})`);
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-      await page.waitForTimeout(1500);
+      await settledStats(page, centre);
       assert.ok(nightCentre.mean < dayCentre.mean * 0.6, `desktop: the terminator sweeps across the globe with scroll (day ${dayCentre.mean}, night ${nightCentre.mean})`);
-      report.interactions.push(`desktop sun sweep turns the centred globe to its night side (centre luma ${dayCentre.mean} → ${nightCentre.mean})`);
+      report.interactions.push(`desktop sun sweep turns the centred globe to its night side (centre luma ${dayCentre.mean} → ${nightCentre.mean}); atmosphere ring rgb ${ring} over space ${space}`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ATMOSPHERE_RADIUS } from "./constants";
+import { ATMOSPHERE_RADIUS, CLOUD_RADIUS } from "./constants";
 import { ATMOSPHERE_FRAGMENT, ATMOSPHERE_VERTEX, CLOUDS_FRAGMENT, CLOUDS_VERTEX, EARTH_FRAGMENT, EARTH_VERTEX } from "./shaders";
 import { NORMAL_GAIN } from "./texture-manifest";
 import type { GlobeTextureSet } from "./textures";
@@ -12,11 +12,13 @@ export const LOOK = {
   sunColor: "#fff4e8",
   sunIntensity: 1.3,
   twilight: "#fa6e43",
-  twilightGain: 0.38,
+  /** Twilight band: gain × (albedo luminance + floor); the floor keeps it visible over dark oceans. */
+  twilightGain: 0.26,
+  twilightFloor: 0.06,
   city: "#ffb46b",
   cityGain: 3.75,
   atmosphereDay: "#5aa2ff",
-  rimGain: 0.38,
+  rimGain: 0.3,
   relief: 3,
   cloudShadow: 0.45,
   nightAmbient: 0.0125,
@@ -39,9 +41,9 @@ export const LOOK = {
   /** Atmosphere: a back-face fresnel shell, blue by day (atmosphereDay), deep blue by night. */
   atmosphereNight: "#1b2a55",
   atmosphereNightGain: 1,
-  atmosphereIntensity: 0.92,
-  /** Fall-off from the limb to the shell's edge. */
-  atmospherePower: 2.2,
+  atmosphereIntensity: 0.85,
+  /** Fall-off from the limb to the shell's edge (higher is a thinner rim). */
+  atmospherePower: 3,
   /** How far the twilight orange replaces the blue along the terminator (0…1). */
   atmosphereTwilightGain: 0.85,
   /** Share of the glow that remains on the night limb. */
@@ -79,10 +81,12 @@ export function createGlobeMaterials(textures: GlobeTextureSet): GlobeMaterials 
       uCityColor: { value: new THREE.Color(LOOK.city) },
       uCityGain: { value: LOOK.cityGain },
       uTwilightGain: { value: LOOK.twilightGain },
+      uTwilightFloor: { value: LOOK.twilightFloor },
       uRimGain: { value: LOOK.rimGain },
       uRelief: { value: LOOK.relief },
       uNormalGain: { value: NORMAL_GAIN },
       uCloudOffset: { value: 0 },
+      uCloudHeight: { value: CLOUD_RADIUS - 1 },
       uCloudShadow: { value: LOOK.cloudShadow },
       uNightAmbient: { value: LOOK.nightAmbient },
       uGlintExp: { value: LOOK.glintExponent },
