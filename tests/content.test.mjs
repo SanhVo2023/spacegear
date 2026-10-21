@@ -57,6 +57,9 @@ test("work tiles and service pillars point at real service pages", () => {
   assert.equal(content.WORK.tiles.length, 4);
   for (const tile of content.WORK.tiles) assert.ok(slugs.has(tile.slug), tile.slug);
   assert.deepEqual(content.PILLARS.map((pillar) => pillar.slug).sort(), [...slugs].sort(), "one pillar per service");
+  const art = (slug) => content.serviceBySlug(slug).image;
+  for (const item of [...content.WORK.tiles, ...content.PILLARS]) assert.equal(item.img, art(item.slug), `${item.slug} uses its service image`);
+  assert.equal(content.WORK.featured.img, art(content.WORK.featured.href.split("/")[2]), "featured tile uses its service image");
 });
 
 test("process steps count real outputs instead of invented timings", () => {
@@ -68,7 +71,7 @@ test("process steps count real outputs instead of invented timings", () => {
 
 test("engagements carry no prices and exactly one starting point", () => {
   for (const engagement of content.ENGAGEMENTS) {
-    for (const key of Object.keys(engagement)) assert.ok(["name", "short", "label", "description", "img", "stage", "stageNo", "deliverables", "outcomes", "featured"].includes(key), `${engagement.name} has unexpected key ${key}`);
+    for (const key of Object.keys(engagement)) assert.ok(["name", "short", "img", "stage", "stageNo", "deliverables", "outcomes", "featured"].includes(key), `${engagement.name} has unexpected key ${key}`);
     assert.ok(engagement.deliverables.length >= 3 && engagement.outcomes.length >= 3, engagement.name);
   }
   assert.equal(content.ENGAGEMENTS.filter((engagement) => engagement.featured).length, 1);

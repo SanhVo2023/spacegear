@@ -53,27 +53,6 @@ export function Container({
   );
 }
 
-/* Eyebrow row used at the top of every numbered section:  • Label ... 00x */
-export function SectionTag({
-  label,
-  index,
-}: {
-  label: string;
-  index: string;
-}) {
-  return (
-    <div className="flex items-center justify-between border-b border-line-soft pb-4">
-      <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-flame" />
-        {label}
-      </span>
-      <span className="font-mono text-[11px] tracking-[0.2em] text-mut-3">
-        {index}
-      </span>
-    </div>
-  );
-}
-
 /**
  * Standard section header hierarchy (matches "Our Work"):
  *  - large faint section title
@@ -151,20 +130,6 @@ export function GhostButton({
   );
 }
 
-export function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-2xl border border-line bg-card/50 ${className}`}>
-      {children}
-    </div>
-  );
-}
-
 /** Standard flame square CTA arrow, used across cards/sections. */
 export function ArrowButton({ className = "" }: { className?: string }) {
   return (
@@ -201,17 +166,6 @@ export function ArrowButton({ className = "" }: { className?: string }) {
           />
         </svg>
       </span>
-    </span>
-  );
-}
-
-/** 3×3 drag-handle dots shown at the corner of tiles. */
-export function GridDots() {
-  return (
-    <span className="grid grid-cols-3 gap-[3px] text-current opacity-50 transition-opacity duration-300 group-hover:opacity-100">
-      {Array.from({ length: 9 }).map((_, i) => (
-        <span key={i} className="h-[3px] w-[3px] rounded-full bg-current" />
-      ))}
     </span>
   );
 }

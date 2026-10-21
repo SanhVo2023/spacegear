@@ -92,7 +92,7 @@ export default function ContactForm({ services, siteKey }: { services: {slug:str
     <div className="honeypot" aria-hidden="true"><label htmlFor="website">Website</label><input id="website" name="website" tabIndex={-1} autoComplete="off"/></div>
     {siteKey && <div ref={widget}/>}
     <p className="form-note">We use these details to review and respond to your inquiry. Read our <Link prefetch={false} href="/privacy/">privacy policy</Link>. Please leave out confidential information.</p>
-    <button className="button button-primary" type="submit" disabled={!hydrated || busy || !siteKey}>{busy?"Sending…":"Send inquiry"} <span aria-hidden="true">↗</span></button>
+    <button className="button" type="submit" disabled={!hydrated || busy || !siteKey}>{busy?"Sending…":"Send inquiry"} <span aria-hidden="true">↗</span></button>
     <noscript><p className="form-note">The protected form requires JavaScript. Please use the contact email below when available.</p></noscript>
   </form>;
 }

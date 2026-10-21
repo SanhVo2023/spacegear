@@ -66,29 +66,26 @@ export const SERVICES: Service[] = [
   }
 ];
 export type Engagement = {
-  name: string; short: string; label: string; description: string; img: string;
+  name: string; short: string; img: string;
   stage: string; stageNo: string; deliverables: string[]; outcomes: string[]; featured: boolean;
 };
 export const ENGAGEMENTS: Engagement[] = [
   {
-    name: "Assess & prioritize", short: "Assess", label: "Find the right starting point",
-    description: "A Transformation Opportunity Assessment turns one business challenge into a clear set of options and a practical next step.",
+    name: "Assess & prioritize", short: "Assess",
     img: "/images/suite/design-engine.webp", stage: "Direction", stageNo: "01",
     deliverables: ["Current workflow and opportunity map", "Data and integration requirements", "Success criteria", "Recommended first pilot"],
     outcomes: ["A shared view of the problem", "Clear, agreed priorities", "Known data gaps", "A practical first step"],
     featured: true,
   },
   {
-    name: "Validate & build", short: "Build", label: "Make it work",
-    description: "Test the important assumptions, then design and deliver a solution around the way your business operates.",
+    name: "Validate & build", short: "Build",
     img: "/images/suite/shield-core.webp", stage: "Delivery", stageNo: "02",
     deliverables: ["Prototype and evaluation criteria", "Integrated, tested implementation", "Rollout plan", "Handover documentation"],
     outcomes: ["Evidence before larger investment", "A solution that fits the workflow", "Fewer manual handoffs", "A team ready to use it"],
     featured: false,
   },
   {
-    name: "Embed & improve", short: "Improve", label: "Put it into daily use",
-    description: "Support adoption, understand what happens in practice and improve the system as needs evolve.",
+    name: "Embed & improve", short: "Improve",
     img: "/images/suite/scale-matrix.webp", stage: "Adoption", stageNo: "03",
     deliverables: ["Adoption and operating guidance", "Performance and exception review", "Prioritized improvements", "Ongoing delivery support"],
     outcomes: ["Steady day-to-day use", "Fewer exceptions over time", "Visible performance", "A clear improvement backlog"],
@@ -150,23 +147,23 @@ export const SECTIONS = {
   labs: { title: "Spacegear Labs", index: "009", heading: "Practical notes on transformation, AI and the systems behind everyday work.", description: "Explainers and field notes from our work." },
 } satisfies Record<string, SectionCopy>;
 
+// Service art comes from SERVICES[].image, so every place a service appears shows the same image.
 export type WorkTile = { slug: string; name: string; img: string; desc: string; href: string };
-function workTile(slug: string, name: string, img: string, desc: string): WorkTile {
-  serviceBySlug(slug);
-  return { slug, name, img, desc, href: `/services/${slug}/` };
+function workTile(slug: string, name: string, desc: string): WorkTile {
+  return { slug, name, img: serviceBySlug(slug).image, desc, href: `/services/${slug}/` };
 }
 export const WORK = {
-  featured: { label: "Featured Service", name: "Applied AI", img: "/images/suite/neural-core.webp", href: "/services/applied-ai/" },
+  featured: { label: "Featured Service", name: "Applied AI", img: serviceBySlug("applied-ai").image, href: "/services/applied-ai/" },
   lineup: {
     label: "Service Lineup", count: "5/5", title: "Strategy and Delivery Under One Roof",
     text: "Digital transformation, AI strategy, applied AI, automation and product delivery, connected from the first decision to daily use.",
     footer: "From direction to daily use",
   },
   tiles: [
-    workTile("digital-transformation", "Digital Transformation", "/images/suite/design-engine.webp", "Find the friction, set priorities and plan a practical path forward."),
-    workTile("automation-integration", "Automation & Integration", "/images/suite/scale-matrix.webp", "Connect your tools and remove repeated manual work."),
-    workTile("ai-strategy", "AI Strategy", "/images/suite/neural-net.webp", "Decide where AI can help, what it needs and how to begin."),
-    workTile("product-delivery", "Product Delivery", "/images/suite/shield-core.webp", "Carry an idea from discovery to software people use."),
+    workTile("digital-transformation", "Digital Transformation", "Find the friction, set priorities and plan a practical path forward."),
+    workTile("automation-integration", "Automation & Integration", "Connect your tools and remove repeated manual work."),
+    workTile("ai-strategy", "AI Strategy", "Decide where AI can help, what it needs and how to begin."),
+    workTile("product-delivery", "Product Delivery", "Carry an idea from discovery to software people use."),
   ],
   assessment: {
     title: "Opportunity Assessment", badge: "01/03", note: "The recommended first step.", chip: "Engagement stage",
@@ -176,11 +173,11 @@ export const WORK = {
 
 export type Pillar = { no: string; slug: string; name: string; tag: string; glyph: string; img: string; desc: string };
 export const PILLARS: Pillar[] = [
-  { no: "01", slug: "digital-transformation", name: "Digital Transformation", tag: "direction", glyph: "≈", img: "/images/suite/design-engine.webp", desc: serviceBySlug("digital-transformation").summary },
-  { no: "02", slug: "ai-strategy", name: "AI Strategy", tag: "readiness", glyph: "◇", img: "/images/suite/neural-core.webp", desc: serviceBySlug("ai-strategy").summary },
-  { no: "03", slug: "applied-ai", name: "Applied AI", tag: "intelligence", glyph: "◈", img: "/images/suite/neural-net.webp", desc: serviceBySlug("applied-ai").summary },
-  { no: "04", slug: "automation-integration", name: "Automation", tag: "connection", glyph: "△", img: "/images/suite/scale-matrix.webp", desc: serviceBySlug("automation-integration").summary },
-  { no: "05", slug: "product-delivery", name: "Product Delivery", tag: "delivery", glyph: "⬡", img: "/images/suite/shield-core.webp", desc: serviceBySlug("product-delivery").summary },
+  { no: "01", slug: "digital-transformation", name: "Digital Transformation", tag: "direction", glyph: "≈", img: serviceBySlug("digital-transformation").image, desc: serviceBySlug("digital-transformation").summary },
+  { no: "02", slug: "ai-strategy", name: "AI Strategy", tag: "readiness", glyph: "◇", img: serviceBySlug("ai-strategy").image, desc: serviceBySlug("ai-strategy").summary },
+  { no: "03", slug: "applied-ai", name: "Applied AI", tag: "intelligence", glyph: "◈", img: serviceBySlug("applied-ai").image, desc: serviceBySlug("applied-ai").summary },
+  { no: "04", slug: "automation-integration", name: "Automation", tag: "connection", glyph: "△", img: serviceBySlug("automation-integration").image, desc: serviceBySlug("automation-integration").summary },
+  { no: "05", slug: "product-delivery", name: "Product Delivery", tag: "delivery", glyph: "⬡", img: serviceBySlug("product-delivery").image, desc: serviceBySlug("product-delivery").summary },
 ];
 export const CORE_PANEL = {
   label: "Core Services", count: "5/5", title: "Modular, flexible services for modern digital operations",
