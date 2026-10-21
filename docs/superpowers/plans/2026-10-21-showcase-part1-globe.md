@@ -86,11 +86,13 @@ The scratchpad preview names `night`/`normal`/`rough` for images 1–3 were wron
 
 | Tier | day | night | normal | spec | clouds | Total | Budget |
 |---|---|---|---|---|---|---|---|
-| 1k (phones) | 49,188 | 9,270 | 13,138 | 14,936 | 108,598 | **195,130 (191 KiB)** | ≤ 450 KB |
-| 2k (desktop first frame) | 157,558 | 37,710 | 62,154 | 40,236 | 387,840 | **685,498 (669 KiB)** | ≤ 900 KB |
-| 4k (streamed after idle) | 424,422 | 138,932 | 192,484 | 96,838 | 1,329,760 | **2,182,436 (2.08 MiB)** | ≤ 2.5 MB |
+| 1k (phones) | 47,384 | 9,776 | 10,114 | 15,072 | 107,346 | **189,692 (185 KiB)** | ≤ 450 KiB |
+| 2k (desktop first frame) | 147,336 | 38,960 | 53,410 | 40,094 | 380,862 | **660,662 (645 KiB)** | ≤ 900 KiB |
+| 4k (streamed after idle) | 424,422 | 138,932 | 192,484 | 96,674 | 1,329,760 | **2,182,272 (2.08 MiB)** | ≤ 2.5 MiB |
 
-The desktop scene also loads the existing galaxy backdrop (`/images/galaxy.webp`, 305,952 B) as part of its first frame, so the desktop first frame downloads 991,450 B of images (plus the 85 KB poster at first paint). The phone globe adds only the 1k set; the phone hero already loads the galaxy as its LCP image.
+Revised after the Task 1 review: each map is now processed at 4096 px and rendered to raw pixels before the resize (sharp applies resize before its other operations), so the 1k/2k figures are smaller than the prototype's and the normal tiers keep sub-level slopes (133 distinct levels at 1k instead of 44). Only the spec blur runs after the resize, at each tier's own size.
+
+The desktop scene also loads the existing galaxy backdrop (`/images/galaxy.webp`, 305,952 B) as part of its first frame, so the desktop first frame downloads 966,614 B of images (plus the 85 KB poster at first paint); the tests cap it at 1,000,000 B. The phone globe adds only the 1k set; the phone hero already loads the galaxy as its LCP image.
 
 **Look:** a CPU re-implementation of the shaders (`preview-render.mjs` in the prototype folder) rendered the opening beat (day side, Sahara and West Africa, blue limb) and the centred beat (night side with city lights, an upper-left lit crescent, orange twilight and a backlit rim). The constants in `constants.ts` and `LOOK` come from those renders; the controller tunes them on the real GPU.
 
@@ -407,29 +409,29 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
 - [ ] **Step 4: Generate the tiers and the manifest**
 
-Run (from the worktree root; about 15 s, light on memory): `node scripts/build-globe-textures.mjs`
+Run (from the worktree root; about 15 s, light on memory): `node scripts/build-globe-textures.mjs` (or `npm run build:textures`)
 
-Expected output (sharp 0.34.5 is deterministic, so the sizes should match exactly):
+Expected output (sharp 0.34.5 is deterministic, so the sizes should match exactly; these are the figures after the Task 1 review fixes):
 
 ```
-1k day: 48.0 KB
-1k night: 9.1 KB
-1k normal: 12.8 KB
-1k spec: 14.6 KB
-1k clouds: 106.1 KB
-1k total: 190.6 KB
-2k day: 153.9 KB
-2k night: 36.8 KB
-2k normal: 60.7 KB
-2k spec: 39.3 KB
-2k clouds: 378.8 KB
-2k total: 669.4 KB
-4k day: 414.5 KB
-4k night: 135.7 KB
-4k normal: 188.0 KB
-4k spec: 94.6 KB
-4k clouds: 1298.6 KB
-4k total: 2131.3 KB
+1k day: 46.3 KiB
+2k day: 143.9 KiB
+4k day: 414.5 KiB
+1k night: 9.5 KiB
+2k night: 38.0 KiB
+4k night: 135.7 KiB
+1k normal: 9.9 KiB
+2k normal: 52.2 KiB
+4k normal: 188.0 KiB
+1k spec: 14.7 KiB
+2k spec: 39.2 KiB
+4k spec: 94.4 KiB
+1k clouds: 104.8 KiB
+2k clouds: 371.9 KiB
+4k clouds: 1298.6 KiB
+1k total: 185.2 KiB (189692 B)
+2k total: 645.2 KiB (660662 B)
+4k total: 2131.1 KiB (2182272 B)
 Manifest written: src/components/globe/texture-manifest.ts
 ```
 
@@ -5149,7 +5151,7 @@ Append this section to the end of `docs/operations/implementation-status.md`, wr
 ## Showcase Part 1: globe and hero (feat/spacegear-showcase)
 
 - The hero globe is a procedural sphere with custom GLSL (day/night terminator, brand-orange twilight, warm city lights, ocean glint, relief, cloud shell with shadows, fresnel atmosphere), ACES Filmic at exposure 1.2 with sRGB output. The GLB, the Draco decoder and `scripts/opt-globe.mjs` are gone; `check-export` fails if a GLB or Draco file ships.
-- Texture tiers from `scripts/build-globe-textures.mjs` (WebP): 1k 195,130 B, 2k 685,498 B, 4k 2,182,436 B. The desktop first frame adds the existing 305,952 B galaxy. The previous desktop globe download was 6,320,916 B (GLB) plus the Draco decoder.
+- Texture tiers from `scripts/build-globe-textures.mjs` (WebP): 1k 189,692 B, 2k 660,662 B, 4k 2,182,272 B. The desktop first frame adds the existing 305,952 B galaxy. The previous desktop globe download was 6,320,916 B (GLB) plus the Draco decoder.
 - The source model's cloud alpha is inverted (opaque where the sky is clear); the old material drew it as a dark film, which caused the blotchy look.
 - First-visit intro (desktop only, once per tab session), skipped for reduced motion, no JavaScript, Save-Data, deep links and repeat views; it reveals at most 2.5 s after the globe is ready and at most 4 s after first paint.
 - Devices: desktop 2k then 4k after idle (hardware GPU, ≥ 8 GB or unknown memory); phones and tablets a 1k globe when WebGL2, ≥ 4 GB or unknown memory and no Save-Data; otherwise the galaxy. Reduced motion, no JavaScript, Save-Data and missing WebGL2 on desktop show the re-captured poster.
@@ -5186,7 +5188,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ## Open questions for the owner
 
 1. **CSP tightening.** `connect-src blob:` and `worker-src 'self' blob:` were added for the GLB's embedded textures and Draco workers. Nothing needs them after Part 1. They stay because the brief says to keep the CSP; removing them would be a one-line change to `public/_headers` once the owner agrees.
-2. **Phone hero weight.** The 1k set is 191 KiB, inside the 450 KB budget, but phones also load the 299 KiB galaxy as their LCP image, so the phone hero downloads about 490 KiB in total. A smaller phone galaxy would be a separate change.
+2. **Phone hero weight.** The 1k set is 185 KiB, inside the 450 KiB budget, but phones also load the 299 KiB galaxy as their LCP image, so the phone hero downloads about 484 KiB in total. A smaller phone galaxy would be a separate change.
 3. **Poster capture.** The poster is captured in headless Chromium (SwiftShader). If its colours differ visibly from the real GPU, Task 9 allows a manual capture in the owner's Chrome.
 4. **4k gating.** `deviceMemory ≥ 8` excludes 4 GB desktops from the 4k set. Chrome caps `deviceMemory` at 8, so every capable desktop qualifies; lower it only if a 4 GB machine renders 4k smoothly.
 

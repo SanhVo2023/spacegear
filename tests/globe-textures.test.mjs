@@ -1,21 +1,34 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { MAPS, NORMAL_GAIN, TIERS, readGlb, sourceImages } from "../scripts/build-globe-textures.mjs";
+import { MAPS, NORMAL_GAIN, TIERS, imageBytes, prepareMap, readGlb, sourceBuffers, sourceImages, tierImage } from "../scripts/build-globe-textures.mjs";
 
-const { GLOBE_TEXTURES, BACKDROP_TEXTURE, NORMAL_GAIN: MANIFEST_GAIN } = await import("../src/components/globe/texture-manifest.ts");
+const { GLOBE_TEXTURES, GLOBE_TIERS, GLOBE_MAPS, BACKDROP_TEXTURE, NORMAL_GAIN: MANIFEST_GAIN } = await import("../src/components/globe/texture-manifest.ts");
 
-// Spec budget: mobile ≤ ~450 KB, desktop first frame (2k) ≤ ~900 KB, full 4k set ≤ ~2.5 MB.
+// Spec budgets, in binary units: mobile ≤ 450 KiB, desktop first frame (2k) ≤ 900 KiB, full 4k set ≤ 2.5 MiB.
 const BUDGET = { "1k": 450 * 1024, "2k": 900 * 1024, "4k": 2.5 * 1024 * 1024 };
-const file = (url) => `public${url}`;
+// Everything the desktop scene downloads for its first frame: the 2k set plus the galaxy backdrop.
+const FIRST_FRAME_BUDGET = 1_000_000;
+const REBUILD = "re-run `node scripts/build-globe-textures.mjs`";
+const repo = (relative) => fileURLToPath(new URL(`../${relative}`, import.meta.url));
+const file = (url) => repo(`public${url}`);
 const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
-async function band(url, top, height) {
-  const { data } = await sharp(file(url)).extract({ left: 0, top, width: 1024, height }).extractChannel(0).raw().toBuffer({ resolveWithObject: true });
+
+/** Mean of one channel over a longitude/latitude box of an upright equirectangular map. */
+async function region(url, channel, [west, east], [south, north]) {
+  const { width, height } = await sharp(file(url)).metadata();
+  const left = Math.round(((west + 180) / 360) * width);
+  const top = Math.round(((90 - north) / 180) * height);
+  const box = { left, top, width: Math.round(((east + 180) / 360) * width) - left, height: Math.round(((90 - south) / 180) * height) - top };
+  const { data } = await sharp(file(url)).extract(box).extractChannel(channel).raw().toBuffer({ resolveWithObject: true });
   return mean(data);
 }
 
 test("every tier holds the five maps as 2:1 WebP files that match the manifest", async () => {
+  assert.deepEqual(GLOBE_TIERS, Object.keys(TIERS));
+  assert.deepEqual(GLOBE_MAPS, MAPS);
   assert.deepEqual(Object.keys(GLOBE_TEXTURES), Object.keys(TIERS));
   for (const [tier, width] of Object.entries(TIERS)) {
     assert.deepEqual(Object.keys(GLOBE_TEXTURES[tier]), MAPS, tier);
@@ -24,10 +37,10 @@ test("every tier holds the five maps as 2:1 WebP files that match the manifest",
       assert.equal(entry.url, `/textures/earth/${tier}/${map}.webp`);
       const meta = await sharp(file(entry.url)).metadata();
       assert.equal(meta.format, "webp", entry.url);
-      assert.equal(meta.width, width, entry.url);
-      assert.equal(meta.height, width / 2, entry.url);
+      assert.equal(meta.width, width, `${entry.url} width; ${REBUILD}`);
+      assert.equal(meta.height, width / 2, `${entry.url} height; ${REBUILD}`);
       assert.equal(meta.hasAlpha, false, `${entry.url} has no alpha channel`);
-      assert.equal((await fs.stat(file(entry.url))).size, entry.bytes, `${entry.url} matches the manifest`);
+      assert.equal((await fs.stat(file(entry.url))).size, entry.bytes, `${entry.url} does not match the manifest; ${REBUILD}`);
     }
   }
 });
@@ -50,11 +63,17 @@ test("each tier stays inside its download budget", () => {
   }
 });
 
+test("the desktop first frame images stay within 1,000,000 bytes", () => {
+  assert.ok(BACKDROP_TEXTURE.bytes > 0, "the galaxy backdrop is counted");
+  const total = MAPS.reduce((sum, map) => sum + GLOBE_TEXTURES["2k"][map].bytes, 0) + BACKDROP_TEXTURE.bytes;
+  assert.ok(total <= FIRST_FRAME_BUDGET, `desktop first frame images (2k set + galaxy): ${total} bytes is over ${FIRST_FRAME_BUDGET}`);
+});
+
 test("the maps are upright and encoded the way the shader decodes them", async () => {
   const tier = GLOBE_TEXTURES["1k"];
-  // Ocean mask: white ocean, black land. The Arctic Ocean is the top row, Antarctica the bottom.
-  assert.ok((await band(tier.spec.url, 0, 15)) > 200, "the Arctic Ocean is at the top");
-  assert.ok((await band(tier.spec.url, 486, 26)) < 60, "Antarctica is at the bottom");
+  // Ocean mask: white ocean, black land. The Arctic Ocean is the top rows, Antarctica the bottom ones.
+  assert.ok((await region(tier.spec.url, 0, [-180, 180], [85, 90])) > 200, "the Arctic Ocean is at the top");
+  assert.ok((await region(tier.spec.url, 0, [-180, 180], [-90, -81])) < 60, "Antarctica is at the bottom");
   // Clouds: coverage (mean ≈ 71), not the source's inverted alpha (mean ≈ 184).
   const clouds = (await sharp(file(tier.clouds.url)).stats()).channels[0].mean;
   assert.ok(clouds > 40 && clouds < 110, `cloud coverage mean ${clouds}`);
@@ -69,12 +88,53 @@ test("the maps are upright and encoded the way the shader decodes them", async (
   assert.equal(MANIFEST_GAIN, NORMAL_GAIN);
 });
 
+test("east is east and the relief slopes have the right sign", async () => {
+  const tier = GLOBE_TEXTURES["1k"];
+  // Ocean mask: the central Pacific is ocean and the Congo basin is land (a mirrored map puts the Atlantic there).
+  const pacific = await region(tier.spec.url, 0, [-152.5, -147.5], [-2.5, 2.5]);
+  assert.ok(pacific > 240, `the Pacific at 150°W, 0° is ocean (${pacific.toFixed(1)})`);
+  const africa = await region(tier.spec.url, 0, [19.5, 24.5], [-0.5, 4.5]);
+  assert.ok(africa < 15, `Central Africa at 22°E, 2°N is land (${africa.toFixed(1)})`);
+  // Normal: G − 128 is the northward tilt, R − 128 the eastward tilt.
+  const himalaya = (await region(tier.normal.url, 1, [78, 90], [26, 30])) - 128;
+  assert.ok(himalaya < -1, `the Himalaya's south flank faces south (G − 128 = ${himalaya.toFixed(2)})`);
+  const andes = (await region(tier.normal.url, 0, [-80, -74], [-18, -5])) - 128;
+  assert.ok(andes < -1, `the Andes' west flank faces west (R − 128 = ${andes.toFixed(2)})`);
+});
+
+test("the normal gain is applied before the downsample, so the 1k tier keeps sub-level slopes", async () => {
+  const { gltf, bin } = readGlb(await fs.readFile(repo("public/models/earth-4k.glb")));
+  const normal = await prepareMap("normal", await sourceBuffers(gltf, bin));
+  const { data, info } = await tierImage("normal", normal, TIERS["1k"]).raw().toBuffer({ resolveWithObject: true });
+  const east = new Set();
+  for (let i = 0; i < data.length; i += info.channels) east.add(data[i]);
+  // Gaining after the resize multiplies already-rounded levels, which leaves 44; gaining first leaves about 133.
+  assert.ok(east.size > 100, `the 1k normal map has ${east.size} distinct east-slope levels before encoding`);
+});
+
 test("source maps are found through the materials, not the image order", async () => {
-  const { gltf } = readGlb(await fs.readFile("public/models/earth-4k.glb"));
+  const { gltf, bin } = readGlb(await fs.readFile(repo("public/models/earth-4k.glb")));
   assert.deepEqual(sourceImages(gltf), { day: 0, night: 2, normal: 3, roughness: 1, clouds: 4 });
+  assert.deepEqual(Object.keys(await sourceBuffers(gltf, bin)), ["day", "night", "normal", "roughness", "clouds"]);
+});
+
+test("a source without the expected maps fails with a named error", async () => {
+  const { gltf, bin } = readGlb(await fs.readFile(repo("public/models/earth-4k.glb")));
+  const withoutRoughness = structuredClone(gltf);
+  delete withoutRoughness.materials.find((material) => material.normalTexture).pbrMetallicRoughness.metallicRoughnessTexture;
+  assert.throws(() => sourceImages(withoutRoughness), { name: "GlobeSourceError", message: /metallicRoughnessTexture/ });
+
+  const byUri = structuredClone(gltf);
+  byUri.images[0] = { uri: "day.webp" };
+  assert.throws(() => imageBytes(byUri, bin, 0), { name: "GlobeSourceError", message: /URI/ });
+
+  // A smaller source would make the tiers upscales (and a non-2:1 one would be cropped).
+  const small = await sharp({ create: { width: 64, height: 32, channels: 3, background: "#000" } }).webp().toBuffer();
+  const tiny = { ...gltf, bufferViews: gltf.bufferViews.map(() => ({ buffer: 0, byteOffset: 0, byteLength: small.length })) };
+  await assert.rejects(sourceBuffers(tiny, small), { name: "GlobeSourceError", message: /64×32/ });
 });
 
 test("the backdrop entry is the shipped galaxy image", async () => {
   assert.equal(BACKDROP_TEXTURE.url, "/images/galaxy.webp");
-  assert.equal(BACKDROP_TEXTURE.bytes, (await fs.stat("public/images/galaxy.webp")).size);
+  assert.equal(BACKDROP_TEXTURE.bytes, (await fs.stat(repo("public/images/galaxy.webp"))).size, `the galaxy size does not match the manifest; ${REBUILD}`);
 });

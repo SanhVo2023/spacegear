@@ -9,6 +9,7 @@
     "lint": "eslint src worker scripts tests \"*.mjs\" \"*.ts\"",
     "build:cf": "npm run build && node scripts/package-site.mjs && node scripts/check-export.mjs",
     "build:production": "node scripts/build-production.mjs",
+    "build:textures": "node scripts/build-globe-textures.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.worker.json",
     "test": "node --import tsx --test tests/*.test.mjs",
     "test:workers": "node --import tsx --test tests/contact.test.mjs tests/notifications.test.mjs tests/d1.test.mjs",
