@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { LOCK, MAX_UNPACKED, SVELTIA, TARGET, extractVendored, untar, verifyVendored, writeVendored } from "../scripts/vendor-sveltia.mjs";
+import { ADMIN_CSP, ADMIN_FONTS } from "../scripts/lib/headers.mjs";
 
 test("the vendored Sveltia CMS is byte for byte the pinned release", () => {
   assert.deepEqual(verifyVendored("."), []);
@@ -166,7 +167,12 @@ test("/admin/* swaps the site CSP for its own scoped policy and is noindex", () 
   assert.equal(admin.set["x-robots-tag"], "noindex, nofollow");
   const csp = directives(admin.set["content-security-policy"]);
   assert.deepEqual(csp["script-src"], ["'self'"], "only the vendored bundle: no inline code, no eval, no CDN");
-  assert.deepEqual(csp["font-src"], ["'self'", "https://cdn.jsdelivr.net/fontsource/"], "the bundle's UI and icon fonts");
+  // Task 10 review: the three font files the vendored bundle names, exactly, rather than a folder.
+  const bundleFonts = [...new Set(fs.readFileSync("public/admin/sveltia/sveltia-cms.js", "utf8").match(/https:\/\/cdn\.jsdelivr\.net\/fontsource\/[^"'`\s)]+/g))].sort();
+  assert.equal(bundleFonts.length, 3, `the bundle's UI and icon fonts (${bundleFonts.join(", ")})`);
+  assert.deepEqual(csp["font-src"], ["'self'", ...bundleFonts], "font-src names exactly the bundle's font files; after a Sveltia upgrade, copy its font URLs into public/_headers and ADMIN_FONTS");
+  assert.deepEqual(ADMIN_FONTS, bundleFonts);
+  assert.equal(admin.set["content-security-policy"], ADMIN_CSP, "public/_headers carries the pinned ADMIN_CSP (scripts/lib/headers.mjs)");
   assert.deepEqual(csp["connect-src"], ["'self'", "blob:", "data:"], "no API or CDN until the GitHub setup");
   for (const [name, values] of Object.entries(csp)) assert.ok(!values.some((value) => /unpkg\.com|'unsafe-eval'|^\*$|^https:$/.test(value)), `${name} allows no CDN code, eval or wildcard`);
   assert.deepEqual([csp["object-src"], csp["frame-ancestors"], csp["base-uri"]], [["'none'"], ["'none'"], ["'self'"]]);
