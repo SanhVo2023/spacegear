@@ -43,7 +43,7 @@ export default function Labs() {
   // Renders only real published articles (or dev samples).
   if (ITEMS.length === 0) return null;
   return (
-    <section id="labs" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-24 py-24">
+    <section id="labs" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
       <Container>
         {USING_SAMPLES && <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.16em] text-flame">Sample content — not a real article</p>}
         <SectionHeader {...SECTIONS.labs} />

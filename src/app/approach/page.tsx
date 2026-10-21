@@ -16,6 +16,7 @@ export default function Approach() {
             title="A clear path from intention to implementation."
             description="Useful deliverables, visible decisions and a shared understanding of what comes next. The depth of each stage follows the engagement."
           />
+          <h2 className="sr-only">How an engagement runs</h2>
           <ProcessSteps steps={APPROACH_STEPS} gridClassName="md:grid-cols-2 xl:grid-cols-5" />
           <CtaBand title="Start with the challenge in front of you." text="Tell us where you are and we’ll suggest a sensible starting point." />
         </Container>

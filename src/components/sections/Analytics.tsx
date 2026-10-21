@@ -45,7 +45,7 @@ export default function Analytics() {
   const [assisted, manual] = MEASURE.throughput.legend;
 
   return (
-    <section id="analytics" className="relative scroll-mt-24 py-24">
+    <section id="analytics" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.analytics} />
 
@@ -211,9 +211,9 @@ export default function Analytics() {
           </Reveal>
         </div>
 
-        {/* capabilities marquee */}
+        {/* capabilities marquee: focusable so a keyboard or a tap can pause it (globals.css) */}
         <Reveal delay={120}>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-card/40 py-4">
+          <div tabIndex={0} role="marquee" aria-label="Capabilities" className="mt-4 overflow-hidden rounded-2xl border border-line bg-card/40 py-4">
             <div className="marquee-track">
               {[...MEASURE.ticker, ...MEASURE.ticker].map((item, i) => (
                 <span key={i} aria-hidden={i >= MEASURE.ticker.length} className="mx-4 flex items-center gap-3 text-[14px] text-mut-2">

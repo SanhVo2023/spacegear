@@ -16,7 +16,7 @@ export default function Team() {
   const go = (d: number) => setI((p) => (p + d + MEMBERS.length) % MEMBERS.length);
 
   return (
-    <section id="team" className="relative scroll-mt-24 py-24">
+    <section id="team" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.team} />
 

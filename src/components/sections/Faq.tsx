@@ -101,7 +101,7 @@ export function StillQuestionsCard() {
 
 export default function Faq() {
   return (
-    <section id="faq" className="relative scroll-mt-24 py-24">
+    <section id="faq" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.faq} />
         <div className="mt-12 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

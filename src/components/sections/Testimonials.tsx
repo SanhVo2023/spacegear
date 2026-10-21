@@ -10,7 +10,7 @@ export default function Testimonials() {
   // Renders only real, permission-confirmed quotes (or dev samples).
   if (REVIEWS.length === 0) return null;
   return (
-    <section id="testimonials" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-24 py-24">
+    <section id="testimonials" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
       <Container>
         {USING_SAMPLES && <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.16em] text-flame">Sample content — not a real client</p>}
         <SectionHeader {...SECTIONS.testimonials} />

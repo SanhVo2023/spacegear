@@ -156,6 +156,11 @@ body {
   interpolate-size: allow-keywords;
 }
 
+/* Focus and anchor targets stop below the fixed nav (72px including its 16px top
+   offset, 70px on phones) plus a 16px gap. Sections add scroll-mt-2, so an anchor
+   still lands 96px from the top, where scroll-mt-24 alone put it. */
+html { scroll-padding-top: 88px; }
+
 /* Keyboard focus stays visible everywhere. */
 :focus-visible {
   outline: 2px solid #fa6e43;
@@ -196,8 +201,11 @@ body {
 .spin-18 { animation: spinSlow 18s linear infinite; }
 .spin-26 { animation: spinSlow 26s linear infinite; }
 
-/* Let people stop the capability ticker (WCAG 2.2.2). */
-:where(:hover, :focus-within) > .marquee-track,
+/* Let people stop the capability ticker (WCAG 2.2.2, Pause, Stop, Hide). Its container
+   (Analytics.tsx) takes focus, so hovering it, tabbing to it (with the focus ring) or tapping
+   it on touch pauses the loop until focus or the pointer leaves; reduced motion stops it
+   altogether (below). */
+:where(:hover, :focus, :focus-within) > .marquee-track,
 .marquee-track:hover { animation-play-state: paused; }
 
 /* FAQ: native <details> with the original open/close motion. */

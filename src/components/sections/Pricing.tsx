@@ -103,9 +103,8 @@ function EngagementRow({ item, selected, onSelect }: { item: Engagement; selecte
           type="button"
           onClick={onSelect}
           aria-pressed={selected}
-          aria-label={`Select ${item.short}`}
           whileTap={{ scale: 0.96 }}
-          className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-medium transition-colors duration-300 ${
+          className={`relative inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-medium transition-colors duration-300 ${
             selected
               ? "bg-flame text-[#161719]"
               : item.featured
@@ -123,6 +122,8 @@ function EngagementRow({ item, selected, onSelect }: { item: Engagement; selecte
             {selected ? "✓" : "→"}
           </motion.span>
           {selected ? "Selected" : "Select"}
+          {/* the name follows the visible text; `relative` keeps this span inside the mobile scroller */}
+          <span className="sr-only"> {item.short}</span>
         </motion.button>
       </Cell>
     </motion.div>
@@ -133,7 +134,7 @@ export default function Pricing() {
   const [selected, setSelected] = useState<string | null>(null);
   const chosen = ENGAGEMENTS.find((item) => item.name === selected);
   return (
-    <section id="pricing" className="relative scroll-mt-24 py-24">
+    <section id="pricing" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.pricing} />
 

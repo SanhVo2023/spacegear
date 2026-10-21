@@ -107,7 +107,7 @@ export function ProcessSteps({ steps, gridClassName = "md:grid-cols-2 xl:grid-co
 
 export default function Process() {
   return (
-    <section id="process" className="relative scroll-mt-24 py-24">
+    <section id="process" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.process} />
         <ProcessSteps steps={PROCESS_STEPS} />

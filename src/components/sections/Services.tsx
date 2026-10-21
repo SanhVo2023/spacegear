@@ -31,7 +31,7 @@ export default function Services() {
   const [active, setActive] = useState(0);
 
   return (
-    <section id="services" className="relative scroll-mt-24 py-24">
+    <section id="services" className="relative scroll-mt-2 py-24">
       <div className="pointer-events-none absolute right-0 top-20 h-[420px] w-[420px] flame-glow opacity-40 blur-sm" />
       <Container className="relative">
         <SectionHeader {...SECTIONS.services} />
