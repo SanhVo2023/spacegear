@@ -2,34 +2,47 @@
 // copy of every dist/**/*.html; `compare` normalizes the current dist/ the same way and reports
 // any page that differs.
 //
-// Format 2 normalizes a page into two parts:
+// Format 3 normalizes a page into two parts:
 //  1. The HTML with only the inline RSC payload scripts (self.__next_f.push([1,"…"])) removed.
 //     Every other <script> stays: JSON-LD, the RSC bootstrap, the noModule polyfill, chunk tags.
 //  2. The React tree of the RSC payload, resolved from row 0 with every outlined row put back in
 //     place, so neither row ids nor where React splits the payload into rows can change the result.
-//     Client references are reduced to their export name and async flag. The layout's async chunk
-//     elements (["$","script","script-N",{src,async,nonce}] with exactly those props) are dropped,
-//     so a different number of chunks compares equal.
-// Then the masks below remove what changes between builds of the same source: the build ID,
-// hashed chunk and media names, runs of chunk <script>/<link> tags, and CRLF line endings.
-// tests/html-snapshot.test.mjs plants changes that must and must not compare equal.
+//     - References: $<hex>, $L<hex> (lazy) and $@<hex> (promise), $W<hex> (Set) and $Q<hex> (Map),
+//       each with an optional :key:key path. React's Flight server writes a value it has already
+//       sent as a path from the row it was first written in, and names the parts of an element
+//       ["$", type, key, props, owner] by "type", "key", "props" and "_owner"; a path that walks
+//       through another reference follows that reference (and its own path) first.
+//     - A reference is a cycle only when its row and path lead to a value that contains the place
+//       being resolved; it is then written as {"$cycle": <levels up>}. Any other reference, also
+//       one into the same row, is resolved from the row's raw value.
+//     - Client references keep their module id and export name, and the async flag. `compare
+//       --loose-client-ids` ignores the module ids (and warns), to triage a module that moved.
+//     - The layout's async chunk elements (["$","script","script-N",{src,async,nonce}] with exactly
+//       those props) are dropped, so a different number of chunks compares equal.
+//     - The id-less hint rows are sorted, so their order in the stream does not matter.
+// Then the masks below remove what changes between builds of the same source: the build ID (the
+// page's own "b" value), hashed chunk and media names, runs of chunk <script>/<link> tags, and CRLF
+// line endings. tests/html-snapshot.test.mjs plants changes that must and must not compare equal.
 // `save` replaces the snapshot folder, so it only accepts a folder inside this worktree's
 // artifacts/; it writes a `.format` marker, and `compare` refuses a folder in another format.
 //   node scripts/html-snapshot.mjs save artifacts/html-baseline
-//   node scripts/html-snapshot.mjs compare artifacts/html-baseline
+//   node scripts/html-snapshot.mjs compare artifacts/html-baseline [--loose-client-ids]
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const FORMAT = 2;
+export const FORMAT = 3;
 const PUSH = /<script>self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)<\/script>/g;
 const ROW_TAGS = new Set(["I", "HL", "HC", "E", "W", "D"]);
 const CHUNK_SRC = /^\/_next\/static\/chunks\/[\w.~-]+\.js$/;
-// $<hex>, $L<hex> (lazy), $@<hex> (promise), $W<hex> (Set), $Q<hex> (Map), each with an optional :key:key path.
 const REFERENCE = /^\$([LW@Q]?)([0-9a-f]+)((?::[^:]*)*)$/;
 // Kept as they are: "$" (element), "$$…" (escaped text), "$S…" (symbol), "$D…" (date), "$n…" (bigint).
 const KEPT = /^\$(?:$|\$|S|D|n)/;
 const OTHER_REFERENCE = /^\$[A-Za-z@][0-9a-f]+(?::|$)/;
+// How React names the parts of an element array in a path (react-server-dom-turbopack, renderModelDestructive).
+const ELEMENT_KEYS = { type: "1", key: "2", props: "3", _owner: "4" };
+const WRAPPERS = { W: "$Set", Q: "$Map", "@": "$promise" };
+const MAX_DEPTH = 64;
 
 /** Splits the decoded RSC stream into rows (id → row) and the id-less hint rows, in order. */
 export function decodeRows(stream) {
@@ -64,7 +77,7 @@ export function decodeRows(stream) {
         const value = JSON.parse(line.slice(tag.length));
         if (tag === "I") {
           if (!Array.isArray(value) || typeof value[2] !== "string") throw new Error(`unreadable client reference in row ${head[1]}`);
-          row = { kind: "client", value: { $client: value[2], async: value[3] === 1 } };
+          row = { kind: "client", value: { $client: value[2], $module: value[0], async: value[3] === 1 } };
         } else row = { kind: "tagged", value: { $row: tag, value } };
       } else row = { kind: "json", value: JSON.parse(line) };
     }
@@ -75,77 +88,122 @@ export function decodeRows(stream) {
 }
 
 const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const isElement = (value) => Array.isArray(value) && value[0] === "$";
 /** A layout async chunk element, exactly as Next writes it. */
 const isChunkScript = (value) => Array.isArray(value) && value.length === 4 && value[0] === "$" && value[1] === "script"
   && typeof value[2] === "string" && /^script-\d+$/.test(value[2]) && isRecord(value[3])
   && Object.keys(value[3]).length === 3 && typeof value[3].src === "string" && CHUNK_SRC.test(value[3].src)
   && value[3].async === true && value[3].nonce === "$undefined";
+const parseReference = (text) => {
+  const match = REFERENCE.exec(text);
+  return match && { kind: match[1], row: match[2], keys: match[3].split(":").slice(1) };
+};
 
-/** The React tree from row 0 with every reference resolved in place; cycles become {$cycle: depth}. */
+/** The React tree from row 0 with every reference resolved in place (see the header). */
 export function resolveTree(rows) {
-  const stack = [];
-  const rowOf = (reference, rowId) => {
+  const rowOf = (text, rowId) => {
     const row = rows.get(rowId);
-    if (!row) throw new Error(`RSC reference "${reference}" points at a missing row`);
+    if (!row) throw new Error(`RSC reference "${text}" points at a missing row`);
     return row;
+  };
+  /**
+   * The raw value a reference points at, and where it is: the row and the key path inside that row's
+   * raw value. A path that walks through another reference continues from that reference's target.
+   */
+  const locate = (text, reference, depth = 0) => {
+    if (depth > MAX_DEPTH) throw new Error(`RSC reference "${text}" goes through more than ${MAX_DEPTH} references`);
+    const row = rowOf(text, reference.row);
+    let at = { row: reference.row, path: [], kind: row.kind, target: row.value };
+    for (const key of reference.keys) {
+      const inner = typeof at.target === "string" && at.kind === "json" ? parseReference(at.target) : null;
+      if (inner) {
+        // A lazy value ($L) is the row itself; a path cannot index into a Set, a Map or a promise.
+        if (inner.kind && inner.kind !== "L") throw new Error(`RSC reference "${text}" walks through "${at.target}" (${WRAPPERS[inner.kind]})`);
+        at = locate(at.target, inner, depth + 1);
+      }
+      if (at.kind !== "json") throw new Error(`RSC reference "${text}" walks into a ${at.kind} row`);
+      const step = isElement(at.target) && Object.hasOwn(ELEMENT_KEYS, key) ? ELEMENT_KEYS[key] : key;
+      if (at.target === null || typeof at.target !== "object" || !Object.hasOwn(at.target, step)) throw new Error(`RSC reference "${text}" does not resolve`);
+      at = { ...at, path: [...at.path, step], target: at.target[step] };
+    }
+    return at;
+  };
+  // One frame per reference being resolved: its row and the key path of the value being visited.
+  const frames = [];
+  /** How many levels up from the value being resolved the value at (row, keys) sits, or -1 if it is not above it. */
+  const levelsUp = (row, keys) => {
+    let levels = 0;
+    for (let i = frames.length - 1; i >= 0; i--) {
+      const frame = frames[i];
+      if (frame.row === row && keys.length <= frame.path.length && keys.every((key, k) => frame.path[k] === key)) return levels + frame.path.length - keys.length;
+      levels += frame.path.length - frame.start;
+    }
+    return -1;
   };
   const resolveString = (value) => {
     if (!value.startsWith("$") || KEPT.test(value)) return value;
-    const reference = REFERENCE.exec(value);
+    const reference = parseReference(value);
     if (!reference) {
       if (OTHER_REFERENCE.test(value)) throw new Error(`unknown RSC reference "${value}"`);
       return value;
     }
-    const [, kind, rowId, keyPath] = reference;
-    if (stack.includes(rowId)) return { $cycle: stack.length - stack.lastIndexOf(rowId) };
-    stack.push(rowId);
-    let target = rowOf(value, rowId).value;
-    for (const key of keyPath.split(":").slice(1)) {
-      // A path may run through another outlined row.
-      while (typeof target === "string" && REFERENCE.test(target)) target = rowOf(target, REFERENCE.exec(target)[2]).value;
-      if (target === null || typeof target !== "object" || !Object.hasOwn(target, key)) throw new Error(`RSC reference "${value}" does not resolve`);
-      target = target[key];
+    const at = locate(value, reference);
+    let resolved;
+    const up = levelsUp(at.row, at.path);
+    if (up >= 0) resolved = { $cycle: up };
+    else if (at.kind !== "json") resolved = at.target; // Text, client and tagged rows hold no references.
+    else {
+      frames.push({ row: at.row, path: [...at.path], start: at.path.length });
+      resolved = resolve(at.target);
+      frames.pop();
     }
-    const resolved = resolve(target);
-    stack.pop();
-    if (kind === "W") return { $Set: resolved };
-    if (kind === "Q") return { $Map: resolved };
-    if (kind === "@") return { $promise: resolved };
-    return resolved;
+    const wrapper = WRAPPERS[reference.kind];
+    return wrapper ? { [wrapper]: resolved } : resolved;
   };
   const resolve = (value) => {
     if (typeof value === "string") return resolveString(value);
-    if (Array.isArray(value)) return value.map(resolve).filter((item) => !isChunkScript(item));
-    if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, resolve(child)]));
+    const frame = frames.at(-1);
+    const child = (key, item) => {
+      frame.path.push(key);
+      const out = resolve(item);
+      frame.path.pop();
+      return out;
+    };
+    if (Array.isArray(value)) return value.map((item, index) => child(String(index), item)).filter((item) => !isChunkScript(item));
+    if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, child(key, item)]));
     return value;
   };
-  return rows.has("0") ? resolve(rows.get("0").value) : null;
+  if (!rows.has("0")) return null;
+  frames.push({ row: "0", path: [], start: 0 });
+  return resolve(rows.get("0").value);
 }
 
 /** Removes what differs between two builds of the same source (see the header). */
 function mask(text) {
   return text
     .replace(/\/_next\/static\/(chunks|media)\/[\w.~-]+?(\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|avif|svg|ico))(?=[\\"'\s)?#,])/g, "/_next/static/$1/HASH$2")
-    .replace(/\bI\[\d+,/g, "I[ID,")
-    .replace(/(?:\\"\/_next\/static\/chunks\/HASH\.js\\",?)+/g, '\\"CHUNKS\\",')
     .replace(/(?:<script src="\/_next\/static\/chunks\/HASH\.js" async=""><\/script>)+/g, "<script CHUNKS></script>")
     .replace(/(?:<link rel="preload" as="script" fetchPriority="low" href="\/_next\/static\/chunks\/HASH\.js"\/>)+/g, "<link CHUNKS/>");
 }
 
-/**
- * The format-2 form of one exported page. `buildId` defaults to the ID the page names in its RSC
- * payload ("b":"<id>").
- */
-export function normalize(html, buildId = "") {
+/** The format-3 form of one exported page. */
+export function normalize(html) {
   const source = html.replace(/\r\n/g, "\n");
   // Join the payload before any masking, so text-row byte lengths still match.
   const stream = [...source.matchAll(PUSH)].map((match) => JSON.parse(match[1])).join("");
-  const id = buildId || stream.match(/"b":"([^"]+)"/)?.[1] || "";
   const { rows, hints } = decodeRows(stream);
-  let out = `${source.replace(PUSH, "")}\n${JSON.stringify({ tree: resolveTree(rows), hints }, null, 1)}\n`;
-  if (id) out = out.replaceAll(id, "BUILD_ID");
+  // The build ID is the "b" field of the page's root row.
+  const root = rows.get("0")?.value;
+  const buildId = isRecord(root) && typeof root.b === "string" ? root.b : "";
+  // Sorted by their masked form, so neither stream order nor chunk names decide the order.
+  const sorted = hints.map((hint) => [mask(JSON.stringify(hint)), hint]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, hint]) => hint);
+  let out = `${source.replace(PUSH, "")}\n${JSON.stringify({ tree: resolveTree(rows), hints: sorted }, null, 1)}\n`;
+  if (buildId) out = out.replaceAll(buildId, "BUILD_ID");
   return mask(out);
 }
+
+/** A normalized page without client module ids (for `compare --loose-client-ids`). */
+export const withoutClientIds = (text) => text.replace(/^[ ]*"\$module": [^\n]*\n/gm, "");
 
 function htmlFiles(base) {
   const walk = (current) => fs.readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
@@ -157,14 +215,15 @@ function htmlFiles(base) {
 }
 
 function main() {
-  const [mode, dir] = process.argv.slice(2);
-  if (!["save", "compare"].includes(mode) || !dir) {
-    console.error("Usage: node scripts/html-snapshot.mjs save|compare <snapshot-dir>");
+  const args = process.argv.slice(2);
+  const loose = args.includes("--loose-client-ids");
+  const [mode, dir] = args.filter((arg) => arg !== "--loose-client-ids");
+  if (!["save", "compare"].includes(mode) || !dir || (loose && mode !== "compare")) {
+    console.error("Usage: node scripts/html-snapshot.mjs save <snapshot-dir> | compare <snapshot-dir> [--loose-client-ids]");
     process.exit(2);
   }
   const root = "dist";
   const artifacts = fileURLToPath(new URL("../artifacts", import.meta.url));
-  const buildId = fs.existsSync(".next/BUILD_ID") ? fs.readFileSync(".next/BUILD_ID", "utf8").trim() : "";
   const current = htmlFiles(root);
   if (!current.length) {
     console.error("dist/ has no HTML files; build first.");
@@ -177,7 +236,7 @@ function main() {
       console.error(`Refusing to replace ${dir}: save into a folder inside ${artifacts}.`);
       process.exit(2);
     }
-    const pages = current.map((file) => [file, normalize(fs.readFileSync(path.join(root, file), "utf8"), buildId)]);
+    const pages = current.map((file) => [file, normalize(fs.readFileSync(path.join(root, file), "utf8"))]);
     fs.rmSync(dir, { recursive: true, force: true });
     for (const [file, text] of pages) {
       const target = path.join(dir, file);
@@ -198,14 +257,16 @@ function main() {
     console.error(`${dir} was saved in format ${format}; this script compares format ${FORMAT}. Save it again from the build it records.`);
     process.exit(1);
   }
+  if (loose) console.warn("Warning: --loose-client-ids ignores client module ids, so a page that swaps one client component for another goes unnoticed. Use it only to triage a module that moved.");
+  const view = loose ? withoutClientIds : (text) => text;
   const problems = [];
   for (const file of saved) {
     if (!current.includes(file)) {
       problems.push(`missing page: ${file}`);
       continue;
     }
-    const before = fs.readFileSync(path.join(dir, file), "utf8");
-    const after = normalize(fs.readFileSync(path.join(root, file), "utf8"), buildId);
+    const before = view(fs.readFileSync(path.join(dir, file), "utf8"));
+    const after = view(normalize(fs.readFileSync(path.join(root, file), "utf8")));
     if (before === after) continue;
     let at = 0;
     while (before[at] === after[at]) at++;
@@ -217,7 +278,7 @@ function main() {
   if (problems.length) {
     console.error(problems.join("\n"));
     process.exitCode = 1;
-  } else console.log(`Rendered HTML identical to ${dir}: ${saved.length} pages.`);
+  } else console.log(`Rendered HTML identical to ${dir}: ${saved.length} pages${loose ? " (client module ids ignored)" : ""}.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();
