@@ -16,6 +16,7 @@ import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
 import { hasWebGL2 } from "@/components/globe/device";
 import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
+import type { GlobeTier } from "@/components/globe/tiers";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
 // 3D scene is client-only (WebGL) — load without SSR. Its code chunk fills the first INTRO_CHUNK_SHARE of
@@ -66,6 +67,8 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
+  // The first frame shows the 2k set; capable desktops swap in the 4k set after the intro (EarthScene).
+  const [tier, setTier] = useState<GlobeTier>("2k");
   // A failure also ends a running intro at once (its counter would otherwise wait for the cap).
   const fail = () => {
     setGlobe("failed");
@@ -100,7 +103,7 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   // From then on a mouse or pen drag spins it, and Part 2's cursor shows its "Drag" label.
   const live = globe === "ready";
   return (
-    <div ref={sceneRef} className="hero-scene absolute inset-0" data-globe={globe} data-cursor={live ? "Drag" : undefined} aria-hidden>
+    <div ref={sceneRef} className="hero-scene absolute inset-0" data-globe={globe} data-globe-tier={tier} data-cursor={live ? "Drag" : undefined} aria-hidden>
       {ready && globe !== "failed" && (
         <SceneBoundary onError={fail}>
           {/* A failure is terminal: a first frame that lands after a loss never revives the scene. */}
@@ -110,6 +113,7 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
             active={active}
             dragTarget={live ? sceneRef : undefined}
             onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))}
+            onTier={setTier}
             onLost={fail}
           />
         </SceneBoundary>

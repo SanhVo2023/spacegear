@@ -6,11 +6,13 @@ import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObj
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
-import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, STREAM_IDLE_FALLBACK_MS, STREAM_IDLE_TIMEOUT_MS, SUN_END, SUN_START } from "@/components/globe/constants";
+import { rendererName } from "@/components/globe/device";
 import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
-import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
+import { disposeTextureSet, globeEntries, loadHeroTextures, releaseSource, streamTextureSet, type GlobeTextureSet, type HeroTextures } from "@/components/globe/textures";
+import { canStream4k, streamMayStart, type GlobeTier } from "@/components/globe/tiers";
 import { usePointerInput } from "@/components/globe/usePointerInput";
 
 export type SceneVariant = "cinematic" | "mobile";
@@ -23,12 +25,39 @@ export type EarthSceneProps = {
   dragTarget?: RefObject<HTMLElement | null>;
   /** The first textured frame has rendered. */
   onReady: () => void;
+  /** A sharper tier is now on screen (the 4k swap on capable desktops). */
+  onTier?: (tier: GlobeTier) => void;
   /** The WebGL context was lost: drop the canvas and keep the poster. */
   onLost: () => void;
 };
 
 const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
 const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
+
+type Connection = { saveData?: boolean; effectiveType?: string };
+
+/** canStream4k for this page: a hardware GPU with 4096 px textures, enough memory, a fast connection. */
+function streams4k(gl: THREE.WebGLRenderer): boolean {
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: Connection };
+  return canStream4k({
+    viewportWidth: window.innerWidth,
+    saveData: Boolean(nav.connection?.saveData),
+    effectiveType: nav.connection?.effectiveType,
+    deviceMemory: nav.deviceMemory,
+    maxTextureSize: gl.capabilities.maxTextureSize,
+    renderer: rendererName(gl.getContext()),
+  });
+}
+
+/** Runs `callback` once the browser is idle. Safari has no requestIdleCallback: a timer stands in. Returns a cancel function. */
+function whenIdle(callback: () => void): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(callback, { timeout: STREAM_IDLE_TIMEOUT_MS });
+    return () => window.cancelIdleCallback(id);
+  }
+  const timer = window.setTimeout(callback, STREAM_IDLE_FALLBACK_MS);
+  return () => window.clearTimeout(timer);
+}
 
 type RigProps = { progress: MotionValue<number>; settled: RefObject<{ announced: boolean }>; children: ReactNode };
 
@@ -80,19 +109,39 @@ type Warmup = {
   revealStart: number;
 };
 
+/**
+ * The 4k upgrade (capable desktops). waiting → idle (an idle callback is pending) → streaming → done,
+ * or skipped (not capable) or failed. A failure keeps the 2k set and is never retried.
+ */
+type Upgrade = {
+  status: "waiting" | "idle" | "streaming" | "done" | "skipped" | "failed";
+  cancelIdle: () => void;
+  controller: AbortController | null;
+  /** Decoded 4k maps waiting for their GPU upload, one per frame. */
+  queue: { texture: THREE.Texture; uploaded: () => void }[];
+};
+
 type ContentsProps = {
   variant: SceneVariant;
   load: Promise<HeroTextures>;
+  active: boolean;
   progress?: MotionValue<number>;
   pointer: RefObject<PointerInput>;
   onReady: () => void;
+  onTier?: (tier: GlobeTier) => void;
 };
 
-function SceneContents({ variant, load, progress, pointer, onReady }: ContentsProps) {
+function SceneContents({ variant, load, active, progress, pointer, onReady, onTier }: ContentsProps) {
   const loaded = use(load);
+  // The texture set on screen: the first set, then (capable desktops) the 4k set.
+  const [globe, setGlobe] = useState<GlobeTextureSet>(loaded.globe);
+  const shown = useRef<GlobeTextureSet>(loaded.globe);
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
   const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false, played: false, revealStart: -1 });
+  const upgrade = useRef<Upgrade>({ status: "waiting", cancelIdle: () => {}, controller: null, queue: [] });
+  // Frames run only while the hero is on screen in a visible tab (frameloop in EarthScene).
+  const live = useRef(active);
   // Scroll targets, recomputed only when the progress changes.
   const scroll = useRef({ p: Number.NaN, cameraZ: CAMERA_Z, sun: new THREE.Vector3() });
   const tilt = useRef({ x: createSpring(), y: createSpring() });
@@ -104,12 +153,93 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     warm.current.queued = true;
   }, [loaded]);
 
+  useEffect(() => {
+    live.current = active;
+  }, [active]);
+
+  // Leaving the hero for good (the cinematic branch, a failure, a navigation): cancel a pending start
+  // and abort the 4k stream, which frees every map it made; the queued maps are never uploaded.
+  useEffect(() => {
+    const u = upgrade.current;
+    return () => {
+      u.cancelIdle();
+      u.controller?.abort();
+      u.queue.length = 0;
+    };
+  }, []);
+
+  // The swap. The Globe has already rebound all five maps in its own effect (children's effects run
+  // first, and no frame runs between the two), so no frame ever mixes resolutions; free the 2k set.
+  useEffect(() => {
+    const previous = shown.current;
+    shown.current = globe;
+    if (previous === globe) return;
+    disposeTextureSet(previous);
+    onTier?.("4k");
+  }, [globe, onTier]);
+
+  // Streams the 4k set: each decoded map waits in the queue for a frame to upload it (upgradeStep),
+  // and the next map is decoded only after that, so uploads pause while the hero is off screen.
+  const startStream = (u: Upgrade) => {
+    u.status = "streaming";
+    const controller = new AbortController();
+    u.controller = controller;
+    streamTextureSet(globeEntries("4k"), {
+      signal: controller.signal,
+      upload: (texture) => new Promise<void>((uploaded) => { u.queue.push({ texture, uploaded }); }),
+    }).then(
+      (set) => {
+        // Unmounted as the last upload landed: the set never goes on screen.
+        if (controller.signal.aborted) return disposeTextureSet(set);
+        u.status = "done";
+        setGlobe(set);
+      },
+      () => {
+        // A missing or undecodable map, a lost context or an unmount: the loader has freed every 4k
+        // map it made. The 2k set stays on screen.
+        u.status = "failed";
+      },
+    );
+  };
+
+  // After the first frame: one queued 4k upload per frame; otherwise, once the intro and the globe's
+  // reveal are over, ask capable desktops to start the stream when the browser is idle.
+  const upgradeStep = (state: RootState) => {
+    const u = upgrade.current;
+    const job = u.queue.shift();
+    if (job) {
+      state.gl.initTexture(job.texture);
+      releaseSource(job.texture);
+      job.uploaded();
+      return;
+    }
+    if (u.status !== "waiting") return;
+    const w = warm.current;
+    const revealElapsed = w.revealStart < 0 ? -1 : state.clock.elapsedTime - w.revealStart;
+    if (!streamMayStart({ phase: getIntroPhase(), played: w.played, revealElapsed })) return;
+    if (!streams4k(state.gl)) {
+      u.status = "skipped";
+      return;
+    }
+    u.status = "idle";
+    u.cancelIdle = whenIdle(() => {
+      // Off screen or in a hidden tab: wait for the next frame, which comes only once it is back.
+      if (!live.current || document.hidden) u.status = "waiting";
+      else startStream(u);
+    });
+  };
+
   // Warm-up: compile the programs without blocking (KHR_parallel_shader_compile), upload one
-  // texture per frame so no single frame takes the whole upload, then show the scene.
+  // texture per frame so no single frame takes the whole upload, then show the scene. After that,
+  // capable desktops stream the 4k set the same way.
   useFrame((state) => {
     const w = warm.current;
     const group = root.current;
-    if (!group || w.announced) return;
+    if (!group) return;
+    if (w.announced) {
+      if (variant === "cinematic") upgradeStep(state);
+      return;
+    }
     if (!w.compiling) {
       w.compiling = true;
       state.gl
@@ -188,7 +318,7 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     }
   };
 
-  const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;
+  const globeNode = <Globe textures={globe} frame={frame} onFrame={drive} />;
   return (
     <group ref={root} visible={false}>
       {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} pointer={pointer} />}
@@ -199,10 +329,11 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
 
 /**
  * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop, the scroll beats,
- * cursor tilt and drag; its loading drives the intro counter. Phones and tablets ("mobile"): the 1k
- * globe alone.
+ * cursor tilt and drag; its loading drives the intro counter. Once the intro is over and the browser
+ * is idle, capable desktops stream the 4k set and swap it in place. Phones and tablets ("mobile"):
+ * the 1k globe alone.
  */
-export default function EarthScene({ variant, active, progress, dragTarget, onReady, onLost }: EarthSceneProps) {
+export default function EarthScene({ variant, active, progress, dragTarget, onReady, onTier, onLost }: EarthSceneProps) {
   const [load] = useState(() => {
     const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", {
       backdrop: variant === "cinematic",
@@ -240,7 +371,7 @@ export default function EarthScene({ variant, active, progress, dragTarget, onRe
       className="!absolute inset-0"
     >
       <Suspense fallback={null}>
-        <SceneContents variant={variant} load={load} progress={progress} pointer={pointer} onReady={onReady} />
+        <SceneContents variant={variant} load={load} active={active} progress={progress} pointer={pointer} onReady={onReady} onTier={onTier} />
       </Suspense>
     </Canvas>
   );
