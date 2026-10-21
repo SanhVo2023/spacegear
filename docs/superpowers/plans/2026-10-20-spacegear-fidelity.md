@@ -23,6 +23,15 @@
 - Task 21 also removed `scripts/prune-legacy-css.mjs` and restored two contact-form button/link styles into `globals.css`; `check-export` now fails on missing referenced local assets; `check-content` refuses samples outside development.
 - The same-page quick start never overwrites typed input, and `check-export` also verifies assets referenced from JS chunks, Draco files and og:image.
 - Task 22 sign-off: the two What We Measure right-column tags use a tighter line box at `lg`, so the bottom row keeps the original 280 px height despite the longer labels wrapping.
+- Final review fixes:
+  - `connect-src` allows `blob:`, so the globe's embedded textures load under the shipped CSP.
+  - Preview packaging keeps the security headers, and `test:browser` now runs under the CSP and checks for violations.
+  - Below-the-fold images are lazy, and the hero preloads go through `ReactDOM.preload`, one per visitor.
+  - Accessibility: Select button names follow the visible text, the ticker is focusable, `scroll-padding-top` is 88px, and `/approach/` has an h2.
+  - The hero stat reads "Ways to engage".
+  - Dead code and unreferenced assets are removed, and service art comes from `SERVICES[].image`.
+  - `check-export` scans every text file, and `check-fidelity` fails on a required section missing from the original.
+  - `check:fidelity` was not re-run: the reference server was stopped for low memory, so a before/after screenshot comparison of the candidate was done instead.
 
 The task code blocks below are left as originally written.
 
