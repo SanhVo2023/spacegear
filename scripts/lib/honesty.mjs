@@ -7,12 +7,13 @@
 //
 // What is scanned:
 //   - A Markdown file as written. A JSON file as its decoded string values, one field at a time,
-//     so neither an escaped "$" (\u{24} in JSON's four-digit form) nor an escaped line break
-//     (\n, \t) hides a claim. Object keys
-//     are not scanned: every content schema has fixed field names and refuses unknown ones.
-//   - Figure groups as they read on the page: for every object with a value, unit, label or score,
-//     "<value><unit> <score> <label> <scoreLabel> <sub> <title> <note> <tag>", so a figure split
-//     over fields ({ value: "98", unit: "%", label: "Client satisfaction" }) is still one claim.
+//     so neither an escaped "$" (JSON's backslash, "u", then the four hex digits 0024) nor an
+//     escaped line break (\n, \t) hides a claim. Object keys are not scanned: every content
+//     schema has fixed field names and refuses unknown ones.
+//   - Groups as they read on the page: for every object with a value, unit, label or score, or with
+//     a title and a sub or text, "<value><unit> <score> <title> <label> <scoreLabel> <sub> <text>
+//     <note> <tag>", so a figure or a phrase split over fields ({ value: "98", unit: "%", label:
+//     "Client satisfaction" }, { title: "Trusted by 200", sub: "companies" }) is still one claim.
 //   - Text is folded first: NFKC (a fullwidth ＄４９９ becomes $499), then every format character
 //     (\p{Cf}: zero-width, bidi, soft hyphen) and the combining grapheme joiner are removed.
 // Scopes (`where` is a content file or an export name, `field` the path inside it):
@@ -43,7 +44,9 @@ export const FORBIDDEN = [
   // A number with a rate ("499 per month", "49 a month", "49/mo"); "one team per project" is not a price.
   [/(?<![\w.,])\d[\d,.]{0,12}\s{0,3}(?:(?:per|a|an)\s{1,3}|\/\s{0,3})(?:month|year|yr|mo|hour|hr|day|week|project|user|seat|sprint)s?\b/i, "a price"],
   [/\b(?:hourly|daily|day) rates?\b|\b(?:price[sd]?|pricing|fees?|costs?|rates?)\s{0,3}(?:from|of|start(?:s|ing)?\s(?:at|from)|:)\s{0,3}\d|\bstarting (?:at|from)\s{0,3}\d/i, "a price"],
-  [/(?<![\w.,])\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!\s?(?:display|screen|monitor|video|resolution|TV|UHD|HDR)\b)/, "a price or scale figure", { skip: MEASURE_FIGURE }],
+  // Not a model size ("Llama 3 70B", "7B and 13B parameter models"), a context window ("128k
+  // context") or a screen ("4K display").
+  [/(?<![\w.,])(?<!\b(?:Llama|Mistral|Mixtral|Qwen|Gemma|Falcon|Phi|DeepSeek|Yi)[\w.\- ]{0,8})\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[kKmMbB]\b){0,3}\s?(?:display|screen|monitor|video|resolution|TV|UHD|HDR|context|tokens?|parameters?|params|models?)\b)/, "a price or scale figure", { skip: MEASURE_FIGURE }],
   // The original site and the old identity.
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
   [/Platform®|Platform B\.V\.|Platform Labs|plat—form/, "the old brand"],
@@ -56,18 +59,21 @@ export const FORBIDDEN = [
   [/(?<![\w.,])\d[\d,.]{0,15}\s{0,3}(?:\+\s{0,3})?(?:(?:happy|satisfied|enterprise|global)\s{1,3})?(?:clients?|customers?|companies|businesses|brands|teams|users|projects|countries|partners|employees|engineers|experts)\b|\b(?:hundreds|thousands|dozens|millions)\s{1,3}of\s{1,3}(?:(?:happy|satisfied|enterprise|global|our)\s{1,3})?(?:clients?|customers?|users?|compan(?:y|ies)|businesses|brands|organi[sz]ations|people)\b/i, "a client or scale claim"],
   [new RegExp(`\\b(?:${SPELLED})(?:[- ](?:${SPELLED}|one)){0,3}\\s{1,3}(?:(?:happy|satisfied|enterprise|global)\\s{1,3})?(?:clients|customers|companies|businesses|brands|engineers|developers|experts|employees|specialists|consultants)\\b|\\bteam of\\s{1,3}(?:\\d{1,4}|${SPELLED})\\s{1,3}(?:engineers|developers|experts|people|specialists|consultants)\\b`, "i"), "a client or scale claim"],
   [/\bFortune\s?(?:50|100|500|1000)\b/, "an unverified client claim"],
-  [/\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b|\bsatisfaction\s{1,3}(?:rate|score)\b/i, "a client result claim"],
-  // "You own 100% of the code" states ownership, not a result.
-  [/(?<![\w.,])(?!100\s?%\s{1,3}of\s{1,3}(?:the|your)\s{1,3}(?:code|source code|IP|intellectual property|work|deliverables|rights)\b)\d[\d.,]{0,6}\s?%|\bper ?cent\b/i, "a result figure", { skip: MEASURE_FIGURE }],
+  // A client result only with a figure next to it ("98% Client satisfaction", "Customers served:
+  // 10,000") or as a stated rate; "Analyse customer satisfaction surveys" describes a service.
+  [/(?<![\w.,])\d[\d.,]{0,8}[^.!?\n]{0,30}?\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b|\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b[^.!?\n]{0,30}?\d|\b(?:client|customer|user)\s{1,3}satisfaction\s{1,3}(?:of|rate|score)\b/i, "a client result claim"],
+  // "You own 100% of the code" states ownership and "100% remotely" a way of working, not a result.
+  [/(?<![\w.,])(?!100\s?%\s{1,3}(?:of\s{1,3}(?:the|your)\s{1,3}(?:code|source code|IP|intellectual property|work|deliverables|rights)|remote(?:ly)?|online)\b)\d[\d.,]{0,6}\s?%|\bper ?cent\b/i, "a result figure", { skip: MEASURE_FIGURE }],
   [/(?<![\w.,])\d{1,6}(?:\.\d{1,3})?\s?(?:x\b|×)|\b(?:two|three|four|five|ten)(?:fold| times)\b|\b(?:doubled|tripled|quadrupled)\b/i, "a multiplier claim"],
   // Press, partners, ratings, awards and certifications.
   [/TechCrunch/, "an unverified press or partnership claim"],
   [/\bAWS\b/, "an unverified press or partnership claim", { skip: LEGAL }],
   [/\b(?:[Aa]s [Ss]een (?:in|on)|[Ff]eatured (?:in|on|by)|[Ii]n the press|[Pp]ress coverage)\b|\b(?:Forbes|Wired|Bloomberg|Reuters|Gartner|Forrester|VentureBeat|Clutch)\b/, "an unverified press claim"],
-  [/\b(?:Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenAI|Anthropic|NVIDIA|IBM|Cloudflare)\s{1,3}(?:\w{1,20}\s{1,3}){0,2}?partner\b|\b(?:certified|official|premier|preferred|gold|silver|platinum|advanced|select|registered)\s{1,3}(?:tier\s{1,3})?partner\b/i, "an unverified partnership claim"],
+  // "Microsoft 365 and partner tools" lists products: no "and", "or" or comma between vendor and "partner".
+  [/\b(?:Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenAI|Anthropic|NVIDIA|IBM|Cloudflare)\s{1,3}(?:(?!(?:and|or)\b)\w{1,20}\s{1,3}){0,2}?partner\b|\b(?:certified|official|premier|gold|silver|platinum|advanced|registered)\s{1,3}(?:tier\s{1,3})?partner\b/i, "an unverified partnership claim"],
   [/\baward[- ]winning\b|\bwinner of\b|\brated\s{1,3}\d|\b\d\.\d\s?\/\s?(?:5|10)\b|\bout of (?:5|five|10)\b|\b(?:\d|five|four)[- ]star\b|(?:#\s?1|\bnumber one)\s{1,3}(?:\w{1,20}\s{1,3}){0,2}?(?:agency|agencies|consultancy|consultancies|firm|company|provider|studio|choice|partner|developer|team)\b|\btop[- ]rated\b/i, "an unverified rating or award"],
   [/[★☆]|(?<![\w.,])\d(?:\.\d)?\s?stars?\b/i, "an unverified rating or award"],
-  [/\bISO\s?\d{4,5}(?:[:-]\d{4})?\s{1,3}(?:certified|certification|compliant|accredited)\b|\bSOC\s?[123]\s{1,3}(?:Type\s{1,3}(?:II|I|1|2)\b|certified|compliant|report|audited)|\b(?:certified|accredited)\s{1,3}(?:ISO|SOC)\b/i, "an unverified certification"],
+  [/\bISO\s?\d{4,5}(?:[:-]\d{4})?\s{1,3}(?:certified|certification|compliant|accredited)\b|\bSOC\s?[123]\s{1,3}(?:Type\s{1,3}(?:II|I|1|2)\b|certified|compliant|audited)|\b(?:certified|accredited)\s{1,3}(?:ISO|SOC)\b/i, "an unverified certification"],
   // Offices.
   [/Amsterdam|New York|Dubai|Keizersgracht/, "an office location"],
   [/\boffices?\s{1,3}(?:in|across|around)\b|\bheadquarter(?:s|ed)\b|\bHQ\s{1,3}(?:in|at)\b|\b(?:our|global|regional)\s{1,3}HQ\b|\bbased (?:in|out of) (?!part\b)|\bour\s{1,3}[A-Z]\w{0,30}\s{1,3}(?:office|studio)\b/i, "an office location"],
@@ -95,7 +101,10 @@ export function findForbidden(text, where = "", field = "") {
 }
 
 const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-const FIGURE_PARTS = ["value", "unit", "score", "label", "scoreLabel", "sub", "title", "note", "tag"];
+const FIGURE_PARTS = ["value", "unit", "score", "title", "label", "scoreLabel", "sub", "text", "note", "tag"];
+/** A group whose fields read as one phrase on the page: a figure, or a title with its sub or text. */
+const isGroup = (value) => ["value", "unit", "label", "score"].some((key) => Object.hasOwn(value, key))
+  || (Object.hasOwn(value, "title") && (Object.hasOwn(value, "sub") || Object.hasOwn(value, "text")));
 
 /**
  * Every text to scan in a content value, as [field, text]: each string, and each figure group as
@@ -105,7 +114,7 @@ export function textsOf(value, field = "", out = []) {
   if (typeof value === "string") out.push([field, value]);
   else if (Array.isArray(value)) value.forEach((item, index) => textsOf(item, `${field}[${index}]`, out));
   else if (isRecord(value)) {
-    if (["value", "unit", "label", "score"].some((key) => Object.hasOwn(value, key))) {
+    if (isGroup(value)) {
       const part = (key) => (typeof value[key] === "string" || typeof value[key] === "number" ? String(value[key]) : "");
       const [amount, unit, ...rest] = FIGURE_PARTS.map(part);
       out.push([field, [`${amount}${unit}`, ...rest].filter(Boolean).join(" ")]);

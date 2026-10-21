@@ -40,6 +40,10 @@ const CLAIMS = [
   // Delivery timelines.
   "Delivered in 2 weeks", "launch in 30 days", "within 48 hours", "4-6 weeks", "We deliver every project within 2 weeks", "delivered in two weeks",
   "48-hour turnaround", "24h turnaround",
+  // Still refused after the Task 6b re-review narrowed the rules.
+  "Client satisfaction of 98", "customers served: 10,000", "Customer retention up 30", "Gold Partner of Microsoft", "an AWS partner",
+  "Google Cloud partner", "SOC2 Type 2", "SOC 2 compliant", "ISO 27001 compliant", "a 70B revenue run rate", "from 5k", "100% uptime",
+  "Typical engagements run 6–12 weeks", "We delete inquiry data within 90 days",
 ];
 const ORDINARY = [
   "Digital transformation and AI consulting, from strategy to working systems.", "Step 01", "Phase 2", "Two weeks of discovery",
@@ -53,6 +57,20 @@ const ORDINARY = [
   // Near misses of the optional patterns.
   "a North Star metric", "Star schema", "We help you prepare for SOC 2", "Fortune favours the prepared", "a quick turnaround on feedback",
   "two teams review each release", "Leave your name and email and we’ll take you to a short brief.",
+  // Realistic copy from the Task 6b re-review (the client-result, certification, partner and figure rules).
+  "Customer retention models that flag churn early", "Analyse customer satisfaction surveys with AI", "NPS and satisfaction scores in one dashboard",
+  "Users onboarded through single sign-on", "Customers served by your support team get faster answers",
+  "Open-weight models such as Llama 3 70B", "A 128k context window", "7B and 13B parameter models", "GPT-4o and Claude 3.5 Sonnet",
+  "We help you prepare your SOC 2 report", "Two teams review each release", "The first 2 weeks focus on discovery",
+  "Reports are delivered to your inbox", "Deliverables in plain language", "Built for teams of any size", "Assess, build, improve",
+  "A pilot plan and an enablement approach", "Prioritized use cases and data requirements", "Evaluation criteria, risks and human review points",
+  "Cases handled · assisted vs. manual · example", "Accuracy vs. baseline", "Rollout readiness: where a pilot might stand", "Test-case coverage",
+  "Kept in control", "Time per case · illustrative", "Human-in-the-loop review", "Connects with your stack", "See how we evaluate AI",
+  "Workflow mapping", "Data readiness review", "Microsoft 365 and partner tools", "Built on Cloudflare and partner services",
+  "Google Workspace or partner apps", "We select partner tools that fit", "Use your preferred partner", "Data stays in your region",
+  "One pilot, one team, one metric", "Start with one challenge", "Share the challenge. We’ll suggest a sensible first step.",
+  "We work 100% remotely", "Featured service", "Our team of specialists", "Thousands of documents processed in a pilot",
+  "Process thousands of invoices", "We complete a readiness review in each engagement", "We ship small, reviewed changes",
 ];
 
 test("every probe claim is caught in ordinary copy, including look-alike and invisible characters", () => {
@@ -77,7 +95,7 @@ test("the sample dashboard may show figures in its figure fields only", () => {
   const expected = [
     'ticker[0]: a result figure ("40%")',
     'cta: a price or scale figure ("2M")', // the { label, href } group, reported once
-    'coverage: a client result claim ("Client satisfaction")',
+    'coverage: a client result claim ("99.1% Client satisfaction")',
   ];
   for (const problem of expected) assert.ok(scanFile("content/measure.json", JSON.stringify(edited)).includes(problem), problem);
   for (const problem of expected) assert.ok(scanExports({ MEASURE: edited }).includes(`MEASURE.${problem}`), `MEASURE.${problem}`);
@@ -113,13 +131,21 @@ test("JSON files and exports are scanned as decoded values: escapes, line breaks
   assert.deepEqual(scanFile("content/legal/terms.md", "## A\n\n\\u0024"), [], "Markdown is scanned as written");
 });
 
+test("a claim split over a title and its sub or text is read as one claim", () => {
+  assert.ok(scanFile("content/home.json", JSON.stringify({ corner: { title: "Trusted by 200", sub: "companies across Asia", href: "/x/" } }))
+    .includes('corner: a client or scale claim ("200 companies")'));
+  assert.ok(scanFile("content/home.json", JSON.stringify({ pitch: { title: "200", text: "happy clients and counting" } }))
+    .includes('pitch: a client or scale claim ("200 happy clients")'));
+  assert.deepEqual(scanExports({ HOME: { corner: { title: "Trusted by 200", sub: "companies across Asia" } } }), ['HOME.corner: a client or scale claim ("200 companies")']);
+});
+
 test("a figure split over value, unit and label fields is read as one claim, and the real stats pass", () => {
   const home = JSON.parse(fs.readFileSync("content/home.json", "utf8"));
   assert.deepEqual(scanFile("content/home.json", JSON.stringify(home)), [], `real stats: ${JSON.stringify(home.stats)}`);
   assert.deepEqual(scanExports({ HOME: content.HOME }), []);
   const cases = [
     [{ value: "200", unit: "", label: "Clients served", sub: "Since the start" }, 'stats[0]: a client or scale claim ("200 Clients")'],
-    [{ value: "98", unit: "%", label: "Client satisfaction", sub: "Across projects" }, 'stats[0]: a client result claim ("Client satisfaction")'],
+    [{ value: "98", unit: "%", label: "Client satisfaction", sub: "Across projects" }, 'stats[0]: a client result claim ("98% Client satisfaction")'],
     [{ value: "98", unit: "%", label: "Satisfaction", sub: "Across projects" }, 'stats[0]: a result figure ("98%")'],
     [{ value: "12", unit: "", label: "Years in business", sub: "Founded long ago" }, 'stats[0]: an experience claim ("12 Years")'],
   ];
