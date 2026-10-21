@@ -5,8 +5,9 @@ import {
   useMotionValue,
   useTransform,
   type MotionValue,
+  type Variants,
 } from "motion/react";
-import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { preload } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -14,6 +15,7 @@ import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
 import { hasWebGL2 } from "@/components/globe/device";
+import { getIntroPhase, getServerIntroPhase, introStore } from "@/components/globe/intro-store";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
 // 3D scene is client-only (WebGL) — load without SSR.
@@ -56,16 +58,28 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
-  const fail = () => setGlobe("failed");
+  // A failure also ends a running intro at once (its counter would otherwise wait for the cap).
+  const fail = () => {
+    setGlobe("failed");
+    introStore.fail();
+  };
 
-  // Mount the WebGL scene when the browser is idle, after the copy has painted,
-  // and only while the hero is on screen (a reload mid-page fetches nothing).
+  // Mount the WebGL scene at once while the intro covers the page (its loading drives the counter);
+  // otherwise when the browser is idle, after the copy has painted. Only while the hero is on screen
+  // (a reload mid-page fetches nothing).
   useEffect(() => {
     if (!active || ready || globe === "failed") return;
     const enable = () => {
-      if (!hasWebGL2()) return; // keep the poster; fetch no textures
+      if (!hasWebGL2()) {
+        introStore.fail(); // keep the poster; fetch no textures
+        return;
+      }
       setReady(true);
     };
+    if (introStore.get().phase === "loading") {
+      const timer = window.setTimeout(enable, 0);
+      return () => window.clearTimeout(timer);
+    }
     if ("requestIdleCallback" in window) {
       const id = window.requestIdleCallback(enable, { timeout: 2000 });
       return () => window.cancelIdleCallback(id);
@@ -144,31 +158,63 @@ function Stat({ value, unit, label, sub }: StatData) {
   );
 }
 
+const EASE = [0.44, 0, 0.56, 1] as const;
+const RISE = [0.16, 1, 0.3, 1] as const;
+const fade = (delay: number): Variants => ({
+  hidden: { opacity: 0, y: 28, filter: "blur(6px)" },
+  shown: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.9, ease: EASE, delay } },
+});
+const EYEBROW = fade(0.05);
+const PITCH = fade(0.3);
+const STATS = fade(0.42);
+const HEADLINE: Variants = { hidden: {}, shown: { transition: { delayChildren: 0.12, staggerChildren: 0.045 } } };
+// 125 %, not 110 %: at the display face's 0.92 line height the ascenders of a word moved down by
+// 110 % still reach into its mask's bottom padding, which would show slivers before the rise.
+const WORD: Variants = { hidden: { y: "125%" }, shown: { y: "0%", transition: { duration: 0.95, ease: RISE } } };
+
+type Word = { text: string; tone?: string; after?: string };
+const [FIRST, SECOND, THIRD] = HOME.headline.verbs;
+// "— The smarter way to plan, build, and scale your business." as single words, each in its own mask.
+const WORDS: Word[] = [
+  { text: "—", tone: "text-mut-3" },
+  ...HOME.headline.lead.split(" ").map((text) => ({ text })),
+  { text: FIRST, tone: "text-flame", after: "," },
+  { text: SECOND, tone: "text-flame", after: "," },
+  { text: "and" },
+  { text: THIRD, tone: "text-flame" },
+  ...HOME.headline.tail.split(" ").map((text) => ({ text })),
+];
+
 function HeroCopy() {
-  const EASE = [0.44, 0, 0.56, 1] as const;
-  // Same markup for every visitor (static export): reduced motion is handled by
-  // MotionProvider (skipAnimations) and the reduced-motion end-state CSS.
-  const v = (delay: number) => ({
-    initial: { opacity: 0, y: 28, filter: "blur(6px)" },
-    animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-    transition: { duration: 0.9, ease: EASE, delay },
-  });
-  const [first, second, third] = HOME.headline.verbs;
+  // Same markup for every visitor (static export). The intro holds the copy until its reveal;
+  // reduced motion and no-JS get the end state from CSS on [data-reveal] (globals.css, NoScriptStyles).
+  const phase = useSyncExternalStore(introStore.subscribe, getIntroPhase, getServerIntroPhase);
+  const state = phase === "loading" ? "hidden" : "shown";
   return (
     <div className="hero-copy mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
-      <motion.p data-reveal="" {...v(0.05)} className="text-[15px] leading-tight">
+      <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="text-[15px] leading-tight">
         <span className="text-mut-2">{HOME.eyebrow.muted}</span>{" "}
         <span className="font-medium text-ink">{HOME.eyebrow.strong}</span>
       </motion.p>
 
-      <motion.h1 data-reveal="" {...v(0.15)} className="display mx-auto mt-6 max-w-3xl text-[clamp(38px,7.4vw,92px)] text-ink">
-        <span className="text-mut-3">— </span>
-        {HOME.headline.lead} <span className="text-flame">{first}</span>,{" "}
-        <span className="text-flame">{second}</span>, and{" "}
-        <span className="text-flame">{third}</span> {HOME.headline.tail}
+      {/* Each word rises out of its own mask (.hero-word-mask). The heading's accessible name is the
+          sentence itself; role="none" keeps Chrome from exposing each inline-block mask as a group,
+          so assistive technology gets plain runs of text, as with the unsplit markup. */}
+      <motion.h1 variants={HEADLINE} initial="hidden" animate={state} className="display mx-auto mt-6 max-w-3xl text-[clamp(38px,7.4vw,92px)] text-ink">
+        {WORDS.map((word, index) => (
+          <Fragment key={index}>
+            {index > 0 && " "}
+            <span role="none" className="hero-word-mask">
+              <motion.span data-reveal="" variants={WORD} className="hero-word">
+                {word.tone ? <span className={word.tone}>{word.text}</span> : word.text}
+                {word.after}
+              </motion.span>
+            </span>
+          </Fragment>
+        ))}
       </motion.h1>
 
-      <motion.div data-reveal="" {...v(0.3)} className="mt-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center lg:items-start">
+      <motion.div data-reveal="" variants={PITCH} initial="hidden" animate={state} className="mt-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center lg:items-start">
         <div>
           <h2 className="text-xl font-medium text-ink">{HOME.pitch.title}</h2>
           <p className="mx-auto mt-1 max-w-xs text-[13px] text-mut-2">{HOME.pitch.text}</p>
@@ -186,7 +232,7 @@ function HeroCopy() {
         </Link>
       </motion.div>
 
-      <motion.div data-reveal="" {...v(0.42)} className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 lg:justify-start">
+      <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 lg:justify-start">
         {HOME.stats.map((stat) => (
           <Stat key={stat.label} {...stat} />
         ))}

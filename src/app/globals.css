@@ -286,6 +286,17 @@ html { scroll-padding-top: 88px; }
   .hero-scene[data-dragging] { cursor: grabbing; }
 }
 
+/* Hero headline words rise out of masks (OrbitalCinematic.tsx). The padding keeps descenders and
+   the display face's 0.92 line height inside the clip; the negative margins cancel it in layout,
+   so the lines break and stack exactly as plain text. `overflow: clip` clips without making a
+   scroll container; `hidden` is the fallback (in @supports, which the minifier keeps). The end
+   state for reduced motion and no-JS is the [data-reveal] rule on each word. */
+.hero-word-mask { display: inline-block; overflow: clip; vertical-align: top; padding: 0.08em 0.04em 0.18em; margin: -0.08em -0.04em -0.18em; }
+@supports not (overflow: clip) {
+  .hero-word-mask { overflow: hidden; }
+}
+.hero-word { display: inline-block; }
+
 /* Intro loader (IntroOverlay.tsx). It shows only while the inline gate (IntroGate.tsx) has set
    html[data-intro]: never without JavaScript, under reduced motion, on Save-Data or slow
    connections, on phones or on repeat views. It sits under the skip link (z-index 100). */

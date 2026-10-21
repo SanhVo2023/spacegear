@@ -6,9 +6,10 @@ import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObj
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
-import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_SECONDS, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
 import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
-import { cameraZAt, rigAt, slerpDirection, sunDirectionAt } from "@/components/globe/scroll";
+import { getIntroPhase, introStore } from "@/components/globe/intro-store";
+import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
 import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
 import { usePointerInput } from "@/components/globe/usePointerInput";
 
@@ -73,6 +74,10 @@ type Warmup = {
   compiled: boolean;
   shownAt: number;
   announced: boolean;
+  /** The globe became ready under the intro overlay, so it fades up from black when the overlay lifts. */
+  played: boolean;
+  /** Clock time of the first frame after the overlay lifted (-1 until then). */
+  revealStart: number;
 };
 
 type ContentsProps = {
@@ -87,7 +92,7 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
   const loaded = use(load);
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
-  const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false });
+  const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false, played: false, revealStart: -1 });
   // Scroll targets, recomputed only when the progress changes.
   const scroll = useRef({ p: Number.NaN, cameraZ: CAMERA_Z, sun: new THREE.Vector3() });
   const tilt = useRef({ x: createSpring(), y: createSpring() });
@@ -128,6 +133,12 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     }
     if (state.clock.elapsedTime <= w.shownAt) return;
     w.announced = true;
+    if (variant === "cinematic") {
+      // The first textured frame is on screen: the intro counter may reach 100. Under the overlay the
+      // globe then waits, black, for the reveal (drive).
+      w.played = getIntroPhase() === "loading";
+      introStore.markReady();
+    }
     onReady();
   });
 
@@ -156,6 +167,24 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     f.spinBoost = stepDrag(input, drag.current, delta, window.innerWidth);
     f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * MAX_TILT, delta) + drag.current.pitch.value;
     f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * MAX_TILT, delta);
+
+    // Intro reveal. A globe that became ready under the overlay stays black until the overlay lifts,
+    // then fades up from black while the atmosphere flares once. Without the intro, or when the intro
+    // ended first (its load cap, an input), the canvas itself fades in over the poster (globals.css).
+    const w = warm.current;
+    const covered = getIntroPhase() === "loading";
+    if (!(w.announced ? w.played : covered)) {
+      f.reveal = 1;
+      f.flare = 1;
+    } else if (covered) {
+      f.reveal = 0;
+      f.flare = 1;
+    } else {
+      if (w.revealStart < 0) w.revealStart = state.clock.elapsedTime;
+      const t = state.clock.elapsedTime - w.revealStart;
+      f.reveal = smoothstep(0, REVEAL_SECONDS, t);
+      f.flare = 1 + FLARE_GAIN * Math.sin(Math.PI * clamp01(t / FLARE_SECONDS));
+    }
   };
 
   const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;
@@ -169,11 +198,15 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
 
 /**
  * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop, the scroll beats,
- * cursor tilt and drag. Phones and tablets ("mobile"): the 1k globe alone.
+ * cursor tilt and drag; its loading drives the intro counter. Phones and tablets ("mobile"): the 1k
+ * globe alone.
  */
 export default function EarthScene({ variant, active, progress, dragTarget, onReady, onLost }: EarthSceneProps) {
   const [load] = useState(() => {
-    const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", { backdrop: variant === "cinematic" });
+    const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", {
+      backdrop: variant === "cinematic",
+      onProgress: variant === "cinematic" ? (fraction) => introStore.setProgress(fraction) : undefined,
+    });
     // A failed load surfaces through use() → SceneBoundary; this only marks the rejection handled.
     promise.catch(() => undefined);
     return promise;
