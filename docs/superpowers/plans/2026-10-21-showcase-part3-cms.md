@@ -3505,3 +3505,14 @@ The only task that edits section components. Each edit replaces `src={X}` with `
     - Keep these in `npm test`: the compile-time type contract against `content-v1.d.ts`, the key and shape checks, the schema and uniqueness rules, the honesty scan and the index freshness check.
     - In the README, say that `check-migration` documents the original migration, and that it is expected to fail after deliberate copy edits.
   - **Uniqueness gaps, out of scope for now:** some list values used as React keys are still not checked: the Analytics labels and glyphs, process `step`, pillar `no`, and footer link hrefs. A duplicate only causes a React key warning; there is no build or data failure.
+- **Task 4 review: client validation is accepted as is.**
+  - **Cost:**
+    - The content validation (schema plus `buildContent`) ships in a shared client chunk: +13.6 KB raw, +4.8 KB gzip. That is about 2 % of mobile JS.
+    - It costs about +6 ms of evaluation per full page load.
+    - The Worker bundle grows from about 20 KB to 61 KB and runs `buildContent` at cold start (about 6–7 ms).
+  - **Why accepted:** `buildContent` also normalises and derives values. Skipping it in the browser would break hydration.
+  - **Later option:** a generated, pre-validated data module, if a JS budget is ever set.
+  - **Folded into Task 5:**
+    - Tighten `Same` in `content-contract.ts` to the exact-equality form, so an added optional key and `any` are also caught.
+    - Fix the `content.ts` header comment: validation also runs in the browser and the Worker.
+  - **Task 6 must** validate `content/site.json` in `check-content`, and print content errors without a stack trace.
