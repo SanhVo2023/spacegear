@@ -6,7 +6,7 @@
 
 **Architecture:** All copy moves from `src/lib/content.ts` into `content/` (JSON singletons, one-file-per-entry folder collections with an `order` field, and Markdown legal pages). `src/lib/content.ts` becomes a typed loader: it imports the JSON statically (`with { type: "json" }`), validates it with a tiny in-repo schema layer (`src/lib/content-schema.ts`, no zod), derives the same values and exports the same names and types, so no component logic changes. A generated, committed `src/lib/content-index.generated.ts` lists the folder-collection entries, because the loader also runs in the browser bundle and in the Worker, where it cannot read a folder. `/admin/` is a static page that loads a pinned, integrity-checked copy of Sveltia CMS from `public/admin/sveltia/`, with its own CSP rule in `public/_headers`. CMS uploads go to `public/uploads/`; a sharp build step writes 640 and 1280 px WebP variants into a cache outside `public/` (`photo.jpg` → `photo.jpg.w640.webp`, see "Amendments" for Task 7), packaging ships them next to the originals under `/uploads/`, and `contentImage()` renders uploads through those variants.
 
-**Tech Stack:** Next.js 16.2.7 static export (Turbopack), React 19.2, TypeScript 5.9, Node 22.14 (`--experimental-strip-types`, `node:test` + tsx), sharp 0.34, Sveltia CMS 0.250.0 (vendored `dist/` IIFE build), js-yaml 4.2.0 (tests only), Cloudflare Workers Static Assets (`_headers`), Playwright (Chromium).
+**Tech Stack:** Next.js 16.2.7 static export (Turbopack), React 19.2, TypeScript 5.9, Node 22.14 (`--experimental-strip-types`, `node:test` + tsx), sharp 0.34, Sveltia CMS 0.230.1 (vendored `dist/` IIFE build; the pin moved from 0.250.0, see "Controller amendments"), js-yaml 4.2.0 (tests only), Cloudflare Workers Static Assets (`_headers`), Playwright (Chromium).
 
 **Spec:** `docs/superpowers/specs/2026-10-21-spacegear-showcase-design.md`, Part 3, plus "Guardrails" and "Testing and verification".
 
@@ -14,21 +14,21 @@
 
 ## Research summary (read before Task 9)
 
-**Version and distribution.** `npm view @sveltia/cms` (2026-10-21): latest `0.250.0`, tarball `https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz`, integrity `sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==`. The package ships two builds:
+**Version and distribution.** Pinned in Task 9: `0.230.1` (published 2026-10-07T11:00Z, at least 14 days old), tarball `https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz`, integrity `sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==`. Planning inspected `0.250.0` (latest on 2026-10-21, integrity `sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==`); the notes below hold for 0.230.1 unless they say otherwise. The package ships two builds:
 
 | Build | Files | Usable unbundled? |
 |---|---|---|
-| `dist/sveltia-cms.js` (IIFE, auto-initializes) | 2.5 MB + `dist/chunks/{git,qrcode,react-dom}.js` + `dist/chunks/assets/rolldown-runtime-*.js` | **Yes.** This is the documented browser build (docs: plain `<script>`, "not distributed as an ES module"). It loads its chunks with `import(new URL("chunks/<name>.js", document.currentScript.src))` and only falls back to unpkg if that fails (function `DSe` in the bundle), so the chunks vendored next to it are used. |
+| `dist/sveltia-cms.js` (IIFE, auto-initializes) | 0.230.1: 2.25 MB + `dist/chunks/react-dom.js` (0.250.0: 2.5 MB + `dist/chunks/{git,qrcode,react-dom}.js` + `dist/chunks/assets/rolldown-runtime-*.js`) | **Yes.** This is the documented browser build (docs: plain `<script>`, "not distributed as an ES module"). It loads its chunks with `import(new URL("chunks/<name>.js", document.currentScript.src))` and only falls back to unpkg if that fails (functions `hH`/`_H` in 0.230.1, `DSe` in 0.250.0), so the chunks vendored next to it are used. |
 | `npm/index.js` (ESM for bundlers) | 2.5 MB + 300 chunks + fonts/wasm | No: it has bare dynamic imports (`import("exifr/…")`, `import("@shikijs/langs/…")`) and JSON locale imports that need a bundler and the package's dependencies installed. |
 
 **Decision:** vendor `dist/sveltia-cms.js`, `dist/chunks/**/*.js` and `LICENSE.txt` (no source maps) into `public/admin/sveltia/` with `scripts/vendor-sveltia.mjs`, which downloads the pinned tarball, verifies its sha512 integrity, extracts with a small built-in tar reader and records sha256 hashes in `scripts/sveltia-cms.lock.json`. `npm test` re-verifies the hashes offline. Sveltia is not installed into `node_modules`. (The CMS worktree has its own `node_modules`, installed with `npm ci`, because Turbopack rejects a `node_modules` junction that points outside the project root; see "Amendments made during execution".)
 
-**What the bundle fetches at run time** (inspected in `dist/sveltia-cms.js` 0.250.0):
+**What the bundle fetches at run time** (inspected in `dist/sveltia-cms.js` 0.250.0, and again in 0.230.1 in Task 9, which also booted it headless):
 - `@font-face` rules for Source Sans 3, Noto Mono and Material Symbols (the UI icons) from `https://cdn.jsdelivr.net/fontsource/fonts/…`. Without them the icons render as words, so the admin CSP allows that one path for fonts.
 - An update check, `fetch("https://unpkg.com/@sveltia/cms/package.json")`, on start and hourly (wrapped in try/catch). Blocked on purpose.
-- Non-English UI strings from `https://unpkg.com/@sveltia/cms@0.250.0/locales/<locale>.json`. Blocked: the CMS then shows an error and falls back to English (choose English in its settings).
+- Non-English UI strings from `https://unpkg.com/@sveltia/cms@<pinned version>/locales/<locale>.json`. Blocked: the CMS then shows an error and falls back to English (choose English in its settings).
 - Optional libraries from unpkg, only when their feature is used: exifr (asset details), turndown (HTML paste in the rich-text editor), Immutable (custom preview templates), Leaflet/terra-draw (map field), PDF.js, SVGO, jSquash, the HEIC decoder, Shiki and Day.js locales. This config uses none of them: text fields are plain `string`/`text` widgets and image optimisation uses Chrome's native WebP encoder (`OffscreenCanvas.convertToBlob`).
-- `https://api.github.com` and `https://www.githubstatus.com` only with the GitHub backend (later).
+- `https://api.github.com` with the GitHub backend (later). **Corrected in Task 9:** `https://www.githubstatus.com/api/v2/status.json` is fetched on the sign-in screen whenever `backend.name` is `github`, so also before "Work with Local Repository" (headless boot, see "Amendments", Task 9).
 - No `eval` or `new Function` in the bundle.
 
 **CSP for `/admin/*`** (sources: Sveltia's CSP guide, https://sveltiacms.app/en/docs/security#setting-up-content-security-policy, which lists `style-src 'self' 'unsafe-inline'`, `font-src 'self' https://cdn.jsdelivr.net`, `img-src 'self' blob: data:`, `media-src blob:`, `frame-src blob:`, `script-src 'self' https://unpkg.com`, `connect-src 'self' blob: data: https://unpkg.com`, `manifest-src blob:`, and states that Sveltia "does not require the `unsafe-eval` and `unsafe-inline` keywords in the `script-src` CSP directive"; plus the bundle inspection above):
@@ -45,7 +45,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
 **Next 16 and JSON.** `node_modules/next/dist/docs/01-app/03-api-reference/08-turbopack.md`: "JSON Imports: Supported". Next's SWC parser options enable import attributes (`importAssertions: true`, `keepImportAttributes: true` in `next/dist/build/swc/options.js`). Probes in the planning scratchpad confirmed that `import x from "./a.json" with { type: "json" }` plus `.ts` specifiers work under `node --experimental-strip-types` (Node 22.14, no warning), tsx 4.23, esbuild 0.28 (the Worker bundle) and `tsc` 5.9 with both tsconfigs. Turbopack is first exercised by the Task 4 build; the fallback is in Task 4.
 
-**Verified in planning (scratchpad prototypes, not in the repo):** the loader reproduces all 23 exports with identical values and key order (`JSON.stringify` equality); the type contract passes and fails on a drifted type; ESLint passes; 81 unit tests pass; `config.yml` validates against Sveltia 0.250.0's own JSON schema (`schema/sveltia-cms.json`, via ajv) and mirrors the content schemas; the legal Markdown renders the same static markup and element tree as the JSX; the vendor script's tar reader extracts the six files listed in Task 9 with the hashes listed there; the HTML snapshot tool reports a build identical to itself.
+**Verified in planning (scratchpad prototypes, not in the repo):** the loader reproduces all 23 exports with identical values and key order (`JSON.stringify` equality); the type contract passes and fails on a drifted type; ESLint passes; 81 unit tests pass; `config.yml` validates against Sveltia 0.250.0's own JSON schema (`schema/sveltia-cms.json`, via ajv) and mirrors the content schemas (the committed config was re-validated against 0.230.1's schema in Task 9); the legal Markdown renders the same static markup and element tree as the JSX; the vendor script's tar reader extracts the six files listed in Task 9 with the hashes listed there; the HTML snapshot tool reports a build identical to itself.
 
 ---
 
@@ -102,7 +102,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `tests/uploads.test.mjs` | Variant script and helper tests | 7 |
 | `.gitattributes` | Keep vendored bytes exact | 9 |
 | `scripts/vendor-sveltia.mjs`, `scripts/sveltia-cms.lock.json` | Pinned, verified vendoring | 9 |
-| `public/admin/sveltia/**` (6 files) | Vendored Sveltia CMS 0.250.0 | 9 |
+| `public/admin/sveltia/**` (3 files) | Vendored Sveltia CMS 0.230.1 | 9 |
 | `public/admin/index.html`, `public/admin/config.yml` | Admin page and CMS configuration | 9 |
 | `tests/admin.test.mjs`, `tests/cms-config.test.mjs` | Vendoring, page, headers and config-mirror tests | 9–10 |
 
@@ -2332,9 +2332,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
   export const SVELTIA = {
     name: "@sveltia/cms",
-    version: "0.250.0",
-    tarball: "https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz",
-    integrity: "sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==",
+    version: "0.230.1",
+    tarball: "https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz",
+    integrity: "sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==",
   };
   export const TARGET = "public/admin/sveltia";
   export const LOCK = "scripts/sveltia-cms.lock.json";
@@ -2430,24 +2430,21 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   In `package.json`, after `"uploads:variants": "node scripts/build-upload-variants.mjs"` add a comma and `"cms:vendor": "node scripts/vendor-sveltia.mjs"`.
 
 - [ ] **Step 5: Vendor the pinned release.** `cd "$CMS" && npm run cms:vendor && cat scripts/sveltia-cms.lock.json && npm run cms:vendor -- --check`
-  Expected: `Vendored @sveltia/cms@0.250.0: 6 files in public/admin/sveltia/.`, then exactly this lock (hashes computed in planning from the same tarball), then `Vendored @sveltia/cms@0.250.0 matches scripts/sveltia-cms.lock.json.`
+  Expected (0.230.1, Task 9): `Vendored @sveltia/cms@0.230.1: 3 files in public/admin/sveltia/.`, then exactly this lock, then `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json.`
   ```json
   {
     "name": "@sveltia/cms",
-    "version": "0.250.0",
-    "tarball": "https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz",
-    "integrity": "sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==",
+    "version": "0.230.1",
+    "tarball": "https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz",
+    "integrity": "sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==",
     "files": {
       "LICENSE.txt": "dcbe3c626d85741f6fabefed0b34d07a2e92c032f63aa21c0279062363859c32",
-      "chunks/assets/rolldown-runtime-BWaJ3C7D.js": "d0e9044430006c5bb48f477501a5af465f0a6377d2fcd7495aa215b8b75aaee3",
-      "chunks/git.js": "26d6684db7c102fea569335338deede109f97839f9c7681122de4881ab7afd51",
-      "chunks/qrcode.js": "5433cb7316cc764966ee5c089515220d5b7bb16e42369578e30fe9a8e1d532e4",
-      "chunks/react-dom.js": "257c2d34a3b0a1ebb86422ccaddde42a30d9708f9df5c72276cb6a43bdfa1642",
-      "sveltia-cms.js": "0a87824fe797d03154fdae61b617692db6c54b2c8ac11033de940799f4d4b926"
+      "chunks/react-dom.js": "9b5ffe4f9241b1885d9da326f3401e9727d628bfbecb0cb32b027cda25d5bfeb",
+      "sveltia-cms.js": "d3eff7b0ba761ee1d06e9f581304075a575757de4cbd7ec1179b95873f6f4fc7"
     }
   }
   ```
-  Sizes: `sveltia-cms.js` 2,586,436 bytes, `chunks/react-dom.js` 213,151, `chunks/git.js` 167,074, `chunks/qrcode.js` 23,497, `rolldown-runtime` 911, `LICENSE.txt` 1,071. An integrity error means the registry served different bytes: stop and report.
+  Sizes (0.230.1, source map comments removed): `sveltia-cms.js` 2,250,499 bytes, `chunks/react-dom.js` 213,847, `LICENSE.txt` 1,071. (0.250.0 had `sveltia-cms.js` 2,586,436, `chunks/react-dom.js` 213,151, `chunks/git.js` 167,074, `chunks/qrcode.js` 23,497 and a 911-byte `rolldown-runtime`.) An integrity error means the registry served different bytes: stop and report.
 
 - [ ] **Step 6: Write the admin page** `public/admin/index.html`:
   ```html
@@ -2468,7 +2465,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   </html>
   ```
 
-- [ ] **Step 7: Write the CMS configuration** `public/admin/config.yml` (validated in planning against Sveltia 0.250.0's `schema/sveltia-cms.json` and by the mirror test):
+- [ ] **Step 7: Write the CMS configuration** `public/admin/config.yml` (validated in planning against Sveltia 0.250.0's `schema/sveltia-cms.json` and by the mirror test). **Superseded by the committed file**, which validates against 0.230.1's schema; the block below is the planning draft. The differences are listed under "Amendments", Task 9 (no `auto_increment`, a hidden `order`, the legal `pattern`, `use_emoji_autocomplete: false`, per-format transformations, explicit slug options):
   ```yaml
   # Sveltia CMS configuration for spacegear.tech, served at /admin/config.yml.
   #
@@ -3132,7 +3129,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
 - [ ] **Step 10: Commit.** Check that git stored the vendored files without conversion: `git add` then `git ls-files --eol public/admin/sveltia | head -3` shows `attr/-text -diff`.
   ```bash
-  cd "$CMS" && git add .gitattributes scripts/vendor-sveltia.mjs scripts/sveltia-cms.lock.json public/admin package.json package-lock.json tests/admin.test.mjs tests/cms-config.test.mjs && git ls-files --eol public/admin/sveltia | head -3 && git commit -m "feat(cms): vendor Sveltia CMS 0.250.0 and add the /admin page and CMS configuration" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+  cd "$CMS" && git add .gitattributes scripts/vendor-sveltia.mjs scripts/sveltia-cms.lock.json public/admin package.json package-lock.json tests/admin.test.mjs tests/cms-config.test.mjs && git ls-files --eol public/admin/sveltia | head -3 && git commit -m "feat(cms): vendor Sveltia CMS 0.230.1 and add the /admin page and CMS configuration" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   ```
 
 ---
@@ -3216,7 +3213,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   if(/<script(?![^>]*\ssrc=)[^>]*>/.test(adminHtml))errors.push("admin/index.html must not use inline scripts (its CSP allows script-src 'self' only)");
   if(!/^\/admin\/\*\r?$/m.test(await fs.readFile(path.join(root,"_headers"),"utf8")))errors.push("dist/_headers has no /admin/* rule");
   ```
-  The existing scans already cover the admin files: the old-identity scan reads the vendored JS (0.250.0 contains none of those strings; checked in planning), and `admin/index.html`'s only local reference, `/icon.svg`, ships.
+  The existing scans already cover the admin files: the old-identity scan reads the vendored JS (0.230.1 contains none of those strings, nor does `config.yml` or `index.html`; checked in Task 9), and `admin/index.html`'s only local reference, `/icon.svg`, ships.
 
 - [ ] **Step 5: Assert noindex and no links in the SEO crawl.** In `scripts/check-seo.mjs`, insert before the line `  for (const path of [...links, ...assets]) assert.equal(`:
   ```js
@@ -3316,7 +3313,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   ````markdown
   ## Editing content
 
-  All copy lives in [content/](content/) as JSON and Markdown; images added by editors go to `public/uploads/`. [src/lib/content.ts](src/lib/content.ts) loads and validates those files at build time, so the site never fetches content at run time. The editor at `/admin/` is [Sveltia CMS](https://sveltiacms.app/) 0.250.0, vendored in `public/admin/sveltia/` (no CMS code comes from a CDN). `/admin/` is not linked from the site, is `noindex` and has its own Content-Security-Policy.
+  All copy lives in [content/](content/) as JSON and Markdown; images added by editors go to `public/uploads/`. [src/lib/content.ts](src/lib/content.ts) loads and validates those files at build time, so the site never fetches content at run time. The editor at `/admin/` is [Sveltia CMS](https://sveltiacms.app/) 0.230.1, vendored in `public/admin/sveltia/` (no CMS code comes from a CDN). `/admin/` is not linked from the site, is `noindex` and has its own Content-Security-Policy.
 
   ### Edit locally (today)
 
@@ -3375,7 +3372,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   cd "$CMS" && npm run lint && npm run typecheck && npm test && node scripts/vendor-sveltia.mjs --check && node scripts/build-content-index.mjs --check
   cd "$CMS" && node scripts/html-snapshot.mjs compare artifacts/html-baseline
   ```
-  Expected: all pass; `Vendored @sveltia/cms@0.250.0 matches scripts/sveltia-cms.lock.json.`; `Content index is up to date.`; the HTML compare result from Task 10 still holds (docs do not change the build, so no rebuild is needed).
+  Expected: all pass; `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json.`; `Content index is up to date.`; the HTML compare result from Task 10 still holds (docs do not change the build, so no rebuild is needed).
 
 - [ ] **Step 4: Commit and hand off.**
   ```bash
@@ -3733,12 +3730,83 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - Lint and typecheck are clean. `npm test`: 165 tests, 164 pass, 1 skipped (file symlinks need developer mode on Windows).
      - `check-content`: `Content valid: 12 routes; preview mode.` `check-export` passes on the current `dist/`.
      - **Temp-copy packaging run:** `hero.webp` and `hero-1280.webp` shipped with 4 variants and `check-export` passed. A cached variant truncated afterwards was not shipped, along with its sibling, because the upload ships without variants until they are current. A planted `dist/uploads/.env` and `.hidden/page.html` were refused. The next variant step rewrote only the damaged file (1 written, 3 up to date).
+- **Task 9** (`7799d31`, `15685c7`, `8b3fb86`, `6fd9ea9`, `981aaa6`, `f662b61`). These committed files supersede Task 9's code blocks: `scripts/vendor-sveltia.mjs`, `scripts/sveltia-cms.lock.json`, `public/admin/config.yml`, `tests/admin.test.mjs` and `tests/cms-config.test.mjs`. New: `tests/cms-upload-names.test.mjs` with `tests/helpers/sveltia-names.mjs`, `tests/upload-checks.test.mjs` and `tests/helpers/project-temp.mjs`. `npm test` went from 165 to 189 tests (188 pass, 1 skipped).
+  1. **Pin `@sveltia/cms@0.230.1`** (controller amendment), published 2026-10-07T11:00Z.
+     - `npm view @sveltia/cms@0.230.1`: integrity `sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==`, shasum `d38cba36b78421d6401639cb6adbc3780f0f04f5`. `npm run cms:vendor` downloaded the tarball and verified it; the Task 7 reviewer's copy of the tarball has the same sha512.
+     - 0.230.1 ships only one chunk, so 3 files are vendored. Hashes (sha256, after the trailing `sourceMappingURL` comment is removed): `LICENSE.txt` `dcbe3c62…` (1,071 B), `chunks/react-dom.js` `9b5ffe4f…` (213,847 B), `sveltia-cms.js` `d3eff7b0…` (2,250,499 B). They match an independent cut of the reviewer's extracted copy.
+     - `.gitattributes` came first; `git check-attr` gives `text: unset` and `diff: unset`, and `git ls-files --eol` shows `i/lf w/lf attr/-text`.
+  2. **`js-yaml`** was declared with `npm install --save-dev --save-exact js-yaml@4.2.0` (released 2026-05-31). npm also moved `esbuild` into alphabetical order in both files; that move was undone, so each file gains one line.
+  3. **Vendor script** (deviations from Step 4):
+     - The `sourceMappingURL` comment is removed from the bytes read as latin1, which maps each byte to one character, instead of a UTF-8 round trip that could change bytes.
+     - Paths resolve from the script's own folder (`ROOT`), as in the other scripts.
+     - New tests: the ustar and pax reader, and a tarball with other bytes is refused (`Integrity mismatch for @sveltia/cms@0.230.1`). The vendored bundle must also name itself as `0.230.1` and carry no `sourceMappingURL`.
+  4. **Schema validation.** `public/admin/config.yml` is valid against 0.230.1's own `schema/sveltia-cms.json` (ajv 6.15.0, draft-07, `artifacts/t9/validate-config.mjs`; the schema is in the npm tarball, not vendored).
+     - The plan's Step 7 draft fails that schema in one way only: `auto_increment` on `&order`, which 0.230.1's `NumberField` does not have (`additionalProperties: false`). Without that key the draft is valid.
+     - Planted errors are caught: `use_emoji_autocomplete` at the top level, or on a number field.
+     - Booted headless (below), the CMS logs no configuration warning.
+  5. **`order` is a hidden field.** 0.230.1 has no `auto_increment`, but with `reorder: true` it numbers entries itself (bundle functions `P3` and `m5`): a new or duplicated entry gets the highest `order` plus one when it is saved, and dragging or deleting entries renumbers them 1, 2, 3… A visible required number field would be checked before that number is set, so editors would have to type a number that is then replaced.
+     - The mirror test accepts `widget: hidden` for `order` only in a collection with `reorder: true`, and requires the schema to be a whole number from 1.
+     - The CMS writes `order` as the first key of the JSON. So the first CMS save of an entry also moves `order` from the end to the top (seen in the headless edit). The loader orders keys by schema, so the site does not change. Moving `order` first in the 21 committed entry files would make those diffs one line; that is left to the controller.
+  6. **Legal pages** (controller amendment):
+     - `&legal_body` stays `widget: text`; a test pins it.
+     - Its `pattern` is ``^(?![\s\S]*(?:<INLINE_SYNTAX.source>))##[ \t]+\S``: a `## ` heading with text first, and none of the parser's inline syntax anywhere. The test builds the expected string from `INLINE_SYNTAX`, which `0a39f83` already exports, so the two cannot drift. The test also checks that the CMS rule and the parser agree on today's pages, on a good sample and on 13 refused samples.
+     - Sveltia tests a field pattern with `new RegExp(source)` (no flags) against the **trimmed** value (bundle function `Aje`).
+     - The hint now says "Leave a blank line before each heading".
+     - Headless, an edit that adds `*bold*` shows the pattern message and saves nothing. A plain edit saves `privacy.md` with no front matter, as the bundle's writer does for a file whose only field is `body` (`ZAe`).
+  7. **`use_emoji_autocomplete: false`** (controller amendment). In 0.230.1 this is an option on each string, text, markdown and rich-text field; the schema refuses it at the top level, and `field_defaults` covers only rich text. It is set on all 135 string and text fields, and a test requires it on every one.
+  8. **Uploads.**
+     - `slugify_filename: true`, and the `slug` options written out: `encoding: ascii`, `clean_accents: true`, `sanitize_replacement: "-"`, `trim: true`, `lowercase: true`, `maxlength: 60`. All exist in 0.230.1's schema.
+     - **Per-format transformations** (controller decision): `jpeg`, `png`, `avif` and `heic` become WebP at quality 85, at most 2560 × 2560. `gif` and `webp` are left out, so animations survive.
+       - The bundle picks a transformation as `o[sniffed format] ?? o[declared format] ?? raster_image` (`Zxe`). The conversion draws on a canvas, which drops all metadata.
+     - **HEIC** is in 0.230.1. Its decoder comes from unpkg (`@discourse/heic`, through a blob worker), which the site and admin CSPs block, so a HEIC upload is refused at upload time ("Failed to decode HEIC image", then shown as invalid). Without the key, 0.230.1 would save the raw `.heic`, because its upload check accepts unknown MIME types, and only the build would refuse it.
+     - **No `filename_template`.** A taken name already gets `-1`, `-2`… (`Mj`), and a file with identical bytes reuses the existing name. So an upload never replaces another by accident, and names stay readable.
+     - **Names, from the bundle's own code** (`tests/cms-upload-names.test.mjs` runs `oK`, `RV`, sanitize-filename and the transliteration tables, taken from the vendored file into a vm context):
+
+       | Original | Saved as |
+       |---|---|
+       | `Banner 1280.png` | `banner-1280.webp` |
+       | `Ảnh đẹp.JPG` | `anh-dep.webp` |
+       | `résumé (final).webp` | `resume-final.webp` |
+       | `scan~2.jpg` | `scan~2.webp`: `~` survives ASCII slugs (`[^\w-~]`), and the build refuses the name |
+       | `IMG_0042.JPG` with Turkish case rules | `ımg_0042.webp`: `toLocaleLowerCase()` uses the browser's language; refused |
+       | `con.png`, `COM1.jpg`, `nul.webp` | none: sanitize-filename empties the name and `RV` then throws a TypeError, so nothing is saved (headless: page error, no upload dialog) |
+       | emoji or CJK only | a random 12-hex-character id |
+       | over 60 characters | cut to 60 |
+
+     - **The same in headless Chromium** (asset library, with an Origin Private File System folder standing in for the native picker):
+       - The six samples were saved as `banner-1280.webp`, `anh-dep.webp` (its GPS EXIF stripped), `resume-final.webp` (byte-identical, GPS EXIF kept), `spinner-anim.gif` and `loop-anim.webp` (both byte-identical, 3 frames each) and `scan~2.webp`.
+       - Run on those files, check-content's rules list exactly `scan~2.webp` (rename) and `resume-final.webp` (location data).
+       - Playwright's `tr-TR` locale and `--lang=tr` did not change `"I".toLocaleLowerCase()` in headless Chromium, so the Turkish case is shown only by the vm test.
+     - **Answers to the Task 2 items "For Task 9":**
+       1. Sveltia's `maxlength` counts code points of the trimmed value (`[...d.trim()].length`, function `UQ`), the same as `textOf` for any valid value (the schema refuses outer spaces). `textOf` is unchanged.
+       2. `slugify_filename` writes names that `IMAGE` accepts, except the `~` and Turkish cases above.
+  9. **Location data (controller decision for animated uploads).** `check-content` now runs `locationProblems` (`scripts/lib/uploads.mjs`). It refuses any upload under `public/uploads/` that contains location data (wording: "contains location data … re-export it without location data and upload it again"):
+     - an EXIF GPS section with any tag but `GPSVersionID`, read from sharp's `metadata().exif` in either byte order, with or without the `Exif\0\0` prefix;
+     - an XMP `exif:GPS…` property other than `GPSVersionID`, under any prefix bound to the EXIF namespace;
+     - for GIF, which sharp does not read, the XMP packet in the file's bytes.
+
+     It also refuses an image whose metadata cannot be read, or whose EXIF is damaged. sharp is loaded lazily through a shared `loadSharp()`, which the variant step now imports too. Files are read into memory, so long Windows paths are fine.
+     - **Not read:** ImageMagick's hex "Raw profile type exif" PNG text chunks, and JPEG Extended XMP.
+  10. **Rename advice.** For a name outside `UPLOAD_PATH`, the message now suggests a name that fits and says what is wrong, for example `rename it, for example to scan-2.webp: upload names use … (not allowed here: "~")`. Other cases: `"ı", the dotless i that a Turkish-language browser writes for I`; capital letters; spaces; `"." before the extension`; `"con", a Windows device name`; and `U+202E` for invisible characters. The Task 7 test's expected message was updated.
+  11. **Temporary projects.** The check-content tests that copy the project and add uploads now create it in `artifacts/test-projects/`, because sharp must resolve from this repository's `node_modules`.
+  12. **Tailwind source detection** (`f662b61`). The first rebuild compared identical in HTML (chunk names are masked), but the chunk file comparison found the site stylesheet renamed. Tailwind v4 scans every file that git does not ignore, so the vendored bundle added eleven unused utilities (`.collapse`, `.table-cell`, `.line-through`…), +590 B. `@source not "../../public/admin";` in `src/app/globals.css` (fenced) fixes it, and a test pins it.
+  13. **Results** on `f662b61`:
+      - Lint and typecheck clean. `npm test`: 189 tests, 188 pass, 1 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json.`
+      - Rebuild: `Upload variants: 0 originals…`, `Uploads shipped: 0 files.`, `Export valid: 12 core pages, 156 files, 11.53 MiB total.` `out/admin/` is exported, and `dist/admin/` is not shipped (Task 10).
+      - All 19 chunks are byte-identical to the build before Task 9. `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` The baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+  14. **For Task 10:**
+      - Until `/admin/` ships, the preview answers 404 there.
+      - Headless boot under the planned admin CSP: the sign-in screen renders with its icon font, with no page errors. The CSP blocks two requests: the unpkg update check (expected) and `https://www.githubstatus.com/api/v2/status.json`. **Task 10's browser check as written allows only `connect-src blocked https://unpkg.com/` and would fail on the second.** Either allow `https://www.githubstatus.com` in `connect-src` now, or accept that violation in the check.
+      - Under today's site CSP the page also boots, but the jsDelivr fonts and a `data:` fetch are blocked too, and the icons show as words.
+      - Sveltia adds its own `<meta name="robots" content="noindex">` next to the page's `noindex, nofollow`.
+      - The update check finds 0.250.1 when it is not blocked, and logs a console warning.
 
 ## Risks and open questions
 
 1. **Turbopack and `with { type: "json" }`** is the one combination not probed in planning (all other tools were). Task 4 Step 8 exercises it first, before anything depends on it, and says what to do on failure.
 2. **Fonts come from jsDelivr at run time on `/admin/` only.** The CMS code is vendored, but the IIFE bundle hard-codes its Fontsource URLs; blocking them turns the Material Symbols icons into words. The admin CSP allows only `https://cdn.jsdelivr.net/fontsource/` for fonts. Fully self-hosting fonts would need the npm build bundled with esbuild and `@sveltia/cms` plus its dependencies installed into `node_modules`; left for later.
-3. **Sveltia 0.250.0 was released on 2026-10-21**, the day of this plan, and the project releases several times a week. The pin is verified (integrity, hashes, schema validation of `config.yml`); upgrades follow the README procedure.
+3. **Sveltia 0.250.0 was released on 2026-10-21**, the day of this plan, and the project releases several times a week. The controller pinned 0.230.1 (2026-10-07) instead, a release at least 14 days old. The pin is verified (integrity, hashes, schema validation of `config.yml`); upgrades follow the README procedure.
 4. **Blocked optional requests.** The update check logs a CSP error in DevTools (harmless, try/catch in the bundle). A non-English browser gets an error about translations and falls back to English. HEIC uploads, maps, PDF thumbnails and code highlighting are unavailable; none is used.
 5. **Linked worktree.** The local workflow saves into a linked worktree but cannot commit from the browser (Sveltia limitation); the owner commits with git.
 6. **New entries** created in the CMS need the index regenerated; every build does that, and `npm test` names the stale index if someone tests before building.
