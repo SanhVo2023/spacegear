@@ -122,3 +122,122 @@ void main() {
   #include <colorspace_fragment>
 }
 `;
+
+export const CLOUDS_VERTEX = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+void main() {
+  vUv = uv;
+  vNormalW = normalize(mat3(modelMatrix) * normal);
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vPosW = world.xyz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+export const CLOUDS_FRAGMENT = /* glsl */ `
+uniform sampler2D uClouds;
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform vec3 uTwilight;
+uniform vec3 uNightColor;
+uniform vec2 uCover;
+uniform float uCloudGain;
+uniform float uCloudAmbient;
+uniform float uCloudTwilightGain;
+uniform float uNightRim;
+uniform float uRimPower;
+uniform float uOpacity;
+uniform float uReveal;
+
+varying vec2 vUv;
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+void main() {
+  // Crush the thinnest haze so the coverage reads as clouds, not fog.
+  float cover = smoothstep(uCover.x, uCover.y, texture2D(uClouds, vUv).r);
+  vec3 n = normalize(vNormalW);
+  vec3 sun = normalize(uSunDir);
+  vec3 view = normalize(cameraPosition - vPosW);
+  float sunDot = dot(n, sun);
+  float dayMix = smoothstep(-0.12, 0.25, sunDot);
+  float band = (sunDot - 0.03) / 0.08;
+  float twilight = exp(-band * band);
+
+  // Sunlit white tops (wrapped by an ambient floor), warmed along the terminator.
+  vec3 lit = uSunColor * uCloudGain * (uCloudAmbient + (1.0 - uCloudAmbient) * max(sunDot, 0.0)) + uTwilight * twilight * uCloudTwilightGain;
+  // Night: clouds fade out except for a faint moonlit rim. The day and night parts are weighted by
+  // their own opacity, so across the terminator a cloud keeps its warm lit colour while it fades,
+  // instead of turning into a dark smudge over the twilight.
+  float rim = pow(1.0 - clamp(dot(n, view), 0.0, 1.0), uRimPower);
+  float nightWeight = uNightRim * rim * (1.0 - dayMix);
+  float weight = dayMix + nightWeight;
+  vec3 color = (lit * dayMix + uNightColor * nightWeight) / max(weight, 1e-4);
+  float alpha = cover * uOpacity * weight;
+
+  gl_FragColor = vec4(color * uReveal, alpha * uReveal);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+export const ATMOSPHERE_VERTEX = /* glsl */ `
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+void main() {
+  vNormalW = normalize(mat3(modelMatrix) * normal);
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vPosW = world.xyz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+export const ATMOSPHERE_FRAGMENT = /* glsl */ `
+uniform vec3 uSunDir;
+uniform vec3 uAtmoDay;
+uniform vec3 uAtmoNight;
+uniform vec3 uTwilight;
+uniform float uRimDepth;
+uniform float uIntensity;
+uniform float uPower;
+uniform float uNightGain;
+uniform float uTwilightGain;
+uniform float uFloor;
+uniform float uForward;
+uniform float uForwardPower;
+
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+void main() {
+  vec3 n = normalize(vNormalW);
+  vec3 view = normalize(cameraPosition - vPosW);
+  vec3 sun = normalize(uSunDir);
+  // Back faces only: n·view runs from 0 at the shell's edge to -uRimDepth where the line of sight
+  // grazes the planet, so the glow is brightest against the limb and fades outward (fresnel rim).
+  float depth = clamp(-dot(n, view) / uRimDepth, 0.0, 1.0);
+  float glow = pow(depth, uPower);
+  float sunDot = dot(n, sun);
+  float dayMix = smoothstep(-0.3, 0.4, sunDot);
+  float band = (sunDot - 0.02) / 0.13;
+  float twilight = exp(-band * band);
+  // Forward scattering: the rim flares when the sun is behind the planet.
+  float forward = pow(max(dot(-view, sun), 0.0), uForwardPower);
+  // Blue by day, a faint deep blue by night; along the terminator the blue gives way to the twilight
+  // orange (mixed rather than added, so the two never sum to magenta).
+  vec3 base = mix(uAtmoNight * uNightGain, uAtmoDay, dayMix);
+  vec3 color = mix(base, uTwilight, twilight * uTwilightGain);
+  float strength = glow * uIntensity * (uFloor + (1.0 - uFloor) * max(dayMix, twilight)) * (1.0 + uForward * forward);
+
+  gl_FragColor = vec4(color * strength, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  // Premultiplied output (the material blends ONE, ONE): the glow adds light, and its alpha is its own
+  // brightness, so on a transparent canvas it never turns the space around the globe opaque.
+  gl_FragColor.a = max(gl_FragColor.r, max(gl_FragColor.g, gl_FragColor.b));
+}
+`;

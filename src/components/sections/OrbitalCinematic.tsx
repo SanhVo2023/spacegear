@@ -78,7 +78,8 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
     <div className="hero-scene absolute inset-0" data-globe={globe} aria-hidden>
       {ready && globe !== "failed" && (
         <SceneBoundary onError={fail}>
-          <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe("ready")} onLost={fail} />
+          {/* A failure is terminal: a first frame that lands after a loss never revives the scene. */}
+          <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))} onLost={fail} />
         </SceneBoundary>
       )}
     </div>

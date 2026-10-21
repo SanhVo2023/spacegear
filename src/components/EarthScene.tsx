@@ -1,13 +1,13 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, type RootState } from "@react-three/fiber";
 import type { MotionValue } from "motion/react";
 import { Suspense, use, useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
 import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
-import { normalize, rigAt, slerpDirection } from "@/components/globe/scroll";
+import { cameraZAt, rigAt, slerpDirection, sunDirectionAt } from "@/components/globe/scroll";
 import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
 
 export type SceneVariant = "cinematic" | "mobile";
@@ -22,7 +22,6 @@ export type EarthSceneProps = {
   onLost: () => void;
 };
 
-const CINEMATIC_SUN = normalize(SUN_START);
 const MOBILE_SUN = slerpDirection(SUN_START, SUN_END, MOBILE_SUN_T);
 const RIG_START: [number, number, number] = [RIG_X[0], 0, 0];
 
@@ -65,6 +64,7 @@ function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
   const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false });
+  const sunTarget = useRef(new THREE.Vector3());
 
   // Queue the first set for one-per-frame GPU uploads.
   useEffect(() => {
@@ -105,9 +105,17 @@ function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
   });
 
   // Per-frame driver, called by the Globe before it applies the frame.
-  const drive = (f: GlobeFrame) => {
-    const [sx, sy, sz] = variant === "cinematic" ? CINEMATIC_SUN : MOBILE_SUN;
-    f.sun.set(sx, sy, sz);
+  const drive = (f: GlobeFrame, delta: number, state: RootState) => {
+    const p = progress?.get() ?? 0;
+    // The sun sweeps with scroll on desktop (the terminator crosses the face and the city lights
+    // come on as the globe centres); phones keep a fixed crescent.
+    const [sx, sy, sz] = variant === "cinematic" ? sunDirectionAt(p) : MOBILE_SUN;
+    sunTarget.current.set(sx, sy, sz);
+    // Eased once the globe is on screen, so a jump in scroll never snaps the light; exact before.
+    if (warm.current.announced) f.sun.lerp(sunTarget.current, 1 - Math.exp(-6 * delta)).normalize();
+    else f.sun.copy(sunTarget.current);
+    // Slow camera dolly-in across the hero.
+    if (variant === "cinematic") state.camera.position.z = THREE.MathUtils.damp(state.camera.position.z, cameraZAt(p), 3, delta);
   };
 
   const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;

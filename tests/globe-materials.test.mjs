@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 const { LOOK, createGlobeMaterials, applyGlobeTextures } = await import("../src/components/globe/materials.ts");
 const { BACKDROP_ENTRY, globeEntries } = await import("../src/components/globe/textures.ts");
+const { ATMOSPHERE_RADIUS } = await import("../src/components/globe/constants.ts");
 
 const MAPS = ["day", "night", "normal", "spec", "clouds"];
 const fakeSet = () => Object.fromEntries(MAPS.map((key) => [key, new THREE.Texture()]));
@@ -70,4 +71,68 @@ test("no shader raises a possibly negative number to a power", () => {
   for (const material of Object.values(materials)) {
     assert.doesNotMatch(material.fragmentShader, /pow\(\s*\(/, `${material.name}: pow() of a bracketed difference can be negative`);
   }
+});
+
+test("clouds are a transparent shell that never writes depth", () => {
+  const textures = fakeSet();
+  const { clouds } = createGlobeMaterials(textures);
+  assert.equal(clouds.transparent, true);
+  assert.equal(clouds.depthWrite, false);
+  assert.equal(clouds.uniforms.uClouds.value, textures.clouds);
+  assert.equal(clouds.uniforms.uOpacity.value, LOOK.cloudOpacity);
+});
+
+test("the atmosphere is an additive back-face fresnel shell", () => {
+  const { atmosphere } = createGlobeMaterials(fakeSet());
+  assert.equal(atmosphere.side, THREE.BackSide);
+  assert.equal(atmosphere.blending, THREE.AdditiveBlending);
+  assert.equal(atmosphere.depthWrite, false);
+  assert.ok(Math.abs(atmosphere.uniforms.uRimDepth.value - Math.sqrt(1 - 1 / ATMOSPHERE_RADIUS ** 2)) < 1e-12);
+});
+
+test("a new tier reaches the cloud shell too", () => {
+  const second = fakeSet();
+  const materials = createGlobeMaterials(fakeSet());
+  applyGlobeTextures(materials, second);
+  assert.equal(materials.clouds.uniforms.uClouds.value, second.clouds);
+});
+
+test("one sun direction drives every shell", () => {
+  const { earth, clouds, atmosphere } = createGlobeMaterials(fakeSet());
+  assert.equal(earth.uniforms.uSunDir, clouds.uniforms.uSunDir);
+  assert.equal(earth.uniforms.uSunDir, atmosphere.uniforms.uSunDir);
+  assert.equal(earth.uniforms.uReveal, clouds.uniforms.uReveal);
+});
+
+test("the cloud and atmosphere look comes from LOOK, not from the GLSL", () => {
+  const { earth, clouds, atmosphere } = createGlobeMaterials(fakeSet());
+  const c = clouds.uniforms;
+  const a = atmosphere.uniforms;
+  assert.deepEqual(
+    [c.uOpacity.value, c.uCloudGain.value, c.uCloudAmbient.value, c.uCloudTwilightGain.value, c.uNightRim.value, c.uRimPower.value],
+    [LOOK.cloudOpacity, LOOK.cloudGain, LOOK.cloudAmbient, LOOK.cloudTwilightGain, LOOK.cloudNightRim, LOOK.cloudRimPower],
+  );
+  assert.deepEqual(c.uCover.value.toArray(), [...LOOK.cloudCover]);
+  assert.ok(c.uNightColor.value.equals(new THREE.Color(LOOK.cloudNight)), "moonlit cloud colour");
+  assert.deepEqual(
+    [a.uIntensity.value, a.uPower.value, a.uNightGain.value, a.uTwilightGain.value, a.uFloor.value, a.uForward.value, a.uForwardPower.value],
+    [LOOK.atmosphereIntensity, LOOK.atmospherePower, LOOK.atmosphereNightGain, LOOK.atmosphereTwilightGain, LOOK.atmosphereFloor, LOOK.atmosphereForward, LOOK.atmosphereForwardPower],
+  );
+  assert.ok(a.uAtmoNight.value.equals(new THREE.Color(LOOK.atmosphereNight)), "night-side rim colour");
+  assert.equal(a.uAtmoDay, earth.uniforms.uAtmoDay, "one day-side rim colour for the limb haze and the shell");
+  // The shells keep only their shape in GLSL: no gains, colours or powers written as literals.
+  assert.doesNotMatch(clouds.fragmentShader, /vec3\(0\.0\d+|0\.18 \*|0\.92 \*|smoothstep\(0\.12, 0\.85/);
+  assert.doesNotMatch(atmosphere.fragmentShader, /, 2\.2\)|, 3\.0\)|2\.5 \*|\* 0\.25|\* 0\.7\b|0\.12 \+ 0\.88/);
+});
+
+test("the shells blend without dark smudges, magenta rims or an opaque halo", () => {
+  const { clouds, atmosphere } = createGlobeMaterials(fakeSet());
+  // Across the terminator a cloud keeps its lit colour while it fades (opacity-weighted day/night mix).
+  assert.match(clouds.fragmentShader, /vec3 color = \(lit \* dayMix \+ uNightColor \* nightWeight\) \/ max\(weight, 1e-4\);/);
+  // The twilight orange replaces the blue rim instead of adding to it.
+  assert.match(atmosphere.fragmentShader, /mix\(base, uTwilight, twilight \* uTwilightGain\)/);
+  // Premultiplied additive glow (ONE, ONE) whose alpha is its own brightness, written after the
+  // colour-space chunk: a transparent canvas (the phone globe) stays see-through around the globe.
+  assert.equal(atmosphere.premultipliedAlpha, true);
+  assert.match(atmosphere.fragmentShader, /#include <colorspace_fragment>\s*(?:\/\/.*\s*)*gl_FragColor\.a = max\(gl_FragColor\.r, max\(gl_FragColor\.g, gl_FragColor\.b\)\);/);
 });

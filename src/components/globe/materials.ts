@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { EARTH_FRAGMENT, EARTH_VERTEX } from "./shaders";
+import { ATMOSPHERE_RADIUS } from "./constants";
+import { ATMOSPHERE_FRAGMENT, ATMOSPHERE_VERTEX, CLOUDS_FRAGMENT, CLOUDS_VERTEX, EARTH_FRAGMENT, EARTH_VERTEX } from "./shaders";
 import { NORMAL_GAIN } from "./texture-manifest";
 import type { GlobeTextureSet } from "./textures";
 
@@ -24,11 +25,42 @@ export const LOOK = {
   glintGain: 0.7,
   sheenExponent: 40,
   sheenGain: 0.055,
+  /** Cloud shell: opacity, brightness (× the sun colour) and the ambient floor of its sunlit wrap. */
+  cloudOpacity: 0.95,
+  cloudGain: 1,
+  cloudAmbient: 0.08,
+  /** Coverage below the first value reads as clear sky, above the second as full cover. */
+  cloudCover: [0.12, 0.85],
+  cloudTwilightGain: 0.42,
+  /** Night side: clouds fade to a faint moonlit rim (colour, opacity and fresnel power). */
+  cloudNight: "#222731",
+  cloudNightRim: 0.18,
+  cloudRimPower: 2,
+  /** Atmosphere: a back-face fresnel shell, blue by day (atmosphereDay), deep blue by night. */
+  atmosphereNight: "#1b2a55",
+  atmosphereNightGain: 1,
+  atmosphereIntensity: 0.92,
+  /** Fall-off from the limb to the shell's edge. */
+  atmospherePower: 2.2,
+  /** How far the twilight orange replaces the blue along the terminator (0…1). */
+  atmosphereTwilightGain: 0.85,
+  /** Share of the glow that remains on the night limb. */
+  atmosphereFloor: 0.12,
+  /** Forward scattering when backlit: extra gain and lobe power. */
+  atmosphereForward: 2.5,
+  atmosphereForwardPower: 3,
 } as const;
 
-export type GlobeMaterials = { earth: THREE.ShaderMaterial };
+export type GlobeMaterials = { earth: THREE.ShaderMaterial; clouds: THREE.ShaderMaterial; atmosphere: THREE.ShaderMaterial };
 
 export function createGlobeMaterials(textures: GlobeTextureSet): GlobeMaterials {
+  // Shared by reference, so one write per frame updates every shell.
+  const uSunDir = { value: new THREE.Vector3(0, 0, 1) };
+  const uSunColor = { value: new THREE.Color(LOOK.sunColor).multiplyScalar(LOOK.sunIntensity) };
+  const uTwilight = { value: new THREE.Color(LOOK.twilight) };
+  const uAtmoDay = { value: new THREE.Color(LOOK.atmosphereDay) };
+  const uReveal = { value: 1 };
+
   const earth = new THREE.ShaderMaterial({
     name: "GlobeEarth",
     vertexShader: EARTH_VERTEX,
@@ -39,11 +71,11 @@ export function createGlobeMaterials(textures: GlobeTextureSet): GlobeMaterials 
       uNormal: { value: textures.normal },
       uSpec: { value: textures.spec },
       uClouds: { value: textures.clouds },
-      uSunDir: { value: new THREE.Vector3(0, 0, 1) },
-      uSunColor: { value: new THREE.Color(LOOK.sunColor).multiplyScalar(LOOK.sunIntensity) },
-      uTwilight: { value: new THREE.Color(LOOK.twilight) },
-      uAtmoDay: { value: new THREE.Color(LOOK.atmosphereDay) },
-      uReveal: { value: 1 },
+      uSunDir,
+      uSunColor,
+      uTwilight,
+      uAtmoDay,
+      uReveal,
       uCityColor: { value: new THREE.Color(LOOK.city) },
       uCityGain: { value: LOOK.cityGain },
       uTwilightGain: { value: LOOK.twilightGain },
@@ -59,7 +91,57 @@ export function createGlobeMaterials(textures: GlobeTextureSet): GlobeMaterials 
       uSheenGain: { value: LOOK.sheenGain },
     },
   });
-  return { earth };
+
+  const clouds = new THREE.ShaderMaterial({
+    name: "GlobeClouds",
+    vertexShader: CLOUDS_VERTEX,
+    fragmentShader: CLOUDS_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uClouds: { value: textures.clouds },
+      uSunDir,
+      uSunColor,
+      uTwilight,
+      uReveal,
+      uNightColor: { value: new THREE.Color(LOOK.cloudNight) },
+      uCover: { value: new THREE.Vector2(...LOOK.cloudCover) },
+      uCloudGain: { value: LOOK.cloudGain },
+      uCloudAmbient: { value: LOOK.cloudAmbient },
+      uCloudTwilightGain: { value: LOOK.cloudTwilightGain },
+      uNightRim: { value: LOOK.cloudNightRim },
+      uRimPower: { value: LOOK.cloudRimPower },
+      uOpacity: { value: LOOK.cloudOpacity },
+    },
+  });
+
+  const atmosphere = new THREE.ShaderMaterial({
+    name: "GlobeAtmosphere",
+    vertexShader: ATMOSPHERE_VERTEX,
+    fragmentShader: ATMOSPHERE_FRAGMENT,
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    // ONE, ONE: the shader writes premultiplied colour (see ATMOSPHERE_FRAGMENT).
+    premultipliedAlpha: true,
+    uniforms: {
+      uSunDir,
+      uTwilight,
+      uAtmoDay,
+      uAtmoNight: { value: new THREE.Color(LOOK.atmosphereNight) },
+      uRimDepth: { value: Math.sqrt(1 - 1 / (ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS)) },
+      uIntensity: { value: LOOK.atmosphereIntensity },
+      uPower: { value: LOOK.atmospherePower },
+      uNightGain: { value: LOOK.atmosphereNightGain },
+      uTwilightGain: { value: LOOK.atmosphereTwilightGain },
+      uFloor: { value: LOOK.atmosphereFloor },
+      uForward: { value: LOOK.atmosphereForward },
+      uForwardPower: { value: LOOK.atmosphereForwardPower },
+    },
+  });
+
+  return { earth, clouds, atmosphere };
 }
 
 /** Rebinds a new texture set (2k → 4k) in place. */

@@ -133,6 +133,20 @@ try {
       const pixels = pixelStats(await globeCapture(page));
       assert.ok(pixels.stdev > 10 && pixels.distinct > 40, `desktop: the globe renders non-uniform pixels (${JSON.stringify(pixels)})`);
       report.interactions.push(`desktop globe renders its 2k maps under the shipped CSP (${JSON.stringify(pixels)})`);
+
+      // The sun sweeps with scroll: at the centred beat the visible disc turns to its night side.
+      const centre = { x: 0.4, y: 0.3, w: 0.2, h: 0.4 };
+      const dayCentre = pixelStats(await globeCapture(page, centre));
+      await page.evaluate(() => {
+        const home = document.getElementById("home");
+        window.scrollTo({ top: window.scrollY + home.getBoundingClientRect().top + (home.offsetHeight - innerHeight) * 0.62, behavior: "instant" });
+      });
+      await page.waitForTimeout(2500); // the rig, sun and dolly ease into place
+      const nightCentre = pixelStats(await globeCapture(page, centre));
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await page.waitForTimeout(1500);
+      assert.ok(nightCentre.mean < dayCentre.mean * 0.6, `desktop: the terminator sweeps across the globe with scroll (day ${dayCentre.mean}, night ${nightCentre.mean})`);
+      report.interactions.push(`desktop sun sweep turns the centred globe to its night side (centre luma ${dayCentre.mean} → ${nightCentre.mean})`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {

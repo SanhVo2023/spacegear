@@ -9,9 +9,17 @@ class FakeBitmap {
   close() { this.closed = true; }
 }
 const decoded = [];
+const FAST_DECODE_BYTES = 64;
 const SLOW_DECODE_BYTES = 65;
+// Settles once the decoder has been handed both downloadable maps. The failing request waits for it,
+// so the failure always arrives after both downloads finished, however slow the machine.
+const seenSizes = new Set();
+let bothSeen;
+const bothHandedToDecoder = new Promise((resolve) => { bothSeen = resolve; });
 globalThis.ImageBitmap = FakeBitmap;
 globalThis.createImageBitmap = async (blob) => {
+  seenSizes.add(blob.size);
+  if (seenSizes.has(FAST_DECODE_BYTES) && seenSizes.has(SLOW_DECODE_BYTES)) bothSeen();
   // A 65-byte file decodes slowly, so it is still decoding when another map fails.
   if (blob.size === SLOW_DECODE_BYTES) await new Promise((resolve) => setTimeout(resolve, 300));
   const bitmap = new FakeBitmap();
@@ -39,11 +47,11 @@ test("disposing a set closes every decoded bitmap and frees every texture", () =
 
 test("a failed set aborts the manager's downloads, frees every map that loaded and rethrows the first error", async () => {
   const server = http.createServer((request, response) => {
-    if (request.url === "/ok.webp") return response.end(Buffer.alloc(64, 1));
+    if (request.url === "/ok.webp") return response.end(Buffer.alloc(FAST_DECODE_BYTES, 1));
     // Downloads at once but is still decoding when the failure arrives.
     if (request.url === "/late.webp") return response.end(Buffer.alloc(SLOW_DECODE_BYTES, 2));
-    // Fails after the first map has loaded and decoded.
-    setTimeout(() => { response.statusCode = 404; response.end(); }, 100);
+    // Fails only once the decoder has both other maps: the first has decoded, the second is decoding.
+    bothHandedToDecoder.then(() => { response.statusCode = 404; response.end(); });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -56,7 +64,7 @@ test("a failed set aborts the manager's downloads, frees every map that loaded a
     await assert.rejects(
       loadTextureSet(
         [
-          { key: "ok", url: `${base}/ok.webp`, bytes: 64, kind: "color" },
+          { key: "ok", url: `${base}/ok.webp`, bytes: FAST_DECODE_BYTES, kind: "color" },
           { key: "late", url: `${base}/late.webp`, bytes: SLOW_DECODE_BYTES, kind: "mask" },
           { key: "missing", url: `${base}/missing.webp`, bytes: 64, kind: "mask" },
         ],
