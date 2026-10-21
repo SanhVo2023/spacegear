@@ -1,4 +1,4 @@
-import { REVEAL_END_SECONDS } from "./constants";
+import { REVEAL_END_SECONDS, STREAM_SETTLE_SECONDS } from "./constants";
 import type { IntroPhase } from "./intro-store";
 import { GLOBE_MAPS, GLOBE_TIERS } from "./texture-manifest";
 
@@ -44,14 +44,17 @@ export type StreamGate = {
   played: boolean;
   /** Seconds since the overlay started to lift; negative until then. */
   revealElapsed: number;
+  /** Seconds since the first textured frame was announced. */
+  shownElapsed: number;
 };
 
 /**
  * Whether the 4k stream may start (asked only once the first textured frame is on screen, so the 2k
- * uploads are done). Never while the intro covers the page or lifts, and a globe that the intro
- * revealed waits until its fade-up and flare are over.
+ * uploads are done). Never while the intro covers the page or lifts. A globe that the intro revealed
+ * waits until its fade-up and flare are over; any other waits out the canvas's fade-in over the
+ * poster and the copy's entrance.
  */
-export function streamMayStart({ phase, played, revealElapsed }: StreamGate): boolean {
+export function streamMayStart({ phase, played, revealElapsed, shownElapsed }: StreamGate): boolean {
   if (phase === "loading" || phase === "reveal") return false;
-  return !played || revealElapsed >= REVEAL_END_SECONDS;
+  return played ? revealElapsed >= REVEAL_END_SECONDS : shownElapsed >= STREAM_SETTLE_SECONDS;
 }

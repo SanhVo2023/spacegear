@@ -264,21 +264,28 @@ test("the 4k set streams only to capable desktops with a hardware GPU", () => {
   assert.equal(tiers.GLOBE_MAPS, manifest.GLOBE_MAPS, "the map list is the manifest's own, never restated");
 });
 
-test("the 4k stream waits for the intro and for the globe's reveal and flare to end", () => {
+test("the 4k stream waits for the intro, the globe's reveal and the canvas fade-in", () => {
   const end = constants.REVEAL_END_SECONDS;
+  const settle = constants.STREAM_SETTLE_SECONDS;
   assert.equal(end, constants.REVEAL_DELAY_SECONDS + Math.max(constants.REVEAL_SECONDS, constants.FLARE_SECONDS), "the reveal ends after its delay, fade-up and flare");
-  // No intro, or one that ended before the globe was ready (the canvas then fades in over the poster).
-  assert.equal(tiers.streamMayStart({ phase: "off", played: false, revealElapsed: -1 }), true);
-  assert.equal(tiers.streamMayStart({ phase: "done", played: false, revealElapsed: -1 }), true);
+  assert.ok(settle >= 1.2, `without the reveal, the stream waits out the canvas's 0.6 s fade-in and the copy's entrance (${settle} s)`);
+  const gate = (patch) => tiers.streamMayStart({ phase: "off", played: false, revealElapsed: -1, shownElapsed: 99, ...patch });
+  // No intro, or one that ended before the globe was ready: the canvas fades in over the poster first.
+  assert.equal(gate({ phase: "off" }), true);
+  assert.equal(gate({ phase: "done" }), true);
+  assert.equal(gate({ shownElapsed: settle - 0.01 }), false, "not during the canvas fade-in and the copy's entrance");
+  assert.equal(gate({ shownElapsed: settle }), true);
+  assert.equal(gate({ shownElapsed: Number.NaN }), false, "an unknown time since the first frame never streams");
   // Never while the overlay covers the page or lifts.
   for (const phase of ["loading", "reveal"]) {
-    for (const played of [false, true]) assert.equal(tiers.streamMayStart({ phase, played, revealElapsed: 99 }), false, `${phase} ${played}`);
+    for (const played of [false, true]) assert.equal(gate({ phase, played, revealElapsed: 99 }), false, `${phase} ${played}`);
   }
   // A globe revealed by the intro streams only once its fade-up and flare are over.
-  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: -1 }), false, "the reveal has not started");
-  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: end - 0.01 }), false);
-  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: end }), true);
-  assert.equal(tiers.streamMayStart({ phase: "done", played: true, revealElapsed: Number.NaN }), false, "an unknown reveal time never streams");
+  const revealed = (revealElapsed) => gate({ phase: "done", played: true, revealElapsed });
+  assert.equal(revealed(-1), false, "the reveal has not started");
+  assert.equal(revealed(end - 0.01), false);
+  assert.equal(revealed(end), true);
+  assert.equal(revealed(Number.NaN), false, "an unknown reveal time never streams");
 });
 
 test("the GPU renderer string comes from RENDERER when it is unmasked, else from the debug extension", async () => {

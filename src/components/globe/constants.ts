@@ -63,6 +63,11 @@ export const FLARE_SECONDS = 1.8;
 export const FLARE_GAIN = 2.2;
 /** From the start of the overlay's lift until the globe's fade-up and flare are over. */
 export const REVEAL_END_SECONDS = REVEAL_DELAY_SECONDS + Math.max(REVEAL_SECONDS, FLARE_SECONDS);
+/**
+ * Without the intro's reveal, the 4k stream waits this long after the first textured frame: the
+ * canvas's 0.6 s fade-in over the poster (globals.css) and the end of the copy's entrance, plus a margin.
+ */
+export const STREAM_SETTLE_SECONDS = 1.2;
 
 /**
  * The 4k stream (capable desktops) starts in an idle callback, forced after this long if the page

@@ -96,16 +96,30 @@ function Rig({ progress, settled, children }: RigProps) {
   );
 }
 
+/**
+ * Wall-clock seconds, for everything timed across frames. R3F's own clock restarts from 0 whenever the
+ * frame loop pauses and resumes (the hero leaving the screen, a hidden tab), so a reveal timed on it
+ * would replay from black on every return.
+ */
+const seconds = () => performance.now() / 1000;
+
 type Warmup = {
   queued: boolean;
   pending: THREE.Texture[];
   compiling: boolean;
   compiled: boolean;
+  /** When the scene was first made visible (wall-clock seconds; -1 until then). */
   shownAt: number;
   announced: boolean;
+  /** When the first textured frame was announced (wall-clock seconds; -1 until then). */
+  announcedAt: number;
   /** The globe became ready under the intro overlay, so it fades up from black when the overlay lifts. */
   played: boolean;
-  /** Clock time of the first frame after the overlay lifted (-1 until then). */
+  /**
+   * When the overlay started to lift (wall-clock seconds; -1 until then). On the wall clock, the reveal
+   * keeps step with the curtain and the headline: scrolled away or hidden mid-reveal, the globe comes
+   * back as far along as they are, not rewound.
+   */
   revealStart: number;
 };
 
@@ -138,7 +152,7 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   const shown = useRef<GlobeTextureSet>(loaded.globe);
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
-  const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false, played: false, revealStart: -1 });
+  const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false, announcedAt: -1, played: false, revealStart: -1 });
   const upgrade = useRef<Upgrade>({ status: "waiting", cancelIdle: () => {}, controller: null, queue: [] });
   // Frames run only while the hero is on screen in a visible tab (frameloop in EarthScene).
   const live = useRef(active);
@@ -156,6 +170,17 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   useEffect(() => {
     live.current = active;
   }, [active]);
+
+  // The reveal starts when the overlay starts to lift, even if no frame runs at that moment (a hidden
+  // tab when the load cap fires); drive() falls back to its first frame after the lift.
+  useEffect(
+    () =>
+      introStore.subscribe(() => {
+        const w = warm.current;
+        if (w.revealStart < 0 && w.announced && w.played && getIntroPhase() !== "loading") w.revealStart = seconds();
+      }),
+    [],
+  );
 
   // Leaving the hero for good (the cinematic branch, a failure, a navigation): cancel a pending start
   // and abort the 4k stream, which frees every map it made; the queued maps are never uploaded.
@@ -203,7 +228,8 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   };
 
   // After the first frame: one queued 4k upload per frame; otherwise, once the intro and the globe's
-  // reveal are over, ask capable desktops to start the stream when the browser is idle.
+  // reveal (or, without them, the canvas fade-in and the copy's entrance) are over, ask capable
+  // desktops to start the stream when the browser is idle.
   const upgradeStep = (state: RootState) => {
     const u = upgrade.current;
     const job = u.queue.shift();
@@ -215,8 +241,9 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
     }
     if (u.status !== "waiting") return;
     const w = warm.current;
-    const revealElapsed = w.revealStart < 0 ? -1 : state.clock.elapsedTime - w.revealStart;
-    if (!streamMayStart({ phase: getIntroPhase(), played: w.played, revealElapsed })) return;
+    const now = seconds();
+    const gate = { phase: getIntroPhase(), played: w.played, revealElapsed: w.revealStart < 0 ? -1 : now - w.revealStart, shownElapsed: now - w.announcedAt };
+    if (!streamMayStart(gate)) return;
     if (!streams4k(state.gl)) {
       u.status = "skipped";
       return;
@@ -258,11 +285,12 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
     if (!w.queued || !w.compiled) return;
     if (!group.visible) {
       group.visible = true;
-      w.shownAt = state.clock.elapsedTime;
+      w.shownAt = seconds();
       return;
     }
-    if (state.clock.elapsedTime <= w.shownAt) return;
+    if (seconds() <= w.shownAt) return;
     w.announced = true;
+    w.announcedAt = seconds();
     if (variant === "cinematic") {
       // The first textured frame is on screen: the intro counter may reach 100. Under the overlay the
       // globe then waits, black, for the reveal (drive).
@@ -311,8 +339,8 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
       f.reveal = 0;
       f.flare = 1;
     } else {
-      if (w.revealStart < 0) w.revealStart = state.clock.elapsedTime;
-      const t = state.clock.elapsedTime - w.revealStart - REVEAL_DELAY_SECONDS;
+      if (w.revealStart < 0) w.revealStart = seconds();
+      const t = seconds() - w.revealStart - REVEAL_DELAY_SECONDS;
       f.reveal = smoothstep(0, REVEAL_SECONDS, t);
       f.flare = 1 + FLARE_GAIN * Math.sin(Math.PI * clamp01(t / FLARE_SECONDS));
     }
