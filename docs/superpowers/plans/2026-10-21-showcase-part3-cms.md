@@ -3116,6 +3116,16 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   ```
   Notes: the patterns are the `source` of the schema regexes (`SLUG`, `HREF`, `IMAGE`, `COLOR`, the count and digit patterns), and Sveltia compiles them with `new RegExp(source)` (no flags), so they behave the same in the editor and in the build. A `.md` file whose only field is `body` is saved without front matter (Sveltia data-output docs). Plain `text` widgets avoid the rich-text editor and the libraries it lazy-loads from unpkg.
 
+  **Upload names and formats (from the Task 7 review).** Settle these three points in this task and record each decision under "Amendments":
+  1. **Characters that `slugify_filename` keeps.**
+     - Sveltia's ASCII slugify keeps `~`, so `scan~2.webp` is saved as is. `UPLOAD_PATH` (`scripts/lib/uploads.mjs`) then fails the build with "rename it".
+     - Check in Chrome which characters survive an upload. Try `scan~2.webp`, and a name with `I`/`ı` under a Turkish browser locale, where lowercasing differs.
+     - The README's rename advice (Task 11 Step 1) must name `~` and the Turkish dotless `ı` as characters to remove before uploading.
+  2. **`raster_image` and animation.** `transformations.raster_image` re-encodes GIF and WebP uploads through a canvas, so an animated upload becomes a still image before the build sees it. The build itself keeps animated WebP and GIF. Choose one:
+     - **Per-format keys** (`jpeg`, `png`, `avif` only): GIF and WebP uploads keep their animation, but WebP originals then keep their EXIF/GPS metadata. Only the generated variants drop it, and the original ships too.
+     - **Keep `raster_image`:** accept that animations become stills, and say so in the README.
+  3. **`filename_template`.** The variant cache reserves no upload names, so `filename_template: "{{filename}}-{{uuid_short}}"` is not needed to avoid `-640`/`-1280` names. Add it only if unique file names are wanted, for example so that re-uploading `photo.jpg` never replaces the earlier file, and record why.
+
 - [ ] **Step 8: Run the tests and see them pass.** `cd "$CMS" && node --import tsx --test tests/admin.test.mjs tests/cms-config.test.mjs` → `# pass 7`, `# fail 0`.
 
 - [ ] **Step 9: Fast gates.** `cd "$CMS" && npm run lint && npm run typecheck && npm test` → all pass (ESLint does not lint `public/`).
@@ -3322,7 +3332,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   - The counts on the page (5/5, 01/03, the hero stats) match the services and engagements.
   - A testimonial renders only after its permission box is ticked. Team cards describe disciplines, not people.
   - Services and engagements cannot be added or removed in the CMS: each service has its own page and route lists.
-  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build makes 640 px and 1280 px variants of each one (kept in `.cache/upload-variants/` and shipped next to the upload as `<name>.w640.webp` and `<name>.w1280.webp`; no upload name is reserved). Names use lowercase letters, digits, `-` and `_`. The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
+  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build makes 640 px and 1280 px variants of each one (kept in `.cache/upload-variants/` and shipped next to the upload as `<name>.w640.webp` and `<name>.w1280.webp`; no upload name is reserved). Names use lowercase letters, digits, `-` and `_`: rename a file with any other character, such as `~` or the Turkish dotless `ı`, before uploading it (Task 9 records which characters the CMS keeps). The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
   - Legal pages (`content/legal/*.md`) accept `## ` headings and plain paragraphs only. The preview notice and the contact section come from the site settings.
 
   If you add, rename or delete an entry file by hand, run `npm run content:index`. The CMS configuration is [public/admin/config.yml](public/admin/config.yml); it mirrors [src/lib/content-model.ts](src/lib/content-model.ts), and `npm test` fails when they drift. The CMS reads `config.yml` from the preview, so rebuild after changing it.
@@ -3693,6 +3703,36 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - `package-site` shipped the five real uploads with their ten variants and none of the plants. The editor's `hero-1280.webp` shipped byte-identical (SHA-1 `d6accd1d…`).
         - `check-export` passed.
         - Then, planted straight into `dist/`, these were each refused: an SVG, a fake PNG, an orphan variant, `/uploads/Hero.webp` and `/images/Faq-Team.webp`. An external `…/wp-content/uploads/…` link and `/uploads/a.webpx` were not flagged.
+- **Task 7 re-review round** (`a53e7d0`). Only `scripts/` and tests changed; `src/` did not, so no rebuild was needed (the 8788 preview still serves the `3c21f12` build, whose rendered HTML compared identical). The reviewer's probes are `scratchpad/t7-review/probe-cache.mjs` and `probe-distdot.mjs`. A copy of the cache probe with one cleanup line adapted is `artifacts/t7/review2/probe-cache-after.mjs`: after the fix, `files/` is a real folder, so the probe's `unlinkSync` of it would throw.
+  1. **Links in the cache are never followed** (Important).
+     - `files/` and `manifest.json` are `lstat`ed first. A link there, or the wrong kind of entry, is removed: the cache is ours, and the link is never followed.
+     - `cacheFolderProblem(cacheDir, root)` checks every folder from the project down to the cache (`.cache/`, `.cache/upload-variants/`), or, for a cache outside the project, its parent and itself. A link or a non-folder there is refused before anything is written.
+     - `isRealFile` reaches cached variants and the manifest only through real folders, so packaging never reads through a link either.
+     - **Probe 4b** (a `files/` junction to a folder holding `keep.txt` and `sub/notes.md`): before, `removed: ["keep.txt", "sub/notes.md"]` and the folder then held the variants. After, `removed: ["files"]` (the link) and both files survive.
+     - **Probe 4c** (the cache's parent is a junction): before, the cache was written into the junction's target. After, it is refused (`dotcache: is a link (symbolic link or junction); the variant cache and the folders above it must be real folders, …`) and nothing is written.
+     - Tests cover a junction at `files/` and at `manifest.json`, a `.cache` junction under a project root, a non-folder in the chain, and a `files/` junction that appears after the variant step. That last one points at real copies of the variants, which are still not shipped.
+  2. **Variant fingerprints** (minor 1).
+     - The manifest records `variants: { "640": { size, sha1 }, "1280": … }` for every upload, and `RECIPE` became `v2`, so older manifests rebuild once.
+     - A variant counts as current, in the variant step and in `currentVariants` when packaging, only when its size and SHA-1 match the record.
+     - **Probe 3b** (the 1280 variant cut to 64 bytes): before, 2 up to date, shipped at 64 bytes and undecodable. After, 1 written and 1 up to date, shipped at 1,726 bytes, and it decodes.
+     - Packaged before the variant step repairs it, the upload ships without its variants.
+     - A test also flips one byte at the same size.
+  3. **Nothing hidden ships** (minor 2). With `variants: true` (dist mode; the option keeps the name the reviewer's probes use), `uploadProblems` lists dot entries too and refuses any file with a dot segment.
+     - **The reviewer's case:** before, `dist/uploads/.env` and `dist/uploads/.hidden/page.html` passed. After: `dist/uploads/.env: is hidden (a dotfile or inside a dot-folder), and nothing hidden may ship: remove it`, and the same for `.hidden/page.html`. `x.map` stays refused as a non-image.
+     - Public mode still exempts dotfiles, which never ship.
+  4. **Long Windows paths** (minor 3).
+     - Variants are now encoded to memory (`toBuffer()`) and written by Node, which handles long paths. libvips can neither write nor read paths of 260 characters or more here: a 315-character write and read both failed in a probe.
+     - An upload whose own path is 250 characters or more gets `its path is N characters long, and the image library cannot open paths of 250 or more on Windows: shorten the folder or file names`, on win32 only.
+     - **Probe 6:** before, a 274-character cache path failed with "unable to open for write … export it again as WebP, PNG, JPEG or AVIF". After, the probe's 259-character original gets the "shorten the folder or file names" problem.
+     - A test (win32 only) shows a 245-character upload with a cache path of 260 or more getting its variants, and a 252-character upload getting the problem.
+  5. **Task 9 notes** (minor 5) are in Task 9 Step 7's own text: `~` and the Turkish `ı` with `slugify_filename`, `raster_image` versus animation and metadata, and that `filename_template` is no longer needed. The Task 11 README rename advice names `~` and `ı`.
+  6. **Mutation check:** `artifacts/t7/review2/mutate3.mjs` runs this round's 12 mutants against `tests/uploads.test.mjs`. 10 are killed; 2 are equivalent:
+     - "isRealFile follows links": `lstat` of a link is neither a folder nor a file, so the type checks refuse it anyway;
+     - "manifest link not removed up front": `writeManifest` removes it before renaming into place.
+  7. **Gates and checks:**
+     - Lint and typecheck are clean. `npm test`: 165 tests, 164 pass, 1 skipped (file symlinks need developer mode on Windows).
+     - `check-content`: `Content valid: 12 routes; preview mode.` `check-export` passes on the current `dist/`.
+     - **Temp-copy packaging run:** `hero.webp` and `hero-1280.webp` shipped with 4 variants and `check-export` passed. A cached variant truncated afterwards was not shipped, along with its sibling, because the upload ships without variants until they are current. A planted `dist/uploads/.env` and `.hidden/page.html` were refused. The next variant step rewrote only the damaged file (1 written, 3 up to date).
 
 ## Risks and open questions
 
