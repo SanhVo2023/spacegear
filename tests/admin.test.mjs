@@ -137,3 +137,53 @@ test("the admin page loads only the vendored bundle and is never indexed", () =>
   assert.match(html, /<link rel="cms-config-url" type="application\/yaml" href="\/admin\/config\.yml" \/>/);
   assert.doesNotMatch(html, /https?:\/\//, "no third-party address in the page");
 });
+
+// Mirrors the Cloudflare _headers format: "/path" lines open a rule, "  Name: value" sets, "  ! Name" removes.
+function headerRules(text) {
+  const rules = new Map();
+  let rule = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    if (!/^\s/.test(line)) {
+      rule = { set: {}, unset: [] };
+      rules.set(line.trim(), rule);
+    } else if (line.trim().startsWith("! ")) rule.unset.push(line.trim().slice(2).toLowerCase());
+    else {
+      const [, name, value] = line.trim().match(/^([^:]+):\s*(.+)$/);
+      rule.set[name.trim().toLowerCase()] = value.trim();
+    }
+  }
+  return rules;
+}
+const directives = (csp) => Object.fromEntries(csp.split(";").map((part) => part.trim().split(/\s+/)).map(([name, ...values]) => [name, values]));
+
+test("/admin/* swaps the site CSP for its own scoped policy and is noindex", () => {
+  const rules = headerRules(fs.readFileSync("public/_headers", "utf8"));
+  const paths = [...rules.keys()];
+  assert.ok(rules.has("/admin/*") && paths.indexOf("/*") < paths.indexOf("/admin/*"), "the admin rule comes after /* so its removals apply");
+  const admin = rules.get("/admin/*");
+  assert.deepEqual(admin.unset.sort(), ["content-security-policy", "x-robots-tag"]);
+  assert.equal(admin.set["x-robots-tag"], "noindex, nofollow");
+  const csp = directives(admin.set["content-security-policy"]);
+  assert.deepEqual(csp["script-src"], ["'self'"], "only the vendored bundle: no inline code, no eval, no CDN");
+  assert.deepEqual(csp["font-src"], ["'self'", "https://cdn.jsdelivr.net/fontsource/"], "the bundle's UI and icon fonts");
+  assert.deepEqual(csp["connect-src"], ["'self'", "blob:", "data:"], "no API or CDN until the GitHub setup");
+  for (const [name, values] of Object.entries(csp)) assert.ok(!values.some((value) => /unpkg\.com|'unsafe-eval'|^\*$|^https:$/.test(value)), `${name} allows no CDN code, eval or wildcard`);
+  assert.deepEqual([csp["object-src"], csp["frame-ancestors"], csp["base-uri"]], [["'none'"], ["'none'"], ["'self'"]]);
+});
+
+test("the site CSP gains nothing from the CMS", () => {
+  const site = headerRules(fs.readFileSync("public/_headers", "utf8")).get("/*").set["content-security-policy"];
+  assert.doesNotMatch(site, /jsdelivr|unpkg|api\.github\.com|'unsafe-eval'/);
+});
+
+test("/uploads/* serves every upload as a sandboxed image that is never sniffed (controller amendment)", () => {
+  const rules = headerRules(fs.readFileSync("public/_headers", "utf8"));
+  const paths = [...rules.keys()];
+  assert.ok(rules.has("/uploads/*") && paths.indexOf("/*") < paths.indexOf("/uploads/*"), "the uploads rule comes after /* so its removals apply");
+  const uploads = rules.get("/uploads/*");
+  assert.deepEqual(uploads.unset.sort(), ["content-security-policy", "x-content-type-options"], "it replaces the site CSP, and sets nosniff again without doubling it");
+  assert.equal(uploads.set["content-security-policy"], "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox");
+  assert.equal(uploads.set["x-content-type-options"], "nosniff");
+  assert.deepEqual(Object.keys(uploads.set).sort(), ["content-security-policy", "x-content-type-options"]);
+});
