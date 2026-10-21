@@ -4,7 +4,7 @@
 // so every place a service appears shows the same image and text.
 // public/admin/config.yml mirrors these schemas field by field (tests/cms-config.test.mjs).
 // Erasable TypeScript only: scripts/check-content.mjs loads this under --experimental-strip-types.
-import { ContentError, SLUG, boolean, check, color, href, image, list, literal, nullable, number, object, oneOf, slug, text } from "./content-schema.ts";
+import { ContentError, SLUG, boolean, check, color, href, image, isRecord, list, literal, nullable, number, object, oneOf, slug, text } from "./content-schema.ts";
 import type { Schema } from "./content-schema.ts";
 
 export type Service = {
@@ -223,37 +223,50 @@ function withoutOrder<T extends { order: number }>(entry: T): Omit<T, "order"> {
 }
 
 /**
- * Reports every entry whose `field` repeats an earlier entry's value, in display order. The
- * site uses these values to tell entries apart (React keys, the selected engagement).
- * Missing and empty values are left to the schema.
+ * Reports every entry whose `fields` repeat an earlier entry's values, in display order. The
+ * site uses these values to tell entries apart (React keys, the selected engagement); with
+ * several fields, the combination must be unique. Missing and empty values are left to the schema.
  */
-function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, field: K, issues: string[]) {
+function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, fields: K | readonly K[], issues: string[]) {
+  const keys: readonly K[] = typeof fields === "string" ? [fields] : fields;
   const seen = new Map<string, string>();
   for (const { file, entry } of loaded) {
-    const value: unknown = entry[field];
-    if (typeof value !== "string" || value === "") continue;
-    const other = seen.get(value);
-    if (other !== undefined) issues.push(`content/${name}/${file}: ${field} ${JSON.stringify(value)} is already used by ${other}; give every entry its own ${field}`);
-    else seen.set(value, file);
+    const values: unknown[] = keys.map((key) => entry[key]);
+    if (values.some((value) => typeof value !== "string" || value === "")) continue;
+    const id = JSON.stringify(values);
+    const other = seen.get(id);
+    if (other === undefined) seen.set(id, file);
+    else if (keys.length === 1) issues.push(`content/${name}/${file}: ${keys[0]} ${JSON.stringify(values[0])} is already used by ${other}; give every entry its own ${keys[0]}`);
+    else issues.push(`content/${name}/${file}: ${keys.map((key, i) => `${key} ${JSON.stringify(values[i])}`).join(" and ")} are already used by ${other}; give every entry its own combination of ${keys.join(" and ")}`);
   }
 }
 
-/** Reports items that repeat an earlier item of the same list: the site renders these lists with the text as the React key. */
-function uniqueItems(items: unknown, file: string, field: string, issues: string[]) {
+/**
+ * Reports items that repeat an earlier item of the same list: the site renders these lists with
+ * the value as the React key. With `key`, the value is that field of each item (a tile's slug).
+ */
+function uniqueItems(items: unknown, file: string, field: string, issues: string[], key?: string) {
   if (!Array.isArray(items)) return;
+  const at = (index: number) => (key === undefined ? `${field}[${index}]` : `${field}[${index}].${key}`);
   const seen = new Map<string, number>();
   items.forEach((item: unknown, index) => {
-    if (typeof item !== "string" || item === "") return;
-    const first = seen.get(item);
-    if (first !== undefined) issues.push(`${file}: ${field}[${index}]: ${JSON.stringify(item)} repeats ${field}[${first}]; make every item different`);
-    else seen.set(item, index);
+    const value = key === undefined ? item : isRecord(item) ? item[key] : undefined;
+    if (typeof value !== "string" || value === "") return;
+    const first = seen.get(value);
+    if (first !== undefined) issues.push(`${file}: ${at(index)}: ${JSON.stringify(value)} repeats ${at(first)}; make every item different`);
+    else seen.set(value, index);
   });
 }
 
-/** The engagements section highlights one engagement, so exactly one entry sets `featured`. */
+/**
+ * The engagements section highlights one engagement, so exactly one entry sets `featured`. An
+ * entry whose `featured` is already reported (missing, not true or false) is not also counted
+ * as "none featured".
+ */
 function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], issues: string[]) {
   const featured = engagements.filter(({ entry }) => entry.featured === true);
-  if (featured.length === 0) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
+  const broken = engagements.some(({ file }) => issues.some((issue) => issue.startsWith(`content/engagements/${file}: featured:`)));
+  if (featured.length === 0 && !broken) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
   for (const { file } of featured.slice(1)) issues.push(`content/engagements/${file}: featured is already set on ${featured[0].file}; set featured on exactly one engagement`);
 }
 
@@ -297,7 +310,9 @@ export function buildContent(input: ContentInput) {
   uniqueField(engagements, "engagements", "name", issues);
   oneFeatured(engagements, issues);
   uniqueField(faqs, "faqs", "question", issues);
+  uniqueField(testimonials, "testimonials", ["name", "company"], issues);
   uniqueField(articles, "articles", "slug", issues);
+  uniqueItems(work.tiles, SINGLETON_FILES.work, "tiles", issues, "slug");
   if (issues.length) throw new ContentError(issues);
 
   const SERVICES: Service[] = services.map(({ entry }) => withoutOrder(entry));

@@ -151,6 +151,36 @@ test("exactly one engagement is featured", () => {
   assert.deepEqual(issuesOf(input), ["content/engagements/improve.json: featured is already set on assess.json; set featured on exactly one engagement"]);
 });
 
+test("a broken featured value is reported once, without also saying that none is featured", () => {
+  const input = fresh();
+  for (const file of ["assess.json", "build.json", "improve.json"]) entry(input, "engagements", file).featured = false;
+  entry(input, "engagements", "build.json").featured = "yes";
+  assert.deepEqual(issuesOf(input), ["content/engagements/build.json: featured: expected true or false"]);
+  delete entry(input, "engagements", "build.json").featured;
+  assert.deepEqual(issuesOf(input), ["content/engagements/build.json: featured: missing"]);
+});
+
+test("work tiles point at different services (Work.tsx keys tiles by slug)", () => {
+  const input = fresh();
+  const slug = input.work.tiles[0].slug;
+  input.work.tiles[2].slug = slug;
+  assert.deepEqual(issuesOf(input), [`content/work.json: tiles[2].slug: ${JSON.stringify(slug)} repeats tiles[0].slug; make every item different`]);
+});
+
+test("testimonials differ by name or company (the carousel keys them by both)", () => {
+  const input = fresh();
+  const quote = { img: "/uploads/client.webp", name: "Ada Client", role: "COO", company: "Example Ltd", quote: "They helped.", permissionConfirmed: true };
+  input.collections.testimonials = [
+    { file: "a.json", data: { ...quote, order: 1 } },
+    { file: "b.json", data: { ...quote, quote: "They helped again.", order: 2 } },
+    { file: "c.json", data: { ...quote, company: "Other Ltd", order: 3 } },
+    { file: "d.json", data: { ...quote, name: "Bo Client", order: 4 } },
+  ];
+  assert.deepEqual(issuesOf(input), [
+    'content/testimonials/b.json: name "Ada Client" and company "Example Ltd" are already used by a.json; give every entry its own combination of name and company',
+  ]);
+});
+
 test("unknown fields, empty required fields and over-long text are reported with their file", () => {
   const input = fresh();
   input.home.extra = "x";
