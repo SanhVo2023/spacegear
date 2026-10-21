@@ -43,6 +43,14 @@ for(let i=errors.length-1;i>=0;i--)if(errors[i].startsWith("Excluded source/temp
 const shipped=exactIndex(root);
 async function scanUploads(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name),relative=path.relative(root,file).replaceAll("\\","/");if(entry.isDirectory()){if(relative!=="admin")await scanUploads(file);}else if(/\.(html|txt|js)$/.test(entry.name))for(const [ref] of (await fs.readFile(file,"utf8")).matchAll(UPLOAD_REF)){if(/\/\.\.?\//.test(ref))errors.push(`Unsafe upload path ${ref} in ${relative}`);else if(!shipped.has(ref.slice(1)))errors.push(`Missing asset ${ref} referenced by ${relative}`);}}}
 await scanUploads(root);
+// /admin/ (Task 10): exactly the committed page and config.yml and the Sveltia files with their pinned
+// hashes, nothing else, no link and nothing hidden (scripts/lib/admin.mjs). _headers: /admin/* and
+// /uploads/* replace the site CSP with their own (admin noindex, uploads sandboxed and nosniff), and
+// every other shipped path gets exactly the /* policy (scripts/lib/headers.mjs mirrors Cloudflare).
+const {adminProblems}=await import("./lib/admin.mjs");
+const {headerProblems,sitePaths}=await import("./lib/headers.mjs");
+errors.push(...adminProblems(path.join(root,"admin"),{label:`${root}/admin`,reference:"public/admin"}));
+errors.push(...headerProblems(await fs.readFile(path.join(root,"_headers"),"utf8").catch(()=>""),sitePaths(root)).map(problem=>`${root}/_headers: ${problem.replace(/^_headers /,"")}`));
 errors.push(...uploadProblems(path.join(root,"uploads"),{label:`${root}/uploads`,variants:true}));
 errors.push(...wrongCaseReferences(root,{skip:["admin"]}));
 // <<< CMS
