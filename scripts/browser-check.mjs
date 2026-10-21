@@ -40,8 +40,8 @@ async function hiddenText(page) {
 }
 
 // Screenshot of the hero globe's canvas alone (the copy, scrim and hint layers hidden), cropped to a
-// region given in fractions of the canvas, downsampled to 96×64 RGB.
-async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }) {
+// region given in fractions of the canvas, downsampled to 96×64 RGB (or to `size`).
+async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }, [sizeW, sizeH] = [96, 64]) {
   const toggle = hide => page.evaluate(hide => {
     for (const el of document.querySelectorAll("#home .sticky > :not(.hero-scene)")) {
       if (hide) el.style.setProperty("visibility", "hidden"); else el.style.removeProperty("visibility");
@@ -54,7 +54,7 @@ async function globeCapture(page, region = { x: 0.55, y: 0.2, w: 0.4, h: 0.6 }) 
   const { width, height } = await image.metadata();
   return image
     .extract({ left: Math.round(width * region.x), top: Math.round(height * region.y), width: Math.round(width * region.w), height: Math.round(height * region.h) })
-    .removeAlpha().resize(96, 64, { fit: "fill" }).raw().toBuffer();
+    .removeAlpha().resize(sizeW, sizeH, { fit: "fill" }).raw().toBuffer();
 }
 // Mean and spread of luminance, and the number of distinct colours (4 bits per channel).
 function pixelStats(data) {
@@ -86,6 +86,12 @@ async function settledStats(page, region, timeout = 30000) {
     previous = next;
   }
   throw new Error(`the hero globe did not settle within ${timeout} ms (${JSON.stringify(previous)})`);
+}
+
+function meanDifference(a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+  return sum / a.length;
 }
 
 // Records CSP violations and blocked-texture errors on every page and route a context opens.
@@ -172,6 +178,35 @@ try {
       await settledStats(page, centre);
       assert.ok(nightCentre.mean < dayCentre.mean * 0.6, `desktop: the terminator sweeps across the globe with scroll (day ${dayCentre.mean}, night ${nightCentre.mean})`);
       report.interactions.push(`desktop sun sweep turns the centred globe to its night side (centre luma ${dayCentre.mean} → ${nightCentre.mean}); atmosphere ring rgb ${ring} over space ${space}`);
+
+      // Mouse drag spins the globe with inertia and never scrolls the page; touch is left alone.
+      const scene = page.locator("#home .hero-scene");
+      assert.equal(await scene.getAttribute("data-cursor"), "Drag", "desktop: the globe offers a Drag cursor label");
+      assert.equal(await scene.evaluate(el => getComputedStyle(el).touchAction), "auto", "desktop: the globe never blocks touch scrolling");
+      assert.ok(await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches), "desktop: the test browser reports a fine pointer (drag is fine-pointer only)");
+      // A canvas capture takes about 0.5 s in software WebGL, long enough for the idle spin to carry the
+      // cloud detail across several 96×64 samples. So compare on a coarse 6×4 grid, where the idle spin
+      // moves the surface by a fraction of a cell while a drag turns whole continents out of view. The
+      // idle pair spans more wall-clock time than the drag sequence, so the comparison stays conservative.
+      const COARSE = [6, 4];
+      const idleA = await globeCapture(page, undefined, COARSE);
+      await page.waitForTimeout(700);
+      const idleB = await globeCapture(page, undefined, COARSE);
+      const scrollBefore = await page.evaluate(() => window.scrollY);
+      await page.mouse.move(1000, 520);
+      await page.mouse.down();
+      const dragging = await scene.evaluate(el => el.hasAttribute("data-dragging"));
+      for (let i = 1; i <= 12; i++) await page.mouse.move(1000 - i * 40, 520);
+      await page.mouse.up();
+      const released = await scene.evaluate(el => !el.hasAttribute("data-dragging"));
+      await page.waitForTimeout(250);
+      const dragged = await globeCapture(page, undefined, COARSE);
+      assert.equal(dragging, true, "desktop: pressing on the globe starts a drag");
+      assert.equal(released, true, "desktop: releasing the mouse ends the drag");
+      assert.equal(await page.evaluate(() => window.scrollY), scrollBefore, "desktop: dragging the globe does not scroll the page");
+      const idleChange = meanDifference(idleA, idleB), dragChange = meanDifference(idleB, dragged);
+      assert.ok(dragChange > Math.max(4, idleChange * 3), `desktop: dragging spins the globe (drag ${dragChange.toFixed(1)}, idle ${idleChange.toFixed(1)})`);
+      report.interactions.push(`desktop globe drag spins it without scrolling the page (drag ${dragChange.toFixed(1)}, idle ${idleChange.toFixed(1)})`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {

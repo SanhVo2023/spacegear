@@ -2,8 +2,10 @@
 
 import { Stars } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
+import { STAR_PARALLAX } from "./constants";
+import type { PointerInput } from "./interaction";
 
 // The visible sun: a faint warm haze in the upper-left corner, behind the globe. Placed high and wide
 // enough that the disc stays clear of the hero copy on common desktop viewports.
@@ -23,17 +25,28 @@ function sunGlow(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-/** Galaxy sphere, 3D stars and the visible sun (moved here from the previous EarthScene). */
-export default function Backdrop({ galaxy }: { galaxy: THREE.Texture }) {
+/**
+ * Galaxy sphere, 3D stars and the visible sun. They drift slightly against the cursor (parallax)
+ * while the globe tilts toward it. Everything here lies behind the origin, so a turn of the group
+ * in the same sense as the globe's tilt moves it the other way on screen.
+ */
+export default function Backdrop({ galaxy, pointer }: { galaxy: THREE.Texture; pointer: RefObject<PointerInput> }) {
+  const parallax = useRef<THREE.Group>(null);
   const sky = useRef<THREE.Mesh>(null);
   const glow = useMemo(() => sunGlow(), []);
 
   useFrame((_, raw) => {
-    if (sky.current) sky.current.rotation.y += Math.min(raw, 0.1) * 0.004;
+    const delta = Math.min(raw, 0.1);
+    if (sky.current) sky.current.rotation.y += delta * 0.004;
+    const group = parallax.current;
+    if (!group) return;
+    const input = pointer.current;
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, input.x * STAR_PARALLAX, 3, delta);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, -input.y * STAR_PARALLAX * 0.6, 3, delta);
   });
 
   return (
-    <group>
+    <group ref={parallax}>
       <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
       <mesh ref={sky} scale={120}>
         <sphereGeometry args={[1, 64, 64]} />

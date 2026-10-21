@@ -53,6 +53,7 @@ class SceneBoundary extends Component<{ children: ReactNode; onError?: () => voi
  * scene that fades in over the poster again.
  */
 function HeroScene({ progress, active }: { progress: MotionValue<number>; active: boolean }) {
+  const sceneRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   const fail = () => setGlobe("failed");
@@ -74,12 +75,21 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   }, [active, ready, globe]);
 
   // The canvas fades in over the poster once its first textured frame has rendered (globals.css).
+  // From then on a mouse or pen drag spins it, and Part 2's cursor shows its "Drag" label.
+  const live = globe === "ready";
   return (
-    <div className="hero-scene absolute inset-0" data-globe={globe} aria-hidden>
+    <div ref={sceneRef} className="hero-scene absolute inset-0" data-globe={globe} data-cursor={live ? "Drag" : undefined} aria-hidden>
       {ready && globe !== "failed" && (
         <SceneBoundary onError={fail}>
           {/* A failure is terminal: a first frame that lands after a loss never revives the scene. */}
-          <EarthScene variant="cinematic" progress={progress} active={active} onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))} onLost={fail} />
+          <EarthScene
+            variant="cinematic"
+            progress={progress}
+            active={active}
+            dragTarget={live ? sceneRef : undefined}
+            onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))}
+            onLost={fail}
+          />
         </SceneBoundary>
       )}
     </div>

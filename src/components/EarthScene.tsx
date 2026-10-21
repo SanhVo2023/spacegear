@@ -6,9 +6,11 @@ import { Suspense, use, useEffect, useRef, useState, type ReactNode, type RefObj
 import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
-import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
+import { createDragState, createSpring, stepDrag, stepSpring, type PointerInput } from "@/components/globe/interaction";
 import { cameraZAt, rigAt, slerpDirection, sunDirectionAt } from "@/components/globe/scroll";
 import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
+import { usePointerInput } from "@/components/globe/usePointerInput";
 
 export type SceneVariant = "cinematic" | "mobile";
 export type EarthSceneProps = {
@@ -16,6 +18,8 @@ export type EarthSceneProps = {
   active: boolean;
   /** Hero scroll progress 0…1 (cinematic only). */
   progress?: MotionValue<number>;
+  /** The element that takes drag input (cinematic, fine pointers only; set once the globe is ready). */
+  dragTarget?: RefObject<HTMLElement | null>;
   /** The first textured frame has rendered. */
   onReady: () => void;
   /** The WebGL context was lost: drop the canvas and keep the poster. */
@@ -75,17 +79,19 @@ type ContentsProps = {
   variant: SceneVariant;
   load: Promise<HeroTextures>;
   progress?: MotionValue<number>;
+  pointer: RefObject<PointerInput>;
   onReady: () => void;
 };
 
-function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
+function SceneContents({ variant, load, progress, pointer, onReady }: ContentsProps) {
   const loaded = use(load);
   const root = useRef<THREE.Group>(null);
   const frame = useRef<GlobeFrame>(createGlobeFrame());
   const warm = useRef<Warmup>({ queued: false, pending: [], compiling: false, compiled: false, shownAt: -1, announced: false });
-  const sunTarget = useState(() => new THREE.Vector3())[0];
   // Scroll targets, recomputed only when the progress changes.
-  const scroll = useRef({ p: Number.NaN, cameraZ: CAMERA_Z });
+  const scroll = useRef({ p: Number.NaN, cameraZ: CAMERA_Z, sun: new THREE.Vector3() });
+  const tilt = useRef({ x: createSpring(), y: createSpring() });
+  const drag = useRef(createDragState());
 
   // Queue the first set for one-per-frame GPU uploads.
   useEffect(() => {
@@ -134,38 +140,45 @@ function SceneContents({ variant, load, progress, onReady }: ContentsProps) {
       // The sun sweeps with scroll on desktop (the terminator crosses the face and the city lights
       // come on as the globe centres); phones keep a fixed crescent.
       const [sx, sy, sz] = variant === "cinematic" ? sunDirectionAt(p) : MOBILE_SUN;
-      sunTarget.set(sx, sy, sz);
+      targets.sun.set(sx, sy, sz);
       // Slow camera dolly-in across the hero.
       targets.cameraZ = cameraZAt(p);
     }
     // Exact until the globe is on screen, so it fades in already in place; eased after that, so a
     // jump in scroll never snaps the light or the camera.
     const settled = warm.current.announced;
-    if (settled) f.sun.lerp(sunTarget, 1 - Math.exp(-6 * delta)).normalize();
-    else f.sun.copy(sunTarget);
-    if (variant === "cinematic") state.camera.position.z = settled ? THREE.MathUtils.damp(state.camera.position.z, targets.cameraZ, 3, delta) : targets.cameraZ;
+    if (settled) f.sun.lerp(targets.sun, 1 - Math.exp(-6 * delta)).normalize();
+    else f.sun.copy(targets.sun);
+    if (variant !== "cinematic") return;
+    state.camera.position.z = settled ? THREE.MathUtils.damp(state.camera.position.z, targets.cameraZ, 3, delta) : targets.cameraZ;
+    // Cursor tilt (spring, ≤ 6°) plus drag spin with inertia and a sprung pitch (fine pointers only).
+    const input = pointer.current;
+    f.spinBoost = stepDrag(input, drag.current, delta, window.innerWidth);
+    f.tiltX = stepSpring(tilt.current.x, -input.y * MAX_TILT, delta) + drag.current.pitch.value;
+    f.tiltY = stepSpring(tilt.current.y, input.x * MAX_TILT, delta);
   };
 
   const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;
   return (
     <group ref={root} visible={false}>
-      {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} />}
+      {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} pointer={pointer} />}
       {variant === "cinematic" && progress ? <Rig progress={progress} settled={warm}>{globeNode}</Rig> : <group scale={MOBILE_RADIUS}>{globeNode}</group>}
     </group>
   );
 }
 
 /**
- * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop and the scroll beats.
- * Phones and tablets ("mobile"): the 1k globe alone.
+ * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop, the scroll beats,
+ * cursor tilt and drag. Phones and tablets ("mobile"): the 1k globe alone.
  */
-export default function EarthScene({ variant, active, progress, onReady, onLost }: EarthSceneProps) {
+export default function EarthScene({ variant, active, progress, dragTarget, onReady, onLost }: EarthSceneProps) {
   const [load] = useState(() => {
     const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", { backdrop: variant === "cinematic" });
     // A failed load surfaces through use() → SceneBoundary; this only marks the rejection handled.
     promise.catch(() => undefined);
     return promise;
   });
+  const pointer = usePointerInput(dragTarget, variant === "cinematic");
 
   return (
     <Canvas
@@ -192,7 +205,7 @@ export default function EarthScene({ variant, active, progress, onReady, onLost 
       className="!absolute inset-0"
     >
       <Suspense fallback={null}>
-        <SceneContents variant={variant} load={load} progress={progress} onReady={onReady} />
+        <SceneContents variant={variant} load={load} progress={progress} pointer={pointer} onReady={onReady} />
       </Suspense>
     </Canvas>
   );
