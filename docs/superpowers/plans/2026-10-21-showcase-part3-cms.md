@@ -96,6 +96,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `scripts/lib/honesty.mjs` | Shared forbidden-claim patterns and content-tree scan | 6 |
 | `scripts/build-upload-variants.mjs` | sharp: `-640`/`-1280` WebP variants of each upload | 7 |
 | `scripts/lib/content-assets.mjs` | Referenced images that are missing | 7 |
+| `scripts/lib/uploads.mjs` | Upload folder rules: allowed types and names, links, shipping (added in execution) | 7 |
 | `src/lib/content-images.ts` | `contentImage()` srcset helper | 7 |
 | `tests/uploads.test.mjs` | Variant script and helper tests | 7 |
 | `.gitattributes` | Keep vendored bytes exact | 9 |
@@ -3594,6 +3595,41 @@ The only task that edits section components. Each edit replaces `src={X}` with `
        - **SOC 2:** "our SOC 2 …" and "SOC 2 report available / on request" are caught.
        - **Partners:** "a select partner", "preferred/select partner of|for" and "<Vendor>'s … partner" are caught.
        - **Results:** `honesty-round3.mjs` regressions against `0913b94` went from 17 to 1 ("Gemma 1M"). The reviewer's 1 MB ReDoS shapes take at most 221 ms.
+- **Task 7** (`70f1c43`). These committed files supersede Task 7's code blocks: `scripts/build-upload-variants.mjs`, `scripts/lib/uploads.mjs` (new), `scripts/lib/content-assets.mjs`, `tests/uploads.test.mjs` and the fenced blocks. `src/lib/content-images.ts` is as planned. The plan's 7 tests are kept (one assertion added: no temporary file is left), plus 15 new ones; `npm test` went from 133 to 155 tests.
+  1. **Shared rules module** `scripts/lib/uploads.mjs`: `WIDTHS`, `RASTER`, `VARIANT`, `variantFile(s)`, `UPLOAD_EXTENSIONS`, `UPLOAD_PATH`, a listing that never follows links, the file-signature check, `uploadProblems` and `shipUploads`. `build-upload-variants.mjs` re-exports the names the plan gives it. `content-assets.mjs` imports from `scripts/lib/` only, so the check-content temp-copy test, which copies `scripts/lib`, still works. `package-site` and `check-export` import the module too.
+  2. **Idempotency by modification time, made robust.** Each variant is stamped with its original's mtime (`utimes`) and counts as current only when it is a regular file within 1 ms of that time. The plan's rule ("variant newer than its original") kept stale variants when an original was replaced by a file with an older mtime (`cp -p`, unzip); a test covers that. Variants are written to a temporary dotfile `.<variant>.<pid>.tmp` next to them and renamed into place, so a failed or interrupted run never leaves a partial variant that would count as current. `.gitignore` also ignores `/public/uploads/**/.*.tmp`.
+  3. **Decoding.** sharp is loaded only when a variant has to be written, with `sharp.cache(false)`. Settings: `autoOrient: true` (the sharp 0.34 constructor form of `rotate()`); `toColourspace("srgb")` (sharp already converts with the embedded profile and drops it; tests cover Display P3 and CMYK); WebP quality 80; a 120 s timeout; `limitInputPixels: MAX_INPUT_PIXELS`, sharp's own default of 268,402,689 px, set explicitly.
+     - The size is read from the header first: `metadata()` with `limitInputPixels: false`, because `metadata()` itself refuses an over-limit header and then gives no size to report. An animated WebP counts every frame.
+     - Too large (a decompression bomb claims a huge size), unreadable, truncated: each is a listed problem, never a crash. The other uploads still get variants, and the command exits 1.
+  4. **Animations.**
+     - An animated WebP gets animated variants (`animated: true`); every frame is kept.
+     - A GIF gets no variants and ships as it is; `contentImage()` returns `src` only, as planned.
+     - An animated PNG (`acTL` before `IDAT`) and an AVIF sequence (`avis` brand) are refused, because sharp reads only their first frame.
+     - An AVIF with several images (a collection, not an animation) uses its first image.
+  5. **Names.** The variant step processes only uploads whose path matches `UPLOAD_PATH`: `^(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif)$`, the schema's `IMAGE` rule without the `/uploads/` prefix. A test checks that the two agree. Other names (capitals, spaces, `..`, non-ASCII, bidi characters, `[ ]`) get no variants, nothing is written outside the folder, and check-content asks for a rename.
+     - A file named like a variant is never an original. With no original it is reported, never processed or deleted. The plan's "(safe to delete)" note is replaced, because it may be a real upload: "delete it if its original was removed, or rename it if it is an upload".
+  6. **Links** (symbolic links and junctions) are refused anywhere under `public/uploads/`, dot-named ones included, and so is a linked uploads folder. They are never followed. This matters because `next build` follows links when it copies `public/` into `out/` (`next/dist/lib/recursive-copy.js` calls `stat` on links): a linked file would reach `out/` as a regular file, and a linked folder would be copied whole. File symlinks need developer mode on this Windows machine, so the tests use junctions and skip the file-link case when the OS refuses with `EPERM`.
+  7. **`package-site` ships uploads from `public/uploads/`, not `out/uploads/`** (a deviation from the plan's `shipFolder`), for the reason in item 6. `shipUploads` empties `dist/uploads/` first, so a deleted upload never lingers, then copies only regular files that match `UPLOAD_PATH`, variants included. It logs `Uploads shipped: N files.` **Task 10:** `shipFolder` does not exist; ship `/admin/` with its own copy.
+  8. **check-content** (from `ROOT`; the plan passed a cwd-relative `"public"`):
+     - `uploadProblems` lists: links; anything that is not a regular file; any extension other than the six (SVG, HTML and the rest); names outside `UPLOAD_PATH`; and bytes that do not match the extension (WebP, PNG, JPEG, AVIF and GIF signatures). Dotfiles and dot-folders are exempt; they are never processed or shipped.
+     - `imageReferenceProblems` refuses any content string under `/images/` or `/uploads/`, links included, that is not a plain path (`..`, `.`, a dotfile, an empty segment, `%`, `\` or other characters) or that names a `-640`/`-1280` upload variant. Each problem names its place, for example `image path in export FAQ_CARD.img: …`. A refused path is not looked up on disk. The schema already refuses both in image fields; this covers the other fields.
+     - `missingImageFiles` is as planned.
+  9. **check-export** (fenced): the plan's `scanUploads`, plus `Unsafe upload path …` for a `/./` or `/../` segment, which a browser would resolve elsewhere, and `Not an upload that may ship: uploads/…` for any shipped file outside `UPLOAD_PATH`.
+  10. **`tests/content.test.mjs`:** the check-content temp-copy test also copies `public/images/`, because check-content now checks that referenced images exist.
+  11. **Results:**
+      - `check-content` on the real tree: `Content valid: 12 routes; preview mode.`
+      - The build log shows `Upload variants: 0 originals, 0 written, 0 up to date.`, `Uploads shipped: 0 files.` and `Export valid: 12 core pages, 156 files, 11.53 MiB total.`
+      - `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` The chunk file names are identical too, because `content-images.ts` has no importer until Task 8. No ids needed explaining, and the baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+      - A final rebuild on `70f1c43` gave the same results; the 8788 preview serves that build.
+      - A planted `.svg`, `.html` and junction in `public/uploads/` were refused by the variant step and check-content. A temp-copy package shipped only the image and its variants, and check-export passed. A planted SVG in `dist/uploads/`, a missing upload and a `/../` path were each refused by check-export.
+  12. **Time added to a build:** the variant step's process takes 66 ms with no `public/uploads/` and 61 ms with only a `.gitkeep` (median of 9; a bare `node -e ""` takes 50 ms). For 20 noisy 4032 × 3024 JPEGs (155.5 MiB, a worst case for size), the first run takes 8.5 s (40 variants), a re-run with everything current 7 ms, and a re-run after one original changed 390 ms.
+  13. **Known limitations:**
+      - A hard link cannot be told from a regular file (git does not store hard links).
+      - The check-then-copy window in `shipUploads` is not guarded.
+      - The variant step decodes by content, so a mislabelled but valid image gets variants; check-content refuses it in the same build.
+      - Risk 8 (`1280w` descriptors) is unchanged.
+  14. **For Task 9:** an upload whose name is outside `UPLOAD_PATH` now fails the build, not only its image field. Check that `slugify_filename` writes such names.
 
 ## Risks and open questions
 
