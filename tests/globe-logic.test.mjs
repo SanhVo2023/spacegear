@@ -425,3 +425,18 @@ test("the gate script is fixed ES5 text with a knowable CSP hash", () => {
   assert.equal(script.length, 496);
   assert.equal(createHash("sha256").update(script).digest("base64"), "0y3wV+PoPNzI6HQAOkd/uEUhzfrGQIcFoTGmdo7yXCU=");
 });
+
+test("the CSS failsafe hides the overlay and releases the held copy only after the caps", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const rules = [...css.matchAll(/^(html\[data-intro="(\w+)"\][^{]*)\{ animation: (intro-failsafe(?:-copy)?) 0s linear (\d+(?:\.\d+)?)s forwards; \}$/gm)];
+  assert.deepEqual(rules.map((rule) => [rule[1].trim(), rule[2], rule[3]]), [
+    ['html[data-intro="play"] .intro-overlay', "play", "intro-failsafe"],
+    ['html[data-intro="play"] #home [data-reveal]', "play", "intro-failsafe-copy"],
+  ], "one rule for the overlay and one for the hero copy, both only while the intro plays");
+  const delays = rules.map((rule) => Number(rule[4]) * 1000);
+  assert.equal(new Set(delays).size, 1, "the overlay and the copy are released together");
+  assert.ok(delays[0] > intro.INTRO_LOAD_CAP_MS + intro.INTRO_REVEAL_MS, "a working script always reveals first");
+  assert.match(css, /@keyframes intro-failsafe \{ to \{ visibility: hidden; opacity: 0; \} \}/);
+  assert.match(css, /@keyframes intro-failsafe-copy \{ to \{ opacity: 1; transform: none; filter: none; \} \}/);
+});

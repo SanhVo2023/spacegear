@@ -4,6 +4,8 @@ import Nav from "@/components/Nav";
 import CurtainShell from "@/components/CurtainShell";
 import MotionProvider from "@/components/MotionProvider";
 import NoScriptStyles from "@/components/NoScriptStyles";
+import IntroGate from "@/components/IntroGate";
+import IntroOverlay from "@/components/IntroOverlay";
 import Footer from "@/components/sections/Footer";
 import StructuredData from "@/components/StructuredData";
 import { SITE } from "@/lib/site";
@@ -17,9 +19,13 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${inter.variable} ${mono.variable} antialiased`}><body id="top">
+  // suppressHydrationWarning: the inline intro gate may add data-intro to <html> before hydration.
+  return <html lang="en" className={`${inter.variable} ${mono.variable} antialiased`} suppressHydrationWarning><body id="top">
+    <IntroGate />
     <NoScriptStyles />
     <a className="skip-link" href="#main">Skip to content</a>
+    {/* Outside main, aria-hidden and never focusable; shown only while the gate's data-intro is set. */}
+    <IntroOverlay />
     <MotionProvider>
       <Nav />
       {/* Original curtain: page content lifts away to reveal the pinned footer (desktop). */}
