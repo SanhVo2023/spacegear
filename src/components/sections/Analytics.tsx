@@ -192,7 +192,7 @@ export default function Analytics() {
           <Reveal as="div" delay={180}>
             <div className="flex h-full flex-col gap-4">
               <Card className="flex-1">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-mut-3">{MEASURE.coverage.tag}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-mut-3 lg:block lg:leading-[1.2]">{MEASURE.coverage.tag}</span>
                 <p className="display mt-2 text-3xl text-ink-strong">{MEASURE.coverage.value}</p>
                 <p className="text-[12px] text-mut-2">{MEASURE.coverage.label}</p>
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-card-3">
@@ -200,7 +200,7 @@ export default function Analytics() {
                 </div>
               </Card>
               <Card className="flex-1">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-mut-3">{MEASURE.connectors.tag}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-mut-3 lg:block lg:leading-[1.2]">{MEASURE.connectors.tag}</span>
                 <div aria-hidden className="mt-3 flex gap-2">
                   {MEASURE.connectors.glyphs.map((g) => (
                     <span key={g} className="grid h-8 w-8 place-items-center rounded-lg border border-line text-mut-2">{g}</span>
