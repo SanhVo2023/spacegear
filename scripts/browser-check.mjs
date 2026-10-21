@@ -4,6 +4,7 @@ import { build } from "esbuild";
 import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
+import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -12,11 +13,22 @@ assert.ok(routes.length > 0, "sitemap lists routes");
 const homeHeaders = (await fetch(`${base}/`)).headers;
 assert.ok((homeHeaders.get("content-security-policy") || "").includes("connect-src"), "/ serves the Content-Security-Policy (with connect-src)");
 assert.ok(homeHeaders.has("x-content-type-options"), "/ serves X-Content-Type-Options");
+// The streamed 4k tier is served like the first-frame 2k set (public/_headers has no rule of its own for textures).
+const tierHeaders = await Promise.all(["1k", "2k", "4k"].map(async tier => {
+  const response = await fetch(`${base}/textures/earth/${tier}/clouds.webp`, { method: "HEAD" });
+  return { tier, status: response.status, type: response.headers.get("content-type"), cache: response.headers.get("cache-control") };
+}));
+assert.ok(tierHeaders.every(h => h.status === 200 && h.type === "image/webp" && h.cache === tierHeaders[1].cache), `the globe texture tiers share the 2k set's caching headers (${JSON.stringify(tierHeaders)})`);
 // Intro timing, read from the source so the checks follow a retune: the load cap and the reveal
 // (intro-store.ts) and the delay of the pure-CSS failsafe (globals.css).
 const introSource = await fs.readFile(new URL("../src/components/globe/intro-store.ts", import.meta.url), "utf8");
 const introConstant = name => Number(introSource.match(new RegExp(`export const ${name} = (\\d+);`))?.[1]);
 const INTRO = { loadCap: introConstant("INTRO_LOAD_CAP_MS"), extraCap: introConstant("INTRO_EXTRA_CAP_MS"), hold: introConstant("INTRO_HOLD_MS"), reveal: introConstant("INTRO_REVEAL_MS") };
+// The globe's own reveal after the overlay starts to lift (constants.ts): the 4k stream waits for it to end.
+const globeSource = await fs.readFile(new URL("../src/components/globe/constants.ts", import.meta.url), "utf8");
+const globeConstant = name => Number(globeSource.match(new RegExp(`export const ${name} = (\\d+(?:\\.\\d+)?);`))?.[1]);
+const REVEAL_END_MS = 1000 * (globeConstant("REVEAL_DELAY_SECONDS") + Math.max(globeConstant("REVEAL_SECONDS"), globeConstant("FLARE_SECONDS")));
+assert.ok(REVEAL_END_MS > 0, `the globe's reveal timing is readable from constants.ts (${REVEAL_END_MS} ms)`);
 const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
 INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
 const browser = await launchBrowser();
@@ -24,12 +36,13 @@ const report = { testedAt: new Date().toISOString(), base, browser: browser.vers
 await fs.mkdir("artifacts", { recursive: true });
 
 // Intro and globe state changes with timestamps from navigation start (data-intro on <html>, data-globe
-// on the hero scene). Observing the document catches the inline gate's change to <html> during parsing.
+// and data-globe-tier on the hero scene). Observing the document catches the inline gate's change to
+// <html> during parsing.
 function heroLogScript() {
   const now = performance.now.bind(performance);
   window.__heroLog = [];
   new MutationObserver(records => { for (const r of records) window.__heroLog.push({ attr: r.attributeName, value: r.target.getAttribute(r.attributeName), t: now() }); })
-    .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe"] });
+    .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe", "data-globe-tier"] });
 }
 // Holds a route for `ms` before letting it through (slow textures or scripts).
 const late = ms => async route => { await new Promise(resolve => setTimeout(resolve, ms)); await route.continue().catch(() => {}); };
@@ -218,6 +231,12 @@ try {
   ]) {
     const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, javaScriptEnabled: profile.javaScriptEnabled });
     const cspProblems = await watchCsp(context);
+    // The 4k rule reads the GPU's renderer string, and headless Chromium renders with the machine's real
+    // GPU where it can (SwiftShader elsewhere), so each profile reports a fixed one (globe-stream.mjs).
+    // The desktop profile reports a software renderer: it keeps the 2k set on every machine and checks
+    // that a software renderer never streams 4k. Phones, tablets and reduced motion report a capable
+    // desktop GPU, so their "no 4k" check means something. The capable-desktop check below streams 4k.
+    await context.addInitScript(fakeGpu, profile.name === "desktop" ? SOFTWARE_RENDERER : CAPABLE_DESKTOP);
     const page = await context.newPage(), errors = [], requests = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("request", request => requests.push(request.url()));
@@ -284,6 +303,7 @@ try {
       assert.ok(await page.evaluate(() => window.__bitmaps.some(b => b.w === 2048)), "desktop /: the 2k maps decode");
       const textures = requests.filter(url => url.includes("/textures/earth/"));
       assert.ok(textures.length >= 5 && textures.every(url => url.includes("/textures/earth/2k/")), `desktop: the first frame uses the 2k set (${textures.join(", ")})`);
+      assert.equal(await page.locator("#home .hero-scene").getAttribute("data-globe-tier"), "2k", "desktop: the 2k tier is on screen first");
       const pixels = pixelStats(await globeCapture(page));
       assert.ok(pixels.stdev > 10 && pixels.distinct > 40, `desktop: the globe renders non-uniform pixels (${JSON.stringify(pixels)})`);
       report.interactions.push(`desktop globe renders its 2k maps under the shipped CSP (${JSON.stringify(pixels)})`);
@@ -546,6 +566,26 @@ try {
     assert.deepEqual(forbidden, [], `${profile.name}: no GLB or Draco request`);
     const textureRequests = requests.filter(url => url.includes("/textures/earth/"));
     if (profile.reducedMotion || profile.javaScriptEnabled === false) assert.deepEqual(textureRequests, [], `${profile.name}: no globe textures`);
+    const streamed4k = textureRequests.filter(url => url.includes("/textures/earth/4k/"));
+    if (profile.name === "desktop") {
+      // The 4k set streams only on hardware GPUs. The renderer string is read the way the scene reads it
+      // (device.ts rendererName); this profile reports a software renderer (see fakeGpu above).
+      const renderer = await page.evaluate(() => {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        if (!gl) return "";
+        const reported = String(gl.getParameter(gl.RENDERER));
+        const info = /^webkit webgl$/i.test(reported.trim()) ? gl.getExtension("WEBGL_debug_renderer_info") : null;
+        const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : reported;
+        gl.getExtension("WEBGL_lose_context")?.loseContext();
+        return { reported: name, real: window.__realRenderer?.() ?? null };
+      });
+      assert.match(renderer.reported, /swiftshader|llvmpipe|softpipe|software|basic render/i, "desktop: the profile reports a software renderer (precondition)");
+      assert.deepEqual(streamed4k, [], `desktop (${renderer.reported}): a software renderer never streams the 4k set`);
+      report.interactions.push(`desktop WebGL renderer: ${renderer.real} (reported to the page as ${renderer.reported})`);
+    } else {
+      // Phones, tablets, reduced motion and no-JS never stream the 4k set, even on a capable GPU.
+      assert.deepEqual(streamed4k, [], `${profile.name}: no 4k textures`);
+    }
     const metrics = await page.evaluate(() => ({
       ...window.__audit,
       resourceBytes: performance.getEntriesByType("resource").reduce((sum, entry) => sum + entry.encodedBodySize, 0),
@@ -632,6 +672,12 @@ try {
     report.interactions.push(`${profile.name}: no CSP violations or texture errors`);
     await context.close();
   }
+  // 4k streaming on a page that reports a capable desktop GPU and 8 GB of device memory; a texture probe
+  // records its WebGL calls (scripts/globe-stream.mjs).
+  const stream = await streamingCheck(browser, base, { watchCsp, heroLogScript, revealEndMs: REVEAL_END_MS });
+  report.stream = stream.summary;
+  report.interactions.push(stream.line);
+
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });
   await page.goto(`${base}/contact/?service=applied-ai`, { waitUntil: "networkidle" });
   assert.equal(await page.locator("select[name=service]").inputValue(), "applied-ai");
