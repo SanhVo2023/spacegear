@@ -27,4 +27,13 @@ const chunkAsset=/"(\/(?:images|models)\/[A-Za-z0-9_./-]+\.(?:glb|webp|png|jpe?g
 async function scanChunks(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name);if(entry.isDirectory())await scanChunks(file);else if(entry.name.endsWith(".js"))for(const m of (await fs.readFile(file,"utf8")).matchAll(chunkAsset))await need(m[1],path.relative(root,file));}}
 await scanChunks(path.join(root,"_next/static/chunks")).catch(()=>errors.push("Missing JS chunks: _next/static/chunks"));
 for(const file of ["draco/draco_decoder.wasm","draco/draco_wasm_wrapper.js","draco/draco_decoder.js"])await fs.access(path.join(root,file)).catch(()=>errors.push(`Missing Draco decoder file: ${file}`));
+// >>> CMS (showcase Part 3): every /uploads/ file a page or chunk names must ship (srcset variants
+// included) and no such path may step out of uploads/; only images ship there (scripts/lib/uploads.mjs).
+const {UPLOAD_PATH}=await import("./lib/uploads.mjs");
+const uploadRef=/\/uploads\/[\w./-]+?\.(?:webp|png|jpe?g|avif|gif|svg)/g;
+async function scanUploads(dir){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const file=path.join(dir,entry.name),relative=path.relative(root,file).replaceAll("\\","/");if(entry.isDirectory()){if(relative!=="admin")await scanUploads(file);}else if(/\.(html|txt|js)$/.test(entry.name))for(const m of (await fs.readFile(file,"utf8")).matchAll(uploadRef)){if(/\/\.\.?\//.test(m[0]))errors.push(`Unsafe upload path ${m[0]} in ${relative}`);else await need(m[0],relative);}}}
+await scanUploads(root);
+async function shippedUploads(dir,prefix=""){let entries;try{entries=await fs.readdir(dir,{withFileTypes:true});}catch(error){if(error.code==="ENOENT")return;throw error;}for(const entry of entries){const rel=prefix+entry.name;if(entry.isDirectory())await shippedUploads(path.join(dir,entry.name),`${rel}/`);else if(!entry.isFile()||!UPLOAD_PATH.test(rel))errors.push(`Not an upload that may ship: uploads/${rel}`);}}
+await shippedUploads(path.join(root,"uploads"));
+// <<< CMS
 if(errors.length){console.error(errors.join("\n"));process.exitCode=1;}else console.log(`Export valid: 12 core pages, ${count} files, ${(bytes/1048576).toFixed(2)} MiB total.`);

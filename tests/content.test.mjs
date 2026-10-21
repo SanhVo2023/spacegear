@@ -206,10 +206,11 @@ test("a price written into a legal page fails the file scan (temporary copy)", (
 
 // scripts/check-content.mjs runs before every build. It is run here on a temporary copy of the
 // files it needs, from a folder without content/, so it must find the project from its own location.
+// It checks that every image the content names exists, so public/images/ is copied too.
 test("check-content passes the committed content and lists every problem by file, field and fix, without a stack trace", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-check-"));
   try {
-    for (const dir of ["content", "src/lib", "scripts/lib"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
+    for (const dir of ["content", "src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
     fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
     const env = { ...process.env, SITE_MODE: "preview", NEXT_PUBLIC_SHOW_SAMPLES: "" };

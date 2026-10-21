@@ -52,3 +52,10 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# CMS: upload variants are build output (scripts/build-upload-variants.mjs), as are its temporary
+# files left by an interrupted run; Sveltia's temporary save files
+/public/uploads/**/*-640.webp
+/public/uploads/**/*-1280.webp
+/public/uploads/**/.*.tmp
+.sveltia-tmp-*
