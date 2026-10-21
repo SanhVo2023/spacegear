@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node --experimental-strip-types scripts/check-content.mjs && next build",
+    "build": "node scripts/build-content-index.mjs && node --experimental-strip-types scripts/check-content.mjs && next build",
     "start": "wrangler dev --local --port 8787",
     "lint": "eslint src worker scripts tests \"*.mjs\" \"*.ts\"",
     "build:cf": "npm run build && node scripts/package-site.mjs && node scripts/check-export.mjs",
