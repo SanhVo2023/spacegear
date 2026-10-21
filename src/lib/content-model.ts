@@ -4,7 +4,7 @@
 // so every place a service appears shows the same image and text.
 // public/admin/config.yml mirrors these schemas field by field (tests/cms-config.test.mjs).
 // Erasable TypeScript only: scripts/check-content.mjs loads this under --experimental-strip-types.
-import { ContentError, boolean, check, color, href, image, list, literal, nullable, number, object, oneOf, slug, text } from "./content-schema.ts";
+import { ContentError, SLUG, boolean, check, color, href, image, list, literal, nullable, number, object, oneOf, slug, text } from "./content-schema.ts";
 import type { Schema } from "./content-schema.ts";
 
 export type Service = {
@@ -206,7 +206,8 @@ function loadCollection<T extends { order: number }>(files: readonly CollectionF
   const loaded = files.map(({ file, data }) => ({ file, entry: check(entrySchema, data, `content/${name}/${file}`, issues) }));
   const taken = new Map<number, string>();
   for (const { file, entry } of loaded) {
-    if (entry.order < 1) continue;
+    // A missing or invalid order is already reported by the schema; it is not a shared number.
+    if (!Number.isInteger(entry.order) || entry.order < 1) continue;
     const other = taken.get(entry.order);
     if (other !== undefined) issues.push(`content/${name}/${file}: order ${entry.order} is already used by ${other}; give every entry its own number`);
     else taken.set(entry.order, file);
@@ -221,14 +222,56 @@ function withoutOrder<T extends { order: number }>(entry: T): Omit<T, "order"> {
   return copy as Omit<T, "order">;
 }
 
+/**
+ * Reports every entry whose `field` repeats an earlier entry's value, in display order. The
+ * site uses these values to tell entries apart (React keys, the selected engagement).
+ * Missing and empty values are left to the schema.
+ */
+function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, field: K, issues: string[]) {
+  const seen = new Map<string, string>();
+  for (const { file, entry } of loaded) {
+    const value: unknown = entry[field];
+    if (typeof value !== "string" || value === "") continue;
+    const other = seen.get(value);
+    if (other !== undefined) issues.push(`content/${name}/${file}: ${field} ${JSON.stringify(value)} is already used by ${other}; give every entry its own ${field}`);
+    else seen.set(value, file);
+  }
+}
+
+/** Reports items that repeat an earlier item of the same list: the site renders these lists with the text as the React key. */
+function uniqueItems(items: unknown, file: string, field: string, issues: string[]) {
+  if (!Array.isArray(items)) return;
+  const seen = new Map<string, number>();
+  items.forEach((item: unknown, index) => {
+    if (typeof item !== "string" || item === "") return;
+    const first = seen.get(item);
+    if (first !== undefined) issues.push(`${file}: ${field}[${index}]: ${JSON.stringify(item)} repeats ${field}[${first}]; make every item different`);
+    else seen.set(item, index);
+  });
+}
+
+/** The engagements section highlights one engagement, so exactly one entry sets `featured`. */
+function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], issues: string[]) {
+  const featured = engagements.filter(({ entry }) => entry.featured === true);
+  if (featured.length === 0) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
+  for (const { file } of featured.slice(1)) issues.push(`content/engagements/${file}: featured is already set on ${featured[0].file}; set featured on exactly one engagement`);
+}
+
 /** Validates all content and derives the exported values. Throws one ContentError listing every problem. */
 export function buildContent(input: ContentInput) {
   const issues: string[] = [];
   const services = loadCollection(input.collections.services, "services", contentSchemas([]).collections.services, issues);
+  // Only a well-formed slug names a service: a malformed one is reported by the schema alone,
+  // with no advice to rename the file after it, and tiles and pillars cannot point at it.
+  const serviceSlugs: string[] = [];
   for (const { file, entry } of services) {
-    if (entry.slug && file !== `${entry.slug}.json`) issues.push(`content/services/${file}: rename the file to ${entry.slug}.json (it must match the slug)`);
+    uniqueItems(entry.deliverables, `content/services/${file}`, "deliverables", issues);
+    const value: unknown = entry.slug;
+    if (typeof value !== "string" || !SLUG.test(value)) continue;
+    serviceSlugs.push(value);
+    if (file !== `${value}.json`) issues.push(`content/services/${file}: rename the file to ${value}.json (it must match the slug)`);
   }
-  const schemas = contentSchemas(services.map(({ entry }) => entry.slug));
+  const schemas = contentSchemas(serviceSlugs);
   const one = schemas.singletons;
   const home = check(one.home, input.home, SINGLETON_FILES.home, issues);
   const sections = check(one.sections, input.sections, SINGLETON_FILES.sections, issues);
@@ -247,6 +290,14 @@ export function buildContent(input: ContentInput) {
   const roles = loadCollection(input.collections["team-roles"], "team-roles", many["team-roles"], issues);
   const testimonials = loadCollection(input.collections.testimonials, "testimonials", many.testimonials, issues);
   const articles = loadCollection(input.collections.articles, "articles", many.articles, issues);
+  for (const { file, entry } of engagements) {
+    uniqueItems(entry.deliverables, `content/engagements/${file}`, "deliverables", issues);
+    uniqueItems(entry.outcomes, `content/engagements/${file}`, "outcomes", issues);
+  }
+  uniqueField(engagements, "engagements", "name", issues);
+  oneFeatured(engagements, issues);
+  uniqueField(faqs, "faqs", "question", issues);
+  uniqueField(articles, "articles", "slug", issues);
   if (issues.length) throw new ContentError(issues);
 
   const SERVICES: Service[] = services.map(({ entry }) => withoutOrder(entry));

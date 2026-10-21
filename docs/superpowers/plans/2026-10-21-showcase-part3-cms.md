@@ -562,6 +562,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
 Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
 
+> **Superseded in part.** The committed Task 3 files replace the code blocks below on the points listed under "Amendments made during execution" (Task 3 review follow-up): order checks, malformed service slugs, uniqueness, exactly one featured engagement, the index command and `readJson`.
+
 **Files:**
 - Create: `src/lib/content-model.ts`, `scripts/build-content-index.mjs`, `src/lib/content-index.generated.ts` (generated)
 - Create: `content/**` (35 files, generated once from the fixture)
@@ -3416,6 +3418,28 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   **For Task 9:**
   1. Check how Sveltia 0.230.1's string widget counts `maxlength` (code points or UTF-16 units). Sveltia is the reference: if it counts UTF-16 units, change `textOf` to match and record that here.
   2. Check that `slugify_filename: true` writes names that `IMAGE` accepts (lowercase ASCII letters, digits, `-`, `_`). If it keeps uppercase or non-ASCII letters, record it here, because the image field would then refuse those uploads with the message above.
+- **Task 3 review follow-up** (one commit after `71b6c98`; each change seen red, then green). On the points below, these committed files supersede Task 3's code blocks: `src/lib/content-model.ts`, `scripts/build-content-index.mjs`, `tests/helpers/content.mjs`, `tests/content-loader.test.mjs` and `tests/content-index.test.mjs`.
+  1. **Order.** The duplicate-order check skips any entry whose `order` is not a positive whole number (`!Number.isInteger(entry.order) || entry.order < 1`). The schema already reports that entry. So a missing order no longer also says `order undefined is already used by …`.
+  2. **Service slugs.** Only a slug that is a string and passes `SLUG` gets the "rename the file" check and joins the slugs that tiles and pillars may name. A malformed slug is reported by the schema alone. A missing slug is never read as `"undefined"`, which `SLUG` would accept.
+  3. **Uniqueness rule.** `buildContent` refuses repeated values that the site uses to tell items apart, as React keys and as the selected engagement (`Pricing.tsx` finds it by `name`). Empty and missing values are left to the schema. Each message names the file and the duplicate:
+     - **Across a collection:** FAQ `question`, engagement `name` and article `slug`. The later entry in display order is reported, for example `content/faqs/where-to-start.json: question "…" is already used by what-we-do.json; give every entry its own question`.
+     - **Within one entry:** a service's `deliverables`, and an engagement's `deliverables` and `outcomes`, for example `content/engagements/build.json: deliverables[3]: "…" repeats deliverables[1]; make every item different`. The review listed only the deliverables. `outcomes` was added because `Pricing.tsx` renders it with the same `<li key={entry}>`.
+  4. **Exactly one featured engagement.** Task 9's `config.yml` hint already promises this rule.
+     - With none featured: `content/engagements: no engagement is featured; set featured on exactly one`.
+     - For every featured entry after the first: `content/engagements/<file>: featured is already set on <first file>; set featured on exactly one engagement`.
+  5. **Index command** (`scripts/build-content-index.mjs`):
+     - The `.json` extension matches in any case, so `X.JSON` is refused by the name rule instead of being skipped silently.
+     - Paths resolve from the script's own location, through the new export `ROOT`, not from the cwd. `ROOT` is also the default `root` of `renderIndex` and `readIndex`.
+     - A bad entry name prints as a single line and exits 1, with no stack trace.
+     - A new test runs a temporary copy from a folder that has no `content/`. Each run gives the expected result:
+       - `--check` passes;
+       - after an entry is added, `--check` exits 1 with `Run: npm run content:index`;
+       - writing the index brings it up to date;
+       - a bad entry name prints only the message.
+  6. **`readJson`** (test helper) rethrows a JSON syntax error as `SyntaxError("<file>: <message>")`.
+  7. **Ordering test.** It reads the moved FAQ's question from the input instead of the literal.
+
+  The two Task 3 test files now hold 21 tests (14 before). The content files and the generated index are unchanged.
 
 ## Risks and open questions
 

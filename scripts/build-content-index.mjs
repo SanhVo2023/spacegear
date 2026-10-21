@@ -3,29 +3,35 @@
 // bundle and in the Worker, so it cannot list a folder at run time; this index lets it import
 // every entry at build time. Entries are listed in file-name order; the loader sorts them by
 // their `order` field. The build regenerates the index; `npm test` fails when it is stale.
+// Paths resolve from this script's location, so the command works from any folder.
 //   node scripts/build-content-index.mjs           write the index
 //   node scripts/build-content-index.mjs --check   exit 1 if the index is out of date
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const COLLECTIONS = ["services", "engagements", "faqs", "team-roles", "testimonials", "articles"];
 export const INDEX_FILE = "src/lib/content-index.generated.ts";
+/** The project folder (the parent of scripts/), wherever the command runs from. */
+export const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ENTRY_NAME = /^[a-z0-9][a-z0-9_-]*\.json$/;
 
-/** Entry files of one folder collection, sorted by name. Dotfiles (.gitkeep) are skipped. */
+/**
+ * Entry files of one folder collection, sorted by name. Dotfiles (.gitkeep) are skipped. The
+ * extension is matched in any case, so a name such as X.JSON is refused instead of skipped.
+ */
 export function listEntries(root, collection) {
   const dir = path.join(root, "content", collection);
   if (!fs.existsSync(dir)) return [];
   const names = fs.readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && !entry.name.startsWith(".") && entry.name.endsWith(".json"))
+    .filter((entry) => entry.isFile() && !entry.name.startsWith(".") && entry.name.toLowerCase().endsWith(".json"))
     .map((entry) => entry.name);
   const bad = names.filter((name) => !ENTRY_NAME.test(name));
   if (bad.length) throw new Error(`Rename ${bad.map((name) => `content/${collection}/${name}`).join(", ")}: entry file names use lowercase letters, digits, - and _ only.`);
   return names.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-export function renderIndex(root = ".") {
+export function renderIndex(root = ROOT) {
   const imports = [];
   const groups = [];
   for (const collection of COLLECTIONS) {
@@ -50,19 +56,25 @@ export function renderIndex(root = ".") {
   ].join("\n");
 }
 
-export function readIndex(root = ".") {
+export function readIndex(root = ROOT) {
   const file = path.join(root, INDEX_FILE);
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") : "";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  const next = renderIndex(".");
-  const fresh = readIndex(".") === next;
-  if (process.argv.includes("--check")) {
-    if (!fresh) { console.error(`${INDEX_FILE} is out of date. Run: npm run content:index`); process.exitCode = 1; }
-    else console.log("Content index is up to date.");
-  } else if (!fresh) {
-    fs.writeFileSync(INDEX_FILE, next);
-    console.log(`Wrote ${INDEX_FILE}.`);
-  } else console.log("Content index is up to date.");
+  // A bad entry name (or an unreadable folder) is an editing problem: print it plainly, no stack trace.
+  try {
+    const next = renderIndex(ROOT);
+    const fresh = readIndex(ROOT) === next;
+    if (process.argv.includes("--check")) {
+      if (!fresh) { console.error(`${INDEX_FILE} is out of date. Run: npm run content:index`); process.exitCode = 1; }
+      else console.log("Content index is up to date.");
+    } else if (!fresh) {
+      fs.writeFileSync(path.join(ROOT, INDEX_FILE), next);
+      console.log(`Wrote ${INDEX_FILE}.`);
+    } else console.log("Content index is up to date.");
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }
