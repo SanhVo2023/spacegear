@@ -546,7 +546,7 @@ collections:
       - { name: short, label: Short name, widget: string, maxlength: 12, hint: "The hero's second stat lists these short names.", use_emoji_autocomplete: false }
       - *image_field
       - { name: stage, label: Stage, widget: string, maxlength: 20, use_emoji_autocomplete: false }
-      - { name: stageNo, label: Stage number, widget: string, maxlength: 2, pattern: ['^\d{2}$', "Use two digits, such as 02"], use_emoji_autocomplete: false }
+      - { name: stageNo, label: Stage number, widget: string, maxlength: 2, hint: "Keep stage numbers in list order: 01 for the first engagement, then 02, 03. Dragging entries does not renumber them.", pattern: ['^\d{2}$', "Use two digits, such as 02"], use_emoji_autocomplete: false }
       - name: deliverables
         label: Deliverables
         widget: list
