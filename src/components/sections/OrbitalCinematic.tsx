@@ -69,9 +69,11 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   // The first frame shows the 2k set; capable desktops swap in the 4k set after the intro (EarthScene).
   const [tier, setTier] = useState<GlobeTier>("2k");
-  // A failure also ends a running intro at once (its counter would otherwise wait for the cap).
+  // A failure also ends a running intro at once (its counter would otherwise wait for the cap). The poster
+  // shows again, so the hero no longer reports the 4k tier.
   const fail = () => {
     setGlobe("failed");
+    setTier("2k");
     introStore.fail();
   };
 
