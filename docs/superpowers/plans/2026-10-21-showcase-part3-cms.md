@@ -3516,3 +3516,18 @@ The only task that edits section components. Each edit replaces `src={X}` with `
     - Tighten `Same` in `content-contract.ts` to the exact-equality form, so an added optional key and `any` are also caught.
     - Fix the `content.ts` header comment: validation also runs in the browser and the Worker.
   - **Task 6 must** validate `content/site.json` in `check-content`, and print content errors without a stack trace.
+- **Task 5 review follow-ups.**
+  - **Legal parser** (Task 6 does this first, as its own commit):
+    - A `## ` heading line starts a new block even without a blank line before it: `split(/\n\s*\n|\n(?=[ \t]*##(?:[ \t]|$))/)`.
+    - Error messages give the file, the **line number** and the offending character, with context.
+    - An empty `## ` reports "the heading is empty".
+    - Reject `#` inside headings, and add `~~` to `INLINE_SYNTAX`.
+    - Add tests for the rejections that are not covered yet, and assert the message text in a few cases.
+    - `legalSections(page, root = process.cwd())`.
+    - Do not add `import "server-only"` to `legal.ts`.
+  - **Task 9:**
+    - `&legal_body` stays `widget: text`. Pin it with a test (`field.widget === "text"`), because the markdown and rich-text widgets write `\` escapes that the parser rejects.
+    - Add a CMS `pattern` that mirrors the parser's rules: start with `## ` and use no inline syntax. Export `INLINE_SYNTAX` and add a mirror test.
+    - Extend the hint with "Leave a blank line before each heading".
+    - Set `use_emoji_autocomplete: false`.
+  - **Task 11:** move the literal legal-copy assertions in `tests/legal.test.mjs` (exact headings, section counts, "one plain paragraph today") into `scripts/check-migration.mjs`, along with a full-text equality check against the pre-CMS copy. `npm test` keeps only the structural checks.
