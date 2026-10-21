@@ -22,9 +22,18 @@ export function stepSpring(spring: Spring, target: number, dt: number, stiffness
   return spring.value;
 }
 
-/** Pointer state shared by the DOM listeners and the render loop. x, y: -1…1 across the viewport, y up. */
-export type PointerInput = { x: number; y: number; dragging: boolean; dx: number; dy: number };
-export const createPointerInput = (): PointerInput => ({ x: 0, y: 0, dragging: false, dx: 0, dy: 0 });
+/** A finite value clamped to -1…1; anything else (NaN, ±Infinity) reads as 0. */
+export function unitOrZero(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(-1, value)) : 0;
+}
+
+/**
+ * Pointer state shared by the DOM listeners and the render loop. x, y: -1…1 across the viewport, y up.
+ * `cancelled` marks a drag that ended without a real release (window blur, tab hidden, a release the
+ * page never saw): the next stepDrag drops the fling instead of coasting on a stale velocity.
+ */
+export type PointerInput = { x: number; y: number; dragging: boolean; dx: number; dy: number; cancelled: boolean };
+export const createPointerInput = (): PointerInput => ({ x: 0, y: 0, dragging: false, dx: 0, dy: 0, cancelled: false });
 
 export type DragState = { velocity: number; pitchTarget: number; pitch: Spring };
 export const createDragState = (): DragState => ({ velocity: 0, pitchTarget: 0, pitch: createSpring() });
@@ -36,9 +45,14 @@ export const createDragState = (): DragState => ({ velocity: 0, pitchTarget: 0, 
  * the globe, clamped, and it springs back to level on release. A NaN, negative or zero dt moves
  * nothing but the pointer-driven spin; a long one counts as 0.25 s. Movement that arrives after the
  * last frame but before the release still turns the globe (it does not fling it). A non-finite
- * pointer delta or viewport width moves nothing and never reaches the velocity or the pitch.
+ * pointer delta or viewport width moves nothing and never reaches the velocity or the pitch. A
+ * cancelled drag stops without a fling.
  */
 export function stepDrag(input: PointerInput, state: DragState, dt: number, viewportWidth: number): number {
+  if (input.cancelled) {
+    state.velocity = 0;
+    input.cancelled = false;
+  }
   const h = dt > 0 ? Math.min(dt, 0.25) : 0;
   const scale = DRAG_RADIANS_PER_VIEWPORT / Math.max(1, viewportWidth);
   const follow = input.dx * scale;

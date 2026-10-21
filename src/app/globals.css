@@ -278,7 +278,9 @@ html { scroll-padding-top: 88px; }
    has rendered (data-globe="ready"). */
 .hero-scene { opacity: 0; transition: opacity 0.6s cubic-bezier(0.44, 0, 0.56, 1); }
 .hero-scene[data-globe="ready"] { opacity: 1; }
-/* Fine pointers can spin the globe (usePointerInput.ts); touch keeps native scrolling. */
+/* Fine pointers can spin the globe (usePointerInput.ts); touch keeps native scrolling. A press on the
+   scene never starts a text selection, so the hook can leave the press (and focus) alone. */
+.hero-scene { -webkit-user-select: none; user-select: none; }
 @media (hover: hover) and (pointer: fine) {
   .hero-scene[data-globe="ready"] { cursor: grab; }
   .hero-scene[data-dragging] { cursor: grabbing; }

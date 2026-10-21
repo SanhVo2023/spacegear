@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { STAR_PARALLAX } from "./constants";
-import type { PointerInput } from "./interaction";
+import { unitOrZero, type PointerInput } from "./interaction";
 
 // The visible sun: a faint warm haze in the upper-left corner, behind the globe. Placed high and wide
 // enough that the disc stays clear of the hero copy on common desktop viewports.
@@ -41,8 +41,9 @@ export default function Backdrop({ galaxy, pointer }: { galaxy: THREE.Texture; p
     const group = parallax.current;
     if (!group) return;
     const input = pointer.current;
-    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, input.x * STAR_PARALLAX, 3, delta);
-    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, -input.y * STAR_PARALLAX * 0.6, 3, delta);
+    // Signs are the reverse of the plan's code (-x, +y), which moved the backdrop toward the cursor.
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, unitOrZero(input.x) * STAR_PARALLAX, 3, delta);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, -unitOrZero(input.y) * STAR_PARALLAX * 0.6, 3, delta);
   });
 
   return (

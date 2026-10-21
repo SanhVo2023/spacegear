@@ -7,7 +7,7 @@ import * as THREE from "three";
 import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
 import { CAMERA_FOV, CAMERA_Z, EXPOSURE, MAX_TILT, MOBILE_RADIUS, MOBILE_SUN_T, RIG_SCALE, RIG_X, SUN_END, SUN_START } from "@/components/globe/constants";
-import { createDragState, createSpring, stepDrag, stepSpring, type PointerInput } from "@/components/globe/interaction";
+import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { cameraZAt, rigAt, slerpDirection, sunDirectionAt } from "@/components/globe/scroll";
 import { loadHeroTextures, releaseSource, type HeroTextures } from "@/components/globe/textures";
 import { usePointerInput } from "@/components/globe/usePointerInput";
@@ -154,8 +154,8 @@ function SceneContents({ variant, load, progress, pointer, onReady }: ContentsPr
     // Cursor tilt (spring, ≤ 6°) plus drag spin with inertia and a sprung pitch (fine pointers only).
     const input = pointer.current;
     f.spinBoost = stepDrag(input, drag.current, delta, window.innerWidth);
-    f.tiltX = stepSpring(tilt.current.x, -input.y * MAX_TILT, delta) + drag.current.pitch.value;
-    f.tiltY = stepSpring(tilt.current.y, input.x * MAX_TILT, delta);
+    f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * MAX_TILT, delta) + drag.current.pitch.value;
+    f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * MAX_TILT, delta);
   };
 
   const globeNode = <Globe textures={loaded.globe} frame={frame} onFrame={drive} />;

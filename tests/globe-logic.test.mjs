@@ -174,6 +174,31 @@ test("a NaN pointer delta or viewport width never poisons the spin, fling or pit
   }
 });
 
+test("a drag that ends without a real release stops without a fling", () => {
+  const input = interaction.createPointerInput();
+  const state = interaction.createDragState();
+  input.dragging = true;
+  for (let i = 0; i < 20; i++) {
+    input.dx = 15;
+    interaction.stepDrag(input, state, 1 / 60, 1440);
+  }
+  assert.ok(state.velocity > 1, `a fast drag builds a fling (${state.velocity})`);
+  // Window blur, a hidden tab or a release outside the window: the hook ends the drag as cancelled.
+  input.dragging = false;
+  input.cancelled = true;
+  input.dx = 15; // the last movement before the drag ended still applies
+  assert.ok(near(interaction.stepDrag(input, state, 1 / 60, 1440), (15 * Math.PI) / 1440), "only the pending movement turns the globe");
+  assert.equal(state.velocity, 0, "no fling");
+  assert.equal(input.cancelled, false, "the cancel is consumed");
+  assert.equal(interaction.stepDrag(input, state, 1 / 60, 1440), 0, "and nothing coasts afterwards");
+});
+
+test("pointer coordinates are clamped to the unit range and never NaN", () => {
+  const cases = [[0.25, 0.25], [-2.4, -1], [3, 1], [Number.NaN, 0], [Infinity, 0], [-Infinity, 0]];
+  for (const [value, expected] of cases) assert.equal(interaction.unitOrZero(value), expected, String(value));
+  assert.equal(interaction.createPointerInput().cancelled, false);
+});
+
 test("movement that lands between the last frame and the release still turns the globe", () => {
   const input = interaction.createPointerInput();
   const state = interaction.createDragState();
