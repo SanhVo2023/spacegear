@@ -50,6 +50,11 @@ test("the vendor script reads ustar and pax names, and refuses a tarball whose b
   assert.throws(() => extractVendored(tarball("package/dist/sveltia-cms.js", body)), /^Error: Integrity mismatch for @sveltia\/cms@0\.230\.1: expected sha512-/);
 });
 
+test("the site stylesheet does not take class names from the vendored CMS", () => {
+  // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle to the site CSS.
+  assert.match(fs.readFileSync("src/app/globals.css", "utf8"), /^@source not "\.\.\/\.\.\/public\/admin";\r?$/m);
+});
+
 test("the admin page loads only the vendored bundle and is never indexed", () => {
   const html = fs.readFileSync("public/admin/index.html", "utf8");
   assert.deepEqual([...html.matchAll(/<script\b[^>]*>/g)].map((match) => match[0]), ['<script src="/admin/sveltia/sveltia-cms.js">'], "one external script, no inline code");
