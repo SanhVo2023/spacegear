@@ -271,6 +271,23 @@ html { scroll-padding-top: 88px; }
 @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
   .hero-reserve { min-height: 300vh; }
 }
+/* The static desktop hero shows the poster over exactly the first screen (OrbitalCinematic.tsx). Where it
+   stays static (reduced motion; Save-Data once hydrated; no JavaScript, NoScriptStyles.tsx) the poster
+   fades into the page above the statement instead of ending in a hard line across the globe. The first
+   paint of a desktop that hydrates into the cinematic (.hero-reserve) keeps the full frame, the one the
+   canvas fades in on. */
+@media (min-width: 1024px) {
+  #home:not(.hero-reserve) .hero-static-backdrop {
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .hero-static-backdrop {
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+}
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }
 

@@ -6,6 +6,7 @@ import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 import { deepReloadCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
+import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, posterMatchCheck, saveDataDesktopCheck, staticBackdrop } from "./globe-poster.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -54,6 +55,17 @@ function heroLogScript() {
   window.__heroLog = [];
   new MutationObserver(records => { for (const r of records) window.__heroLog.push({ attr: r.attributeName, value: r.target.getAttribute(r.attributeName), t: now() }); })
     .observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro", "data-globe", "data-globe-tier"] });
+}
+// When the intro's curtain starts to lift (data-intro "reveal"), what it uncovers: the globe's canvas,
+// fully opaque if it is ready (its globe is still black and fades up itself), and the poster under it,
+// decoded. A half-faded canvas over the lit poster, or an undecoded poster, would flash.
+function revealCoverScript() {
+  window.__revealCover = null;
+  new MutationObserver(() => {
+    if (window.__revealCover || document.documentElement.dataset.intro !== "reveal") return;
+    const scene = document.querySelector("#home .hero-scene"), img = document.querySelector("#home .hero-backdrop img");
+    window.__revealCover = { t: Math.round(performance.now()), globe: scene?.dataset.globe ?? null, sceneOpacity: scene ? getComputedStyle(scene).opacity : null, poster: img ? { src: img.currentSrc, decoded: img.complete && img.naturalWidth > 0 } : null };
+  }).observe(document, { subtree: true, attributes: true, attributeFilter: ["data-intro"] }); // <html> may not exist yet
 }
 // Holds a route for `ms` before letting it through (slow textures or scripts).
 const late = ms => async route => { await new Promise(resolve => setTimeout(resolve, ms)); await route.continue().catch(() => {}); };
@@ -286,6 +298,7 @@ try {
       }).observe({ type: "longtask", buffered: true });
     });
     await page.addInitScript(heroLogScript);
+    if (profile.name === "desktop") await page.addInitScript(revealCoverScript);
     await page.addInitScript(mobileProbe);
     const sceneChunks = watchSceneChunk(page);
     await page.goto(base, { waitUntil: "networkidle" });
@@ -306,6 +319,10 @@ try {
       const firstPaint = await page.evaluate(() => performance.getEntriesByName("first-contentful-paint")[0]?.startTime);
       assert.ok(play.t <= firstPaint, `desktop: the inline gate starts the intro before first paint (${timing}, first paint ${firstPaint})`);
       assert.ok(reveal && play.t < reveal.t && reveal.t < done.t, `desktop: the intro reveals the page, then ends (${timing})`);
+      // The poster sits under the overlay from first paint; the lift must not flash it through a canvas
+      // that is still fading in.
+      const cover = await page.evaluate(() => window.__revealCover);
+      assert.ok(cover && POSTER_FILE.test(cover.poster?.src ?? "") && cover.poster.decoded && (cover.globe !== "ready" || cover.sceneOpacity === "1"), `desktop: the curtain lifts onto the opaque canvas over the decoded poster, so nothing flashes (${JSON.stringify(cover)})`);
       // Timers and frames get 300 ms of slack. The load cap counts from navigation start, as performance.now() does.
       assert.ok(done.t <= Math.min(ready ? ready.t : Infinity, INTRO.loadCap) + INTRO.extraCap + 300, `desktop: the intro ends within 2.5 s of loading (${timing})`);
       assert.ok(done.t <= INTRO.loadCap + INTRO.reveal + 300, `desktop: the overlay is gone within the load cap plus the reveal, from navigation start (${timing})`);
@@ -517,6 +534,7 @@ try {
       // over the poster, rather than waiting black for a reveal that has already happened.
       const slowPage = await context.newPage();
       await slowPage.addInitScript(heroLogScript);
+      await slowPage.addInitScript(revealCoverScript);
       await slowPage.route(/\/textures\/earth\/|\/images\/galaxy\.webp/, late(8000));
       await slowPage.route("**/_next/static/**", route => (route.request().resourceType() === "script" ? late(1500)(route) : route.continue()));
       await slowPage.goto(base, { waitUntil: "domcontentloaded" });
@@ -527,6 +545,8 @@ try {
       assert.equal(slowAt("data-globe", "ready"), undefined, `desktop slow load: the textures are still loading at the reveal (precondition: ${slowTiming})`);
       assert.ok(slowAt("data-intro", "reveal") <= INTRO.loadCap + 200, `desktop slow load: the page reveals at the load cap, counted from navigation start (${slowTiming})`);
       assert.ok(slowAt("data-intro", "done") <= INTRO.loadCap + INTRO.reveal + 300, `desktop slow load: the overlay is gone within the load cap plus the reveal (${slowTiming})`);
+      const slowCover = await slowPage.evaluate(() => window.__revealCover);
+      assert.ok(slowCover && slowCover.globe !== "ready" && POSTER_FILE.test(slowCover.poster?.src ?? "") && slowCover.poster.decoded, `desktop slow load: the curtain lifts onto the decoded poster while the globe still loads (${JSON.stringify(slowCover)})`);
       await slowPage.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
       // The canvas fades in over the poster (0.6 s): wait until it is fully opaque.
       await slowPage.waitForFunction(() => getComputedStyle(document.querySelector("#home .hero-scene")).opacity === "1", null, { timeout: 10000, polling: "raf" });
@@ -661,6 +681,23 @@ try {
     const textureRequests = requests.filter(url => url.includes("/textures/earth/"));
     if (profile.reducedMotion || profile.javaScriptEnabled === false) assert.deepEqual(textureRequests, [], `${profile.name}: no globe textures`);
     const streamed4k = textureRequests.filter(url => url.includes("/textures/earth/4k/"));
+    // Static backdrops: the globe poster on desktops (also reduced motion and no-JS), the galaxy on phones
+    // and tablets, which never fetch the poster. The static desktop hero fetches no galaxy either (the
+    // cinematic scene loads it as a texture).
+    const backdrop = new URL(await backdropSource(page)).pathname;
+    const heroImages = [...new Set(requests.map(url => new URL(url).pathname).filter(path => /^\/images\/(hero-poster|galaxy)/.test(path)))];
+    const desktopWidth = profile.width >= 1024, staticDesktop = desktopWidth && (profile.reducedMotion || profile.javaScriptEnabled === false);
+    assert.ok(desktopWidth ? POSTER_FILE.test(backdrop) : backdrop === "/images/galaxy.webp", `${profile.name}: hero backdrop ${backdrop}`);
+    if (!desktopWidth) assert.ok(heroImages.every(path => !POSTER_FILE.test(path)), `${profile.name}: phones and tablets never fetch the poster (${heroImages})`);
+    if (staticDesktop) {
+      assert.deepEqual(heroImages.filter(path => !POSTER_FILE.test(path)), [], `${profile.name}: the static desktop hero fetches the poster alone (${heroImages})`);
+      // The poster covers exactly the first screen, as the cinematic's sticky stage does, at full strength
+      // and without the phone gradients or the 2D stars; it fades into the page, and the statement follows
+      // on the page background.
+      const layout = await staticBackdrop(page);
+      assert.deepEqual(desktopLayout(layout), STATIC_DESKTOP(profile.height), `${profile.name}: the static desktop backdrop is the poster over the first screen (${JSON.stringify(layout)})`);
+      report.interactions.push(`${profile.name}: the static desktop hero shows the poster (${backdrop}) over exactly the first screen, without the phone gradients or 2D stars`);
+    }
     if (profile.width < 1024 && !profile.reducedMotion && profile.javaScriptEnabled !== false) {
       // Phones and tablets load the 1k set or, when they fall back to the galaxy, nothing: never 2k or
       // 4k, although these profiles report a capable desktop GPU with 8 GB of memory.
@@ -980,10 +1017,24 @@ try {
   assert.ok(await fallbackPage.locator("h1").isVisible());
   assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
+  assert.ok(POSTER_FILE.test(await backdropSource(fallbackPage)), "webgl-fallback: the hero keeps the poster");
+  assert.equal(await fallbackPage.locator("#home .hero-scene canvas").count(), 0, "webgl-fallback: no canvas over the poster");
   assert.deepEqual(fallbackErrors, [], "webgl-fallback: no page errors");
   assert.deepEqual(fallbackDownloads, [], "webgl-fallback: no model, decoder or texture download");
   await fallbackPage.close();
   report.interactions.push("failed WebGL retains headline, poster and CTA, without errors or any globe download");
+
+  // Save-Data on a desktop keeps the static poster: no intro and no globe download.
+  const saveData = await saveDataDesktopCheck(browser, base);
+  report.interactions.push(`Save-Data desktop keeps the static poster (${saveData.source}), without the intro or any globe download`);
+  // The poster is the globe's opening frame: the canvas fades in over it without a jump (1920×960).
+  const match = await posterMatchCheck(browser, base);
+  report.posterMatch = match;
+  report.interactions.push(`the poster (${match.source}) matches the live opening frame at ${match.viewport.width}×${match.viewport.height}: ${JSON.stringify(match.regions)}`);
+  // Either side of 1024 px: the poster or the galaxy, without layout shift; hydration keeps the poster in place.
+  const boundary = await boundaryCheck(browser, base);
+  report.posterBoundary = boundary;
+  report.interactions.push(`1024 px boundary: poster at 1024 px and galaxy at 1023 px with reduced motion, CLS ${boundary["1024-reduced"].cls} / ${boundary["1023-reduced"].cls}; hydration at 1024 px keeps the poster's box and the next section (CLS ${boundary["1024-hydration"].cls})`);
 
   // Exercise the real form component with isolated verification and endpoint fixtures.
   // No inquiry or email leaves the local test browser.

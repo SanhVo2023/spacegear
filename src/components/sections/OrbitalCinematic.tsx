@@ -20,6 +20,7 @@ import { hasWebGL2, readDeviceEnv } from "@/components/globe/device";
 // its texture manifest (tiers.ts imports both).
 import { chooseHeroMode } from "@/components/globe/hero-mode";
 import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
+import { POSTER } from "@/components/globe/poster";
 import type { GlobeTier } from "@/components/globe/tiers";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
@@ -36,8 +37,14 @@ const EarthScene = dynamic(
 
 // Desktop, motion allowed, not on a data-saver connection → upgrade to the cinematic.
 const QUERY = "(min-width: 1024px) and (prefers-reduced-motion: no-preference)";
-// Everyone else keeps the static hero, whose galaxy backdrop is the mobile LCP.
-const STATIC_QUERY = `not all and ${QUERY}`;
+// The static hero's backdrop: the globe poster on desktops (first paint, reduced motion, no JS and
+// Save-Data), the galaxy on phones and tablets, which never download the poster. The same px boundary
+// as QUERY, and the `min-[1024px]:` classes below (Tailwind's `lg` is in rem).
+const DESKTOP = "(min-width: 1024px)";
+const MOBILE = "(max-width: 1023.98px)";
+const GALAXY = "/images/galaxy.webp";
+// POSTER (globe/poster.ts): the globe's opening frame, 2.4:1, as a srcset that object-fit: cover lands
+// exactly on the live frame at any desktop shape.
 function subscribe(onChange: () => void) {
   const media = window.matchMedia(QUERY);
   media.addEventListener("change", onChange);
@@ -311,25 +318,31 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
 const STATEMENT_WORDS = HOME.statement.split(" ").length;
 
 /**
- * The static hero's layers: the galaxy, the 2D stars, the phone globe, the copy and the statement. The
- * statement fills word by word as it scrolls through the viewport (the same window ScrollFillText uses on
- * its own), and that progress also dims the globe behind it, so the filled words stay legible.
+ * The static hero's layers: the backdrop, the 2D stars, the phone globe, the copy and the statement.
+ * Phones and tablets: the galaxy under gradients and the 2D stars over the whole hero. Desktops: the
+ * poster alone over exactly the first screen, as the cinematic's sticky stage shows it, so first paint
+ * matches the cinematic's opening frame; the statement follows on the page background. The statement
+ * fills word by word as it scrolls through the viewport (the same window ScrollFillText uses on its own),
+ * and that progress also dims the phone globe behind it, so the filled words stay legible.
  */
 function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
   const statement = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress: fill } = useScroll({ target: statement, offset: ["start 0.8", "end 0.4"] });
   return (
     <div className="relative overflow-hidden">
-      <div className="hero-backdrop pointer-events-none absolute inset-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/galaxy.webp" alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70" />
-        <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg" />
-        <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
+      <div className="hero-backdrop hero-static-backdrop pointer-events-none absolute inset-0 min-[1024px]:bottom-auto min-[1024px]:h-screen" aria-hidden>
+        <picture>
+          <source media={DESKTOP} srcSet={POSTER.srcSet} sizes={POSTER.sizes} width={POSTER.width} height={POSTER.height} />
+          <img src={GALAXY} alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70 min-[1024px]:opacity-100" />
+        </picture>
+        <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg min-[1024px]:hidden" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)] min-[1024px]:hidden" />
       </div>
-      <Starfield className="opacity-50" />
+      <Starfield className="opacity-50 min-[1024px]:hidden" />
       <MobileScene hero={hero} fill={fill} dimBy={1 / STATEMENT_WORDS} />
 
-      <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
+      {/* Desktops: the copy fills the poster's first screen and the statement starts below it. */}
+      <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20 min-[1024px]:min-h-screen">
         <HeroCopy />
       </Container>
 
@@ -559,15 +572,15 @@ export default function OrbitalCinematic() {
     };
   }, [cinematic, progress]);
 
-  // Mobile / reduced motion / no JS / first paint: the static cosmic hero (no three.js fetched until a
-  // phone or tablet qualifies for the 1k globe, MobileScene). Until hydration, eligible desktops reserve
+  // Mobile / reduced motion / no JS / Save-Data / first paint: the static hero (no three.js fetched until
+  // a phone or tablet qualifies for the 1k globe, MobileScene). Until hydration, eligible desktops reserve
   // the cinematic's 300vh (.hero-reserve in globals.css) so deep links and reloads land where they will stay.
   if (!cinematic) {
-    // Hero images go first in <head>, one per visitor: the cinematic's poster (high priority) on the
-    // desktops that will show it, the galaxy everywhere else. The galaxy <img> (StaticStage) reuses this
-    // media-scoped preload instead of React's automatic one, which every desktop fetched first.
-    preload("/images/hero-poster.webp", { as: "image", media: QUERY, fetchPriority: "high" });
-    preload("/images/galaxy.webp", { as: "image", media: STATIC_QUERY });
+    // Hero images go first in <head>, one per visitor, matching the <picture> source each one shows: the
+    // poster (high priority, the same srcset and sizes, so the same width is chosen) on desktops, the
+    // galaxy on phones and tablets.
+    preload(POSTER.src, { as: "image", media: DESKTOP, fetchPriority: "high", imageSrcSet: POSTER.srcSet, imageSizes: POSTER.sizes });
+    preload(GALAXY, { as: "image", media: MOBILE });
     return (
       <section ref={staticRef} id="home" className={hydrated ? "relative" : "hero-reserve relative"}>
         <StaticStage hero={staticRef} />
@@ -578,10 +591,11 @@ export default function OrbitalCinematic() {
   return (
     <section ref={outerRef} id="home" className="relative h-[300vh]">
       <div className="sticky top-0 h-screen overflow-hidden bg-[#08080b]">
-        {/* poster: loading state and WebGL fallback (scripts/capture-hero-poster.mjs) */}
+        {/* poster: the globe's opening frame, its loading state and the fallback for no WebGL2 or a failed
+            scene (scripts/capture-hero-poster.mjs); the same box, srcset and sizes as the static hero's */}
         <div className="hero-backdrop pointer-events-none absolute inset-0" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/hero-poster.webp" alt="" width={1440} height={900} className="h-full w-full object-cover" />
+          <img src={POSTER.src} srcSet={POSTER.srcSet} sizes={POSTER.sizes} alt="" aria-hidden width={POSTER.width} height={POSTER.height} className="h-full w-full object-cover" />
         </div>
 
         {/* the 3D scene supplies the galaxy, sun and earth */}

@@ -10,6 +10,8 @@ const CSS = [
   "[data-dot]{transform:none!important}",
   // The hero only reserves the cinematic's height for a hydration that never comes.
   ".hero-reserve{min-height:0!important}",
+  // The desktop poster stays static, so it fades into the page above the statement (globals.css).
+  "@media (min-width:1024px){.hero-static-backdrop{-webkit-mask-image:linear-gradient(to bottom,#000 72%,transparent);mask-image:linear-gradient(to bottom,#000 72%,transparent)}}",
 ].join("");
 
 export default function NoScriptStyles() {
