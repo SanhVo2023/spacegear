@@ -320,11 +320,12 @@ test("paths under the project print from it, case-insensitively on Windows only"
 
 test("hero copy keeps the original four-line headline rhythm", () => {
   const { HOME } = content;
+  // The shape only: the words are the editors' to change (scripts/check-migration.mjs compares
+  // them with the pre-CMS copy).
   assert.equal(HOME.headline.verbs.length, 3);
-  assert.deepEqual(HOME.headline.verbs, ["plan", "build", "scale"]);
   assert.ok(HOME.headline.verbs.every((verb) => verb.length <= 6), "hero verbs must stay short");
   assert.equal(HOME.stats.length, 2);
-  assert.equal(HOME.cta.label, "Discuss a project");
+  assert.ok(HOME.cta.label, "the hero has a call to action");
   assert.ok(HOME.pitch.text.length <= 48, "pitch line fits on one line like the original");
 });
 
