@@ -7,6 +7,7 @@ import Parallax from "@/components/fx/Parallax";
 import { ringText } from "@/components/ring-text";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
 import { FAQ_CARD, FAQS, SECTIONS } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 type QA = { question: string; answer: string };
 
@@ -101,7 +102,7 @@ export function StillQuestionsCard() {
           {/* the photo drifts gently in its frame on fine-pointer desktops; the frame keeps its h-56 box */}
           <Parallax className="absolute inset-0" amount={0.08}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={FAQ_CARD.img} alt={FAQ_CARD.imgAlt} loading="lazy" className="absolute inset-0 h-full w-full object-cover grayscale" />
+            <img {...contentImage(FAQ_CARD.img)} alt={FAQ_CARD.imgAlt} loading="lazy" className="absolute inset-0 h-full w-full object-cover grayscale" />
           </Parallax>
           <div className="absolute inset-0 bg-gradient-to-t from-card/90 to-transparent" />
           <div className="absolute bottom-3 right-3">

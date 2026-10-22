@@ -9,6 +9,7 @@ import { Container, SectionHeader } from "@/components/ui";
 import Tilt from "@/components/fx/Tilt";
 import { useInViewFlag } from "@/components/fx/useInViewFlag";
 import { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS, type Engagement } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 /** Original billing toggle, repurposed: switch the list between deliverables and outcomes. The knob moves
  *  on a springy transform (it used to animate `left`), with a small overshoot. */
@@ -66,7 +67,7 @@ function EngagementRow({ item, selected, pulseKey, onSelect }: { item: Engagemen
         {/* image tile */}
         <div className="relative h-44 overflow-hidden lg:h-auto">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          <img {...contentImage(item.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e]/70 to-transparent" />
           <span className="absolute left-5 top-5 text-[15px] font-medium text-ink">{item.short}</span>
           {item.featured && (
