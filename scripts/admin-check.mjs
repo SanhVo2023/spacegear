@@ -116,12 +116,13 @@ async function checkUploadsSandbox(browser, base, uploadHeaders) {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(new URL("/privacy/", base).href, { waitUntil: "load" });
-    // Only after React has hydrated <main> (its last element carries React's fiber key): a node
-    // added during hydration is a hydration mismatch (React error 418), as on a cold preview.
+    // Only after React has hydrated <main>: a node added during hydration is a hydration mismatch
+    // (React error 418), as on a cold preview. React gives an element its fiber key when it
+    // completes that element, right after popHydrationState has checked the element's children
+    // (react-dom-client, completeWork), so once <main> carries the key, appending to it is safe.
     await page.waitForFunction(() => {
       const main = document.querySelector("main");
-      const hydrated = (el) => Boolean(el) && Object.keys(el).some((key) => key.startsWith("__reactFiber$"));
-      return hydrated(main) && hydrated([...main.querySelectorAll("*")].at(-1) ?? main);
+      return Boolean(main) && Object.keys(main).some((key) => key.startsWith("__reactFiber$"));
     }, null, { timeout: 15000 });
     const shown = await page.evaluate(async (src) => {
       const img = document.createElement("img");
