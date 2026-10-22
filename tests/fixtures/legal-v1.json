@@ -1,0 +1,63 @@
+{
+  "about": "The privacy and terms sections that scripts/check-migration.mjs compares with content/legal/: the plain section text of src/app/privacy/page.tsx and src/app/terms/page.tsx at f1224a3^, before the text moved to content/legal/. The preview notice and the contact section stay in the pages and are not included. Change it only with node scripts/check-migration.mjs --refresh (README.md, \"The migration check\").",
+  "pages": {
+    "privacy": [
+      {
+        "heading": "Information you provide",
+        "paragraphs": [
+          "The inquiry form asks for your name, email and a description of what you would like to improve. Company and service interest are optional. Please do not send confidential credentials, sensitive personal information or files through the form."
+        ]
+      },
+      {
+        "heading": "How it is used",
+        "paragraphs": [
+          "Submitted information is used to review your inquiry and respond about a suitable next step. Sending an inquiry does not subscribe you to a newsletter or marketing campaign."
+        ]
+      },
+      {
+        "heading": "Storage and service providers",
+        "paragraphs": [
+          "The website uses Cloudflare for hosting, inquiry processing and storage. Cloudflare Turnstile helps protect the form from automated abuse. If owner notifications are enabled, inquiry details are also sent through Cloudflare to the designated contact inbox."
+        ]
+      },
+      {
+        "heading": "Retention and access",
+        "paragraphs": [
+          "Inquiry records are accessible only to those responsible for responding. Closed inquiries that do not become an engagement are retained for up to 90 days, subject to applicable obligations. An engagement may require a separate record and agreement."
+        ]
+      },
+      {
+        "heading": "Website measurement",
+        "paragraphs": [
+          "When enabled, Cloudflare Web Analytics provides aggregate website and performance measurements. Inquiry text and email addresses are not included in analytics events. The website does not use advertising trackers."
+        ]
+      }
+    ],
+    "terms": [
+      {
+        "heading": "Website content",
+        "paragraphs": [
+          "This website describes services and possible approaches to digital transformation, AI and software delivery. Illustrative workflows are examples, not reports of client results or guarantees."
+        ]
+      },
+      {
+        "heading": "Engagements",
+        "paragraphs": [
+          "An inquiry does not create an engagement. Scope, pricing, timescales, confidentiality, ownership, support and responsibilities are agreed separately in writing before work begins."
+        ]
+      },
+      {
+        "heading": "Appropriate use",
+        "paragraphs": [
+          "Use this website and its inquiry form lawfully. Do not submit malicious content, interfere with the service or attempt to access private inquiry records."
+        ]
+      },
+      {
+        "heading": "Third-party material",
+        "paragraphs": [
+          "Third-party software and assets remain subject to their applicable licenses. External links, where provided, are for relevant information and do not imply a partnership or endorsement."
+        ]
+      }
+    ]
+  }
+}

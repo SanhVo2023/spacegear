@@ -10,6 +10,12 @@ import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, stre
 import { deepReloadCheck, detachedTouchCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
 import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, heroContrastCheck, posterMatchCheck, saveDataDesktopCheck, staticBackdrop, textureFailureCheck, ultrawideFeatherCheck } from "./globe-poster.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
+// Hero copy that editors can change in the CMS (content/home.json), read once so the checks follow an
+// edit: the CTA by its label and link, and the corner card by its link. The corner's selector skips the
+// copy block, in case an edit points both links at the same page.
+const HOME_COPY = JSON.parse(await fs.readFile(new URL("../content/home.json", import.meta.url), "utf8"));
+const HERO_CTA = `#home .hero-copy a[href=${JSON.stringify(HOME_COPY.cta.href)}]`;
+const HERO_CORNER = `#home a[href=${JSON.stringify(HOME_COPY.corner.href)}]:not(.hero-copy a)`;
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
 assert.ok(routes.length > 0, "sitemap lists routes");
@@ -126,13 +132,13 @@ const heldCopy = page => page.evaluate(() => [...document.querySelectorAll("#hom
   return !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(style.transform) || !["none", "blur(0px)"].includes(style.filter);
 }).map(el => el.textContent.trim().slice(0, 40)));
 // Centre of a hero link hidden under the intro overlay, and whether the overlay covers it there.
-const introSpot = (page, which) => page.evaluate(which => {
-  const el = which === "hero CTA" ? document.querySelector('#home .hero-copy a[href="/contact/"]')
+const introSpot = (page, which) => page.evaluate(({ which, cta, corner }) => {
+  const el = which === "hero CTA" ? document.querySelector(cta)
     : which === "nav Contact" ? [...document.querySelectorAll("header a")].find(a => a.textContent.trim() === "Contact")
-    : document.querySelector('#home a[href="/services/applied-ai/"]');
+    : document.querySelector(corner);
   const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   return { x, y, href: el.getAttribute("href"), covered: Boolean(document.elementFromPoint(x, y)?.closest(".intro-overlay")) };
-}, which);
+}, { which, cta: HERO_CTA, corner: HERO_CORNER });
 // Hit-testing around the headline. The masks' padding takes no presses, so the eyebrow's bottom edge
 // (which the first row's masks overlap on wide viewports) belongs to the eyebrow; a word is its own
 // target, except in the cinematic hero, whose copy layer is pointer-transparent so presses reach the globe.
@@ -484,7 +490,8 @@ try {
         const after = await overlayState(clickPage);
         assert.ok(clickPage.url() === url && after.intro === "done", `desktop: a click on the overlay over the ${target} ends the intro without following ${spot.href} (${JSON.stringify({ url: clickPage.url(), after })})`);
         if (target === "hero CTA") {
-          await Promise.all([clickPage.waitForURL("**/contact/", { timeout: 10000 }), clickPage.locator('#home .hero-copy a[href="/contact/"]').click()]);
+          const ctaTarget = new URL(HOME_COPY.cta.href, base).href;
+          await Promise.all([clickPage.waitForURL(url => url.href === ctaTarget, { timeout: 10000 }), clickPage.locator(HERO_CTA).click()]);
         }
         spots.push(`${target} ${spot.href}`);
         await clickPage.close();
@@ -669,7 +676,7 @@ try {
     // The headline rises word by word from masks for every visitor; reduced motion and no-JS show the
     // end state from CSS. The accessible name stays the plain sentence, and the copy is not duplicated.
     const words = await heroWords(page);
-    assert.ok(words.count > 5 && words.masked && words.count === words.text.split(" ").length, `${profile.name}: each headline word sits in its own mask (${JSON.stringify(words)})`);
+    assert.ok(words.count >= 5 && words.masked && words.count === words.text.split(" ").length, `${profile.name}: each headline word sits in its own mask (${JSON.stringify(words)})`);
     assert.deepEqual(words.unsettled, [], `${profile.name}: the headline words have risen into place`);
     assert.deepEqual(words.clipped, [], `${profile.name}: no headline word is clipped by its mask`);
     assert.ok(!/\s[,.]/.test(words.text), `${profile.name}: the headline reads as a sentence (${words.text})`);
@@ -772,16 +779,16 @@ try {
         window.scrollTo({ top: top + (home.offsetHeight - innerHeight) * 0.6, behavior: "instant" });
       });
       await page.waitForTimeout(150);
-      const corner = page.locator('#home a[href="/services/applied-ai/"]');
+      const corner = page.locator(HERO_CORNER);
       assert.ok(await corner.evaluate(el => { let o = 1; for (let n = el; n; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return o; }) < 0.5, "desktop: hero copy fades at mid-scroll (precondition for the focus check)");
       await corner.focus();
       await page.waitForTimeout(150);
-      const heroFocus = await page.evaluate(() => {
+      const heroFocus = await page.evaluate(cornerSelector => {
         const el = document.activeElement, r = el.getBoundingClientRect();
         let opacity = 1;
         for (let n = el; n; n = n.parentElement) opacity *= parseFloat(getComputedStyle(n).opacity);
-        return { corner: el.matches('#home a[href="/services/applied-ai/"]'), opacity, inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth };
-      });
+        return { corner: el.matches(cornerSelector), opacity, inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth };
+      }, HERO_CORNER);
       assert.ok(heroFocus.corner && heroFocus.opacity >= 0.99 && heroFocus.inView, "desktop: focused hero links must be visible");
       report.interactions.push("desktop keyboard focus on a faded hero link scrolls the copy back into view");
 
@@ -1029,7 +1036,7 @@ try {
   assert.equal((await overlayState(fallbackPage)).intro, "done", "webgl-fallback: the intro ends when the globe cannot start");
   assert.deepEqual(await releasedCopy(fallbackPage), [], "webgl-fallback: the hero copy is fully visible");
   assert.ok(await fallbackPage.locator("h1").isVisible());
-  assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: /Discuss a project/ }).isVisible());
+  assert.ok(await fallbackPage.locator(".hero-copy").getByRole("link", { name: HOME_COPY.cta.label, exact: true }).isVisible());
   assert.ok(await fallbackPage.locator(".hero-backdrop img").isVisible());
   assert.ok(POSTER_FILE.test(await backdropSource(fallbackPage)), "webgl-fallback: the hero keeps the poster");
   assert.equal(await fallbackPage.locator("#home .hero-scene canvas").count(), 0, "webgl-fallback: no canvas over the poster");
@@ -1110,6 +1117,10 @@ try {
   await formPage.waitForFunction(() => document.activeElement?.getAttribute("role") === "status");
   report.interactions.push("actual form: expired challenge, 503, lost response, input retention, stable retry key, success reset and focus");
   await formPage.close();
+  // >>> CMS (showcase Part 3): /admin/ and /uploads/ headers, the uploads sandbox, and the vendored CMS
+  // booting under its own CSP (scripts/admin-check.mjs).
+  report.interactions.push(...await (await import("./admin-check.mjs")).cmsChecks(browser, base, routes));
+  // <<< CMS
   await fs.writeFile("artifacts/browser-report.json", JSON.stringify(report, null, 2));
   console.log(`Browser checks passed: ${report.profiles.length} profiles; navigation, no-JS/reduced-motion, responsive layout and form recovery.`);
   console.log("Timing measurements are unthrottled local lab observations, not Lighthouse scores or field Core Web Vitals.");

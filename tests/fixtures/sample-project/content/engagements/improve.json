@@ -1,0 +1,21 @@
+{
+  "order": 3,
+  "name": "Embed & improve",
+  "short": "Improve",
+  "img": "/images/suite/scale-matrix.webp",
+  "stage": "Adoption",
+  "stageNo": "03",
+  "deliverables": [
+    "Adoption and operating guidance",
+    "Performance and exception review",
+    "Prioritized improvements",
+    "Ongoing delivery support"
+  ],
+  "outcomes": [
+    "Steady day-to-day use",
+    "Fewer exceptions over time",
+    "Visible performance",
+    "A clear improvement backlog"
+  ],
+  "featured": false
+}

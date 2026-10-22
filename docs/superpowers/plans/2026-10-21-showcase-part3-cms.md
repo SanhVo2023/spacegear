@@ -4,9 +4,9 @@
 
 **Goal:** Editors can change the site's copy and images through a git-based CMS at `/admin/` (Sveltia CMS, vendored), without touching code, while the exported site renders byte-for-byte the same HTML as before and every honesty, CSP and packaging gate stays green.
 
-**Architecture:** All copy moves from `src/lib/content.ts` into `content/` (JSON singletons, one-file-per-entry folder collections with an `order` field, and Markdown legal pages). `src/lib/content.ts` becomes a typed loader: it imports the JSON statically (`with { type: "json" }`), validates it with a tiny in-repo schema layer (`src/lib/content-schema.ts`, no zod), derives the same values and exports the same names and types, so no component logic changes. A generated, committed `src/lib/content-index.generated.ts` lists the folder-collection entries, because the loader also runs in the browser bundle and in the Worker, where it cannot read a folder. `/admin/` is a static page that loads a pinned, integrity-checked copy of Sveltia CMS from `public/admin/sveltia/`, with its own CSP rule in `public/_headers`. CMS uploads go to `public/uploads/`; a sharp build step writes `-640`/`-1280` WebP variants next to them, and `contentImage()` renders uploads through those variants.
+**Architecture:** All copy moves from `src/lib/content.ts` into `content/` (JSON singletons, one-file-per-entry folder collections with an `order` field, and Markdown legal pages). `src/lib/content.ts` becomes a typed loader: it imports the JSON statically (`with { type: "json" }`), validates it with a tiny in-repo schema layer (`src/lib/content-schema.ts`, no zod), derives the same values and exports the same names and types, so no component logic changes. A generated, committed `src/lib/content-index.generated.ts` lists the folder-collection entries, because the loader also runs in the browser bundle and in the Worker, where it cannot read a folder. `/admin/` is a static page that loads a pinned, integrity-checked copy of Sveltia CMS from `public/admin/sveltia/`, with its own CSP rule in `public/_headers`. CMS uploads go to `public/uploads/`; a sharp build step writes 640 and 1280 px WebP variants into a cache outside `public/` (`photo.jpg` → `photo.jpg.w640.webp`, see "Amendments" for Task 7), packaging ships them next to the originals under `/uploads/`, and `contentImage()` renders uploads through those variants.
 
-**Tech Stack:** Next.js 16.2.7 static export (Turbopack), React 19.2, TypeScript 5.9, Node 22.14 (`--experimental-strip-types`, `node:test` + tsx), sharp 0.34, Sveltia CMS 0.250.0 (vendored `dist/` IIFE build), js-yaml 4.2.0 (tests only), Cloudflare Workers Static Assets (`_headers`), Playwright (Chromium).
+**Tech Stack:** Next.js 16.2.7 static export (Turbopack), React 19.2, TypeScript 5.9, Node 22.14 (`--experimental-strip-types`, `node:test` + tsx), sharp 0.34, Sveltia CMS 0.230.1 (vendored `dist/` IIFE build; the pin moved from 0.250.0, see "Controller amendments"), js-yaml 4.2.0 (tests only), Cloudflare Workers Static Assets (`_headers`), Playwright (Chromium).
 
 **Spec:** `docs/superpowers/specs/2026-10-21-spacegear-showcase-design.md`, Part 3, plus "Guardrails" and "Testing and verification".
 
@@ -14,21 +14,21 @@
 
 ## Research summary (read before Task 9)
 
-**Version and distribution.** `npm view @sveltia/cms` (2026-10-21): latest `0.250.0`, tarball `https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz`, integrity `sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==`. The package ships two builds:
+**Version and distribution.** Pinned in Task 9: `0.230.1` (published 2026-10-07T11:00Z, at least 14 days old), tarball `https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz`, integrity `sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==`. Planning inspected `0.250.0` (latest on 2026-10-21, integrity `sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==`); the notes below hold for 0.230.1 unless they say otherwise. The package ships two builds:
 
 | Build | Files | Usable unbundled? |
 |---|---|---|
-| `dist/sveltia-cms.js` (IIFE, auto-initializes) | 2.5 MB + `dist/chunks/{git,qrcode,react-dom}.js` + `dist/chunks/assets/rolldown-runtime-*.js` | **Yes.** This is the documented browser build (docs: plain `<script>`, "not distributed as an ES module"). It loads its chunks with `import(new URL("chunks/<name>.js", document.currentScript.src))` and only falls back to unpkg if that fails (function `DSe` in the bundle), so the chunks vendored next to it are used. |
+| `dist/sveltia-cms.js` (IIFE, auto-initializes) | 0.230.1: 2.25 MB + `dist/chunks/react-dom.js` (0.250.0: 2.5 MB + `dist/chunks/{git,qrcode,react-dom}.js` + `dist/chunks/assets/rolldown-runtime-*.js`) | **Yes.** This is the documented browser build (docs: plain `<script>`, "not distributed as an ES module"). It loads its chunks with `import(new URL("chunks/<name>.js", document.currentScript.src))` and only falls back to unpkg if that fails (functions `hH`/`_H` in 0.230.1, `DSe` in 0.250.0), so the chunks vendored next to it are used. |
 | `npm/index.js` (ESM for bundlers) | 2.5 MB + 300 chunks + fonts/wasm | No: it has bare dynamic imports (`import("exifr/…")`, `import("@shikijs/langs/…")`) and JSON locale imports that need a bundler and the package's dependencies installed. |
 
-**Decision:** vendor `dist/sveltia-cms.js`, `dist/chunks/**/*.js` and `LICENSE.txt` (no source maps) into `public/admin/sveltia/` with `scripts/vendor-sveltia.mjs`, which downloads the pinned tarball, verifies its sha512 integrity, extracts with a small built-in tar reader and records sha256 hashes in `scripts/sveltia-cms.lock.json`. `npm test` re-verifies the hashes offline. Nothing is installed into `node_modules` (the CMS worktree shares the main worktree's `node_modules` through a junction).
+**Decision:** vendor `dist/sveltia-cms.js`, `dist/chunks/**/*.js` and `LICENSE.txt` (no source maps) into `public/admin/sveltia/` with `scripts/vendor-sveltia.mjs`, which downloads the pinned tarball, verifies its sha512 integrity, extracts with a small built-in tar reader and records sha256 hashes in `scripts/sveltia-cms.lock.json`. `npm test` re-verifies the hashes offline. Sveltia is not installed into `node_modules`. (The CMS worktree has its own `node_modules`, installed with `npm ci`, because Turbopack rejects a `node_modules` junction that points outside the project root; see "Amendments made during execution".)
 
-**What the bundle fetches at run time** (inspected in `dist/sveltia-cms.js` 0.250.0):
+**What the bundle fetches at run time** (inspected in `dist/sveltia-cms.js` 0.250.0, and again in 0.230.1 in Task 9, which also booted it headless):
 - `@font-face` rules for Source Sans 3, Noto Mono and Material Symbols (the UI icons) from `https://cdn.jsdelivr.net/fontsource/fonts/…`. Without them the icons render as words, so the admin CSP allows that one path for fonts.
 - An update check, `fetch("https://unpkg.com/@sveltia/cms/package.json")`, on start and hourly (wrapped in try/catch). Blocked on purpose.
-- Non-English UI strings from `https://unpkg.com/@sveltia/cms@0.250.0/locales/<locale>.json`. Blocked: the CMS then shows an error and falls back to English (choose English in its settings).
+- Non-English UI strings from `https://unpkg.com/@sveltia/cms@<pinned version>/locales/<locale>.json`. Blocked: the CMS then shows an error and falls back to English (choose English in its settings).
 - Optional libraries from unpkg, only when their feature is used: exifr (asset details), turndown (HTML paste in the rich-text editor), Immutable (custom preview templates), Leaflet/terra-draw (map field), PDF.js, SVGO, jSquash, the HEIC decoder, Shiki and Day.js locales. This config uses none of them: text fields are plain `string`/`text` widgets and image optimisation uses Chrome's native WebP encoder (`OffscreenCanvas.convertToBlob`).
-- `https://api.github.com` and `https://www.githubstatus.com` only with the GitHub backend (later).
+- `https://api.github.com` with the GitHub backend (later). **Corrected in Task 9:** `https://www.githubstatus.com/api/v2/status.json` is fetched on the sign-in screen whenever `backend.name` is `github`, so also before "Work with Local Repository" (headless boot, see "Amendments", Task 9).
 - No `eval` or `new Function` in the bundle.
 
 **CSP for `/admin/*`** (sources: Sveltia's CSP guide, https://sveltiacms.app/en/docs/security#setting-up-content-security-policy, which lists `style-src 'self' 'unsafe-inline'`, `font-src 'self' https://cdn.jsdelivr.net`, `img-src 'self' blob: data:`, `media-src blob:`, `frame-src blob:`, `script-src 'self' https://unpkg.com`, `connect-src 'self' blob: data: https://unpkg.com`, `manifest-src blob:`, and states that Sveltia "does not require the `unsafe-eval` and `unsafe-inline` keywords in the `script-src` CSP directive"; plus the bundle inspection above):
@@ -45,13 +45,13 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
 **Next 16 and JSON.** `node_modules/next/dist/docs/01-app/03-api-reference/08-turbopack.md`: "JSON Imports: Supported". Next's SWC parser options enable import attributes (`importAssertions: true`, `keepImportAttributes: true` in `next/dist/build/swc/options.js`). Probes in the planning scratchpad confirmed that `import x from "./a.json" with { type: "json" }` plus `.ts` specifiers work under `node --experimental-strip-types` (Node 22.14, no warning), tsx 4.23, esbuild 0.28 (the Worker bundle) and `tsc` 5.9 with both tsconfigs. Turbopack is first exercised by the Task 4 build; the fallback is in Task 4.
 
-**Verified in planning (scratchpad prototypes, not in the repo):** the loader reproduces all 23 exports with identical values and key order (`JSON.stringify` equality); the type contract passes and fails on a drifted type; ESLint passes; 81 unit tests pass; `config.yml` validates against Sveltia 0.250.0's own JSON schema (`schema/sveltia-cms.json`, via ajv) and mirrors the content schemas; the legal Markdown renders the same static markup and element tree as the JSX; the vendor script's tar reader extracts the six files listed in Task 9 with the hashes listed there; the HTML snapshot tool reports a build identical to itself.
+**Verified in planning (scratchpad prototypes, not in the repo):** the loader reproduces all 23 exports with identical values and key order (`JSON.stringify` equality); the type contract passes and fails on a drifted type; ESLint passes; 81 unit tests pass; `config.yml` validates against Sveltia 0.250.0's own JSON schema (`schema/sveltia-cms.json`, via ajv) and mirrors the content schemas (the committed config was re-validated against 0.230.1's schema in Task 9); the legal Markdown renders the same static markup and element tree as the JSX; the vendor script's tar reader extracts the six files listed in Task 9 with the hashes listed there; the HTML snapshot tool reports a build identical to itself.
 
 ---
 
 ## Conventions for every task
 
-- **Worktree.** `E:\Personal\clone website\spacegear-cms`, branch `feat/showcase-cms` (cut from `feat/spacegear-showcase` by the controller), `node_modules` junctioned to the main worktree's. Preview port **8788**. Never touch the main worktree (`spacegear`, port 8787, Part 1) or `platform-clone`.
+- **Worktree.** `E:\Personal\clone website\spacegear-cms`, branch `feat/showcase-cms` (cut from `feat/spacegear-showcase` by the controller), with its own `node_modules` from `npm ci` (Turbopack rejects a `node_modules` junction that points outside the project root). Install dependencies there with plain `npm install`. Preview port **8788**. Never touch the main worktree (`spacegear`, port 8787, Part 1) or `platform-clone`.
 - **Read first:** `C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/showcase-conventions.md` (machine limits, lock helper, rules that must not regress), and `AGENTS.md` (read `node_modules/next/dist/docs/` before Next-specific code).
 - **Bash prelude.** Shell state does not persist between Bash calls, so start every Bash call with:
   ```bash
@@ -62,6 +62,10 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 - **Fast gates** (no lock): `cd "$CMS" && npm run lint && npm run typecheck && npm test`.
 - **Heavy gates:** rebuild, then `bash "$WT" "$CMS" 8788 run npm run check:seo -- http://127.0.0.1:8788`, then `bash "$WT" "$CMS" 8788 run npm run test:browser -- http://127.0.0.1:8788`. `check:fidelity` is not part of this plan: the HTML identity check proves that nothing renders differently.
 - **Rendered output must not change.** Tasks that touch rendering end with `node scripts/html-snapshot.mjs compare artifacts/html-baseline` after a rebuild. The expected result is `Rendered HTML identical to artifacts/html-baseline: 15 pages.` A difference is a bug to fix, never a reason to loosen the normalizer, except for a build-noise pattern that appears identically in both builds of the same page (record it under "Amendments").
+  - **Client module ids** (format 3, after the Task 6b review) are Turbopack's, and they shift whenever the module set changes. Tasks 7, 9 and 10 add client modules, so their compare may report pages where only client module ids changed.
+  - **Before rebuilding,** copy the saved build's chunks. Remove the old copy first, so stale chunks cannot be matched: `rm -rf artifacts/dist-before && mkdir -p artifacts/dist-before/_next/static && cp -r dist/_next/static/chunks artifacts/dist-before/_next/static/`.
+  - **Then run** `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-before`. It passes only when every changed id is explained: the same `$client` export at the same place in an otherwise identical page, with factory code identical in the two builds apart from module ids, each of which is explained the same way (see the merge notes).
+  - Record the explained ids under "Amendments" and save the baseline again.
 - **Line endings.** A fresh worktree on this machine is checked out with `core.autocrlf=true`, so existing files may be CRLF. The Edit tool handles that; anchors in this plan never span a line break. New files are written with LF. Every check this plan adds normalizes CRLF; the vendored Sveltia files are marked `-text -diff` in `.gitattributes` so their bytes never change.
 - **Shared files** (Part 1 and Part 2 also edit them): `package.json`, `package-lock.json`, `public/_headers`, `scripts/package-site.mjs`, `scripts/check-export.mjs`, `scripts/check-seo.mjs`, `scripts/browser-check.mjs`, `scripts/build-production.mjs`. Every edit there is additive and fenced with `>>> CMS (showcase Part 3)` / `<<< CMS` comments, except the `build` script line in `package.json`.
 - **Files Part 1 and 2 own:** `EarthScene.tsx`, `OrbitalCinematic.tsx`, the hero, `src/components/fx/`. This plan never edits them. Task 8 makes one-line, output-neutral edits to ten image render sites in section components; see "Merge notes".
@@ -85,20 +89,23 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `tests/helpers/content.mjs` | Reads `content/` into `buildContent()` input | 3 |
 | `tests/content-loader.test.mjs`, `tests/content-index.test.mjs` | Loader and index tests | 3 |
 | `src/lib/content-contract.ts` | Compile-time proof that every export kept its type | 4 |
-| `tests/content-roundtrip.test.mjs` | Every export equals the fixture | 4 |
+| `tests/content-roundtrip.test.mjs` | Every export equals the fixture (Task 11: renamed `tests/content-exports.test.mjs`, names and routes only; the values moved to `scripts/check-migration.mjs`) | 4, 11 |
 | `content/legal/privacy.md`, `content/legal/terms.md` | Legal page text | 5 |
 | `src/lib/legal-markdown.ts`, `src/lib/legal.ts`, `src/components/legal-sections.ts` | Parse, read and render the legal Markdown | 5 |
 | `tests/legal.test.mjs` | Parser tests | 5 |
 | `scripts/lib/honesty.mjs` | Shared forbidden-claim patterns and content-tree scan | 6 |
-| `scripts/build-upload-variants.mjs` | sharp: `-640`/`-1280` WebP variants of each upload | 7 |
-| `scripts/lib/content-assets.mjs` | Referenced images that are missing | 7 |
+| `scripts/build-upload-variants.mjs` | sharp: `.w640`/`.w1280` WebP variants of each upload, in `.cache/upload-variants/` with a hash manifest | 7 |
+| `scripts/lib/content-assets.mjs` | Referenced images that are missing (exact case), and references to refuse | 7 |
+| `scripts/lib/uploads.mjs` | Upload folder rules: allowed types and names, links, variant names and cache, shipping (added in execution) | 7 |
+| `scripts/lib/exact-paths.mjs` | Exact-case lookups and wrong-case references (added in execution) | 7 |
 | `src/lib/content-images.ts` | `contentImage()` srcset helper | 7 |
 | `tests/uploads.test.mjs` | Variant script and helper tests | 7 |
 | `.gitattributes` | Keep vendored bytes exact | 9 |
 | `scripts/vendor-sveltia.mjs`, `scripts/sveltia-cms.lock.json` | Pinned, verified vendoring | 9 |
-| `public/admin/sveltia/**` (6 files) | Vendored Sveltia CMS 0.250.0 | 9 |
+| `public/admin/sveltia/**` (3 files) | Vendored Sveltia CMS 0.230.1 | 9 |
 | `public/admin/index.html`, `public/admin/config.yml` | Admin page and CMS configuration | 9 |
 | `tests/admin.test.mjs`, `tests/cms-config.test.mjs` | Vendoring, page, headers and config-mirror tests | 9–10 |
+| `scripts/check-migration.mjs`, `tests/fixtures/legal-v1.json` | One-off check against the pre-CMS copy, outside `npm test` (added in execution) | 11 |
 
 **Modify**
 | Path | Change | Task |
@@ -111,7 +118,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `src/app/privacy/page.tsx`, `src/app/terms/page.tsx` | Sections from Markdown | 5 |
 | `tests/content.test.mjs` | Shared patterns, content-tree scan, planted-price tests | 6 |
 | `scripts/check-content.mjs` | Index freshness, validation, scans, images | 6, 7 |
-| `.gitignore` | Upload variants, Sveltia temp files | 7 |
+| `.gitignore` | The variant cache (`/.cache/`), Sveltia temp files | 7 |
 | `scripts/package-site.mjs`, `scripts/check-export.mjs` | CMS blocks: uploads (T7), admin (T10) | 7, 10 |
 | 10 image render sites (listed in Task 8) | `src={x}` becomes `{...contentImage(x)}` | 8 |
 | `public/_headers` | `/admin/*` rule | 10 |
@@ -294,6 +301,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 - Create: `src/lib/content-schema.ts`
 - Test: `tests/content-schema.test.mjs`
 
+> **Superseded during execution (Task 2 review).** The committed `src/lib/content-schema.ts` and `tests/content-schema.test.mjs` supersede the code blocks below, which show the first version (9 tests; the committed file has 14). Only the `HREF` and `IMAGE` lines in Step 3 are kept current, because Task 9's `config.yml` mirrors them. The changes are listed under "Amendments made during execution".
+
 - [ ] **Step 1: Write the failing test** `tests/content-schema.test.mjs`:
   ```js
   import { test } from "node:test";
@@ -413,8 +422,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
   }
 
   export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-  export const HREF = /^(?:\/[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
-  export const IMAGE = /^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
+  export const HREF = /^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$/;
+  export const IMAGE = /^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$/;
   export const COLOR = /^#[0-9a-fA-F]{6}$/;
 
   export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -560,6 +569,8 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 
 Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
 
+> **Superseded in part.** The committed Task 3 files replace the code blocks below on the points listed under "Amendments made during execution" (Task 3 review follow-up): order checks, malformed service slugs, uniqueness, exactly one featured engagement, the index command and `readJson`.
+
 **Files:**
 - Create: `src/lib/content-model.ts`, `scripts/build-content-index.mjs`, `src/lib/content-index.generated.ts` (generated)
 - Create: `content/**` (35 files, generated once from the fixture)
@@ -649,8 +660,8 @@ Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
     input.work.tiles[0].slug = "no-such-service";
     input.servicesPanel.pillars[0].slug = "no-such-service";
     const issues = issuesOf(input);
-    assert.ok(issues.some((issue) => issue.startsWith("content/work.json: tiles[0].slug: choose one of")));
-    assert.ok(issues.some((issue) => issue.startsWith("content/services-panel.json: pillars[0].slug: choose one of")));
+    assert.ok(issues.some((issue) => issue.startsWith('content/work.json: tiles[0].slug: "no-such-service" is not one of: ')));
+    assert.ok(issues.some((issue) => issue.startsWith('content/services-panel.json: pillars[0].slug: "no-such-service" is not one of: ')));
   });
 
   test("service art and pillar summaries are derived from the service entry", () => {
@@ -698,7 +709,7 @@ Nothing renders differently yet: `src/lib/content.ts` is untouched in this task.
   test("role cards cannot link to profiles", () => {
     const input = fresh();
     entry(input, "team-roles", "product-and-delivery.json").links = [{ label: "LinkedIn", href: "https://linkedin.com/in/x" }];
-    assert.ok(issuesOf(input).some((issue) => issue.startsWith("content/team-roles/product-and-delivery.json: links: 1 items, the limit is 0")));
+    assert.ok(issuesOf(input).some((issue) => issue.startsWith("content/team-roles/product-and-delivery.json: links: 1 item, the limit is 0")));
   });
   ```
   `tests/content-index.test.mjs`:
@@ -1781,6 +1792,8 @@ The forbidden-claim patterns move to one shared module. `npm test` and `scripts/
 
 ### Task 7: Upload variants pipeline
 
+> **Superseded during execution (Task 7 and its review).** The committed `scripts/build-upload-variants.mjs`, `scripts/lib/uploads.mjs`, `scripts/lib/content-assets.mjs`, `scripts/lib/exact-paths.mjs`, `src/lib/content-images.ts`, `tests/uploads.test.mjs` and the fenced blocks supersede the code blocks below. Variants are no longer written next to the uploads under reserved `-640`/`-1280` names. They go to `.cache/upload-variants/` as `photo.jpg.w640.webp` and `photo.jpg.w1280.webp`, are current only while a manifest's SHA-1 of the original matches, and are shipped next to the originals by `package-site`. See "Amendments made during execution".
+
 CMS uploads land in `public/uploads/`. Before `next build`, `scripts/build-upload-variants.mjs` writes `<name>-640.webp` and `<name>-1280.webp` next to each raster upload (never upscaled; idempotent by modification time). Variants are build output and gitignored, so their names are reserved: content may not point at one, and a stale variant whose original was deleted is reported, never deleted (it could be a real upload). `contentImage()` turns an upload into a `srcset`; site images under `/images/` keep their exact markup. The CMS also re-encodes uploads to WebP in Chrome (Task 9), which drops camera metadata such as GPS.
 
 **Files:**
@@ -2132,16 +2145,16 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   cd "$CMS" && mkdir -p public/uploads && cp public/images/faq-team.webp public/uploads/e2e-check.webp \
     && sed -i 's#"img": "/images/faq-team.webp"#"img": "/uploads/e2e-check.webp"#' content/faq-card.json && grep -c e2e-check content/faq-card.json
   bash "$WT" "$CMS" 8788 rebuild
-  cd "$CMS" && grep -ioE 'srcset="/uploads/e2e-check-640\.webp 640w, /uploads/e2e-check-1280\.webp 1280w"' dist/index.html dist/contact/index.html && ls dist/uploads
+  cd "$CMS" && grep -ioE 'srcset="/uploads/e2e-check\.webp\.w640\.webp 640w, /uploads/e2e-check\.webp\.w1280\.webp 1280w"' dist/index.html dist/contact/index.html && ls dist/uploads
   ```
-  Expected: `1`; the rebuild passes (`Upload variants: 1 originals, 2 written, 0 up to date.`, `Content valid…`, `Export valid…`); one `srcSet=…` match in each of the two pages; `ls` lists `e2e-check-1280.webp  e2e-check-640.webp  e2e-check.webp`.
+  Expected: `1`; the rebuild passes (`Upload variants: 1 originals, 2 written, 0 up to date, 0 removed.`, `Content valid…`, `Uploads shipped: 3 files.`, `Export valid…`); one `srcSet=…` match in each of the two pages; `ls` lists `e2e-check.webp  e2e-check.webp.w1280.webp  e2e-check.webp.w640.webp`.
   Revert, then rebuild and compare:
   ```bash
-  cd "$CMS" && git checkout -- content/faq-card.json && rm -f public/uploads/e2e-check*.webp && rm -rf dist/uploads && git status --short public content
+  cd "$CMS" && git checkout -- content/faq-card.json && rm -f public/uploads/e2e-check.webp && git status --short public content
   bash "$WT" "$CMS" 8788 rebuild
   cd "$CMS" && node scripts/html-snapshot.mjs compare artifacts/html-baseline
   ```
-  Expected: `git status` shows nothing under `public` or `content` (variants are gitignored and deleted; the empty `public/uploads/` folder is invisible to git); then `Rendered HTML identical to artifacts/html-baseline: 15 pages.` (`rm -rf dist/uploads` is needed because preview packaging keeps old files in `dist/`.)
+  Expected: `git status` shows nothing under `public` or `content` (the empty `public/uploads/` folder is invisible to git); the rebuild's variant step removes the two cached variants (`… 2 removed.`) and packaging empties `dist/uploads/`; then `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
 
 - [ ] **Step 5: Commit.**
   ```bash
@@ -2157,9 +2170,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 - Test: `tests/admin.test.mjs`, `tests/cms-config.test.mjs`
 - Modify: `package.json` (script `cms:vendor`, devDependency `js-yaml`), `package-lock.json`
 
-- [ ] **Step 1: Declare the YAML parser the config test uses.** `js-yaml@4.2.0` is already in `node_modules` (through ESLint); declare it without touching `node_modules`, which is shared with the main worktree:
+- [ ] **Step 1: Declare the YAML parser the config test uses.** `js-yaml@4.2.0` is already in the CMS worktree's own `node_modules` (through ESLint); declare it with a plain install:
   ```bash
-  cd "$CMS" && npm install --save-dev --save-exact --package-lock-only js-yaml@4.2.0 && git diff --stat package.json package-lock.json && node --input-type=module -e "import('js-yaml').then((m) => console.log(typeof m.load))"
+  cd "$CMS" && npm install --save-dev --save-exact js-yaml@4.2.0 && git diff --stat package.json package-lock.json && node --input-type=module -e "import('js-yaml').then((m) => console.log(typeof m.load))"
   ```
   Expected: `package.json` gains `"js-yaml": "4.2.0"` under `devDependencies`; the lockfile diff is a few lines (the root `devDependencies` entry and possibly the `dev` flag of `node_modules/js-yaml`); then `function`. If the lockfile diff touches unrelated packages, or the registry is unreachable, run `git checkout -- package.json package-lock.json` and add the two lines by hand instead: `"js-yaml": "4.2.0"` in `package.json` `devDependencies`, and the same line in `package-lock.json` under `packages[""].devDependencies` (keep keys alphabetical). Record which way was used under "Amendments".
 
@@ -2320,9 +2333,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
   export const SVELTIA = {
     name: "@sveltia/cms",
-    version: "0.250.0",
-    tarball: "https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz",
-    integrity: "sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==",
+    version: "0.230.1",
+    tarball: "https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz",
+    integrity: "sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==",
   };
   export const TARGET = "public/admin/sveltia";
   export const LOCK = "scripts/sveltia-cms.lock.json";
@@ -2418,24 +2431,21 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   In `package.json`, after `"uploads:variants": "node scripts/build-upload-variants.mjs"` add a comma and `"cms:vendor": "node scripts/vendor-sveltia.mjs"`.
 
 - [ ] **Step 5: Vendor the pinned release.** `cd "$CMS" && npm run cms:vendor && cat scripts/sveltia-cms.lock.json && npm run cms:vendor -- --check`
-  Expected: `Vendored @sveltia/cms@0.250.0: 6 files in public/admin/sveltia/.`, then exactly this lock (hashes computed in planning from the same tarball), then `Vendored @sveltia/cms@0.250.0 matches scripts/sveltia-cms.lock.json.`
+  Expected (0.230.1, Task 9): `Vendored @sveltia/cms@0.230.1: 3 files in public/admin/sveltia/.`, then exactly this lock, then `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
   ```json
   {
     "name": "@sveltia/cms",
-    "version": "0.250.0",
-    "tarball": "https://registry.npmjs.org/@sveltia/cms/-/cms-0.250.0.tgz",
-    "integrity": "sha512-VDdYsC2zSiXGGvzgPIJMVyG9Yf3JsAFXr6OltZZnv7kTANHeOVS1hjuorUfa472rWO40l1bheKPOhEFtpdoNtg==",
+    "version": "0.230.1",
+    "tarball": "https://registry.npmjs.org/@sveltia/cms/-/cms-0.230.1.tgz",
+    "integrity": "sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==",
     "files": {
       "LICENSE.txt": "dcbe3c626d85741f6fabefed0b34d07a2e92c032f63aa21c0279062363859c32",
-      "chunks/assets/rolldown-runtime-BWaJ3C7D.js": "d0e9044430006c5bb48f477501a5af465f0a6377d2fcd7495aa215b8b75aaee3",
-      "chunks/git.js": "26d6684db7c102fea569335338deede109f97839f9c7681122de4881ab7afd51",
-      "chunks/qrcode.js": "5433cb7316cc764966ee5c089515220d5b7bb16e42369578e30fe9a8e1d532e4",
-      "chunks/react-dom.js": "257c2d34a3b0a1ebb86422ccaddde42a30d9708f9df5c72276cb6a43bdfa1642",
-      "sveltia-cms.js": "0a87824fe797d03154fdae61b617692db6c54b2c8ac11033de940799f4d4b926"
+      "chunks/react-dom.js": "9b5ffe4f9241b1885d9da326f3401e9727d628bfbecb0cb32b027cda25d5bfeb",
+      "sveltia-cms.js": "d3eff7b0ba761ee1d06e9f581304075a575757de4cbd7ec1179b95873f6f4fc7"
     }
   }
   ```
-  Sizes: `sveltia-cms.js` 2,586,436 bytes, `chunks/react-dom.js` 213,151, `chunks/git.js` 167,074, `chunks/qrcode.js` 23,497, `rolldown-runtime` 911, `LICENSE.txt` 1,071. An integrity error means the registry served different bytes: stop and report.
+  Sizes (0.230.1, source map comments removed): `sveltia-cms.js` 2,250,499 bytes, `chunks/react-dom.js` 213,847, `LICENSE.txt` 1,071. (0.250.0 had `sveltia-cms.js` 2,586,436, `chunks/react-dom.js` 213,151, `chunks/git.js` 167,074, `chunks/qrcode.js` 23,497 and a 911-byte `rolldown-runtime`.) An integrity error means the registry served different bytes: stop and report.
 
 - [ ] **Step 6: Write the admin page** `public/admin/index.html`:
   ```html
@@ -2456,7 +2466,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   </html>
   ```
 
-- [ ] **Step 7: Write the CMS configuration** `public/admin/config.yml` (validated in planning against Sveltia 0.250.0's `schema/sveltia-cms.json` and by the mirror test):
+- [ ] **Step 7: Write the CMS configuration** `public/admin/config.yml` (validated in planning against Sveltia 0.250.0's `schema/sveltia-cms.json` and by the mirror test). **Superseded by the committed file**, which validates against 0.230.1's schema; the block below is the planning draft. The differences are listed under "Amendments", Task 9 (no `auto_increment`, a hidden `order`, the legal `pattern`, `use_emoji_autocomplete: false`, per-format transformations, explicit slug options):
   ```yaml
   # Sveltia CMS configuration for spacegear.tech, served at /admin/config.yml.
   #
@@ -2570,7 +2580,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
               widget: object
               fields:
                 - &link_label { name: label, label: Label, widget: string, maxlength: 30 }
-                - &link_href { name: href, label: Link, widget: string, maxlength: 200, hint: "A site path such as /contact/ or /#faq, or a full https:// address.", pattern: ['^(?:\/[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$', "Use a site path such as /contact/ or a full https:// address"] }
+                - &link_href { name: href, label: Link, widget: string, maxlength: 200, hint: "A site path such as /contact/ or /#faq, or a full https:// address.", pattern: ['^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$', "Use a site path such as /contact/ or a full https:// address"] }
             - name: stats
               label: Stats
               hint: The first counts the services, the second counts the engagements and names them.
@@ -2735,7 +2745,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
               hint: This dashboard is an illustrative example. Every card must keep saying illustrative, example or sample.
               widget: object
               fields:
-                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+                - &image_field { name: img, label: Image, widget: image, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
                 - { name: accent, label: Accent, widget: string, maxlength: 20 }
                 - { name: label, label: Label, widget: string, maxlength: 20 }
             - name: workflow
@@ -2944,7 +2954,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: shortName, label: Short name, widget: string, maxlength: 40 }
         - { name: category, label: Category, widget: string, maxlength: 20 }
-        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: image, label: Image, widget: image, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - { name: summary, label: Summary, widget: text, maxlength: 160 }
         - { name: buyerProblem, label: Buyer problem, widget: text, maxlength: 320 }
         - name: deliverables
@@ -3057,7 +3067,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
       reorder: true
       sortable_fields: { fields: [order, name], default: { field: order } }
       fields:
-        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: img, label: Photo, widget: image, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - { name: name, label: Name, widget: string, maxlength: 60 }
         - { name: role, label: Role, widget: string, maxlength: 60 }
         - { name: company, label: Company, widget: string, maxlength: 80 }
@@ -3082,7 +3092,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
         - { name: author, label: Author, widget: string, maxlength: 60 }
         - { name: title, label: Title, widget: string, maxlength: 120 }
         - { name: sub, label: Summary, widget: text, maxlength: 200 }
-        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*-(?:640|1280)\.webp$)\/(?:images|uploads)\/(?:[\w-]+\/)*[\w.-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use an image under /images/ or /uploads/ (not a generated -640 or -1280 variant)"] }
+        - { name: img, label: Image, widget: image, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
         - *link_href
         - *order
 
@@ -3104,13 +3114,23 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   ```
   Notes: the patterns are the `source` of the schema regexes (`SLUG`, `HREF`, `IMAGE`, `COLOR`, the count and digit patterns), and Sveltia compiles them with `new RegExp(source)` (no flags), so they behave the same in the editor and in the build. A `.md` file whose only field is `body` is saved without front matter (Sveltia data-output docs). Plain `text` widgets avoid the rich-text editor and the libraries it lazy-loads from unpkg.
 
+  **Upload names and formats (from the Task 7 review).** Settle these three points in this task and record each decision under "Amendments":
+  1. **Characters that `slugify_filename` keeps.**
+     - Sveltia's ASCII slugify keeps `~`, so `scan~2.webp` is saved as is. `UPLOAD_PATH` (`scripts/lib/uploads.mjs`) then fails the build with "rename it".
+     - Check in Chrome which characters survive an upload. Try `scan~2.webp`, and a name with `I`/`ı` under a Turkish browser locale, where lowercasing differs.
+     - The README's rename advice (Task 11 Step 1) must name `~` and the Turkish dotless `ı` as characters to remove before uploading.
+  2. **`raster_image` and animation.** `transformations.raster_image` re-encodes GIF and WebP uploads through a canvas, so an animated upload becomes a still image before the build sees it. The build itself keeps animated WebP and GIF. Choose one:
+     - **Per-format keys** (`jpeg`, `png`, `avif` only): GIF and WebP uploads keep their animation, but WebP originals then keep their EXIF/GPS metadata. Only the generated variants drop it, and the original ships too.
+     - **Keep `raster_image`:** accept that animations become stills, and say so in the README.
+  3. **`filename_template`.** The variant cache reserves no upload names, so `filename_template: "{{filename}}-{{uuid_short}}"` is not needed to avoid `-640`/`-1280` names. Add it only if unique file names are wanted, for example so that re-uploading `photo.jpg` never replaces the earlier file, and record why.
+
 - [ ] **Step 8: Run the tests and see them pass.** `cd "$CMS" && node --import tsx --test tests/admin.test.mjs tests/cms-config.test.mjs` → `# pass 7`, `# fail 0`.
 
 - [ ] **Step 9: Fast gates.** `cd "$CMS" && npm run lint && npm run typecheck && npm test` → all pass (ESLint does not lint `public/`).
 
 - [ ] **Step 10: Commit.** Check that git stored the vendored files without conversion: `git add` then `git ls-files --eol public/admin/sveltia | head -3` shows `attr/-text -diff`.
   ```bash
-  cd "$CMS" && git add .gitattributes scripts/vendor-sveltia.mjs scripts/sveltia-cms.lock.json public/admin package.json package-lock.json tests/admin.test.mjs tests/cms-config.test.mjs && git ls-files --eol public/admin/sveltia | head -3 && git commit -m "feat(cms): vendor Sveltia CMS 0.250.0 and add the /admin page and CMS configuration" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+  cd "$CMS" && git add .gitattributes scripts/vendor-sveltia.mjs scripts/sveltia-cms.lock.json public/admin package.json package-lock.json tests/admin.test.mjs tests/cms-config.test.mjs && git ls-files --eol public/admin/sveltia | head -3 && git commit -m "feat(cms): vendor Sveltia CMS 0.230.1 and add the /admin page and CMS configuration" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   ```
 
 ---
@@ -3178,10 +3198,12 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   The `/*` rule is not touched. `X-Robots-Tag` is removed and set again so the preview's packaging-time `noindex, nofollow` on `/*` is not doubled. A planning simulation of the asset worker's header logic gave, in both preview and production mode: `/admin/` → admin CSP only, `X-Robots-Tag: noindex, nofollow`, `X-Frame-Options: DENY` kept; `/` and `/privacy/` → the site CSP unchanged.
   Run: `cd "$CMS" && node --import tsx --test tests/admin.test.mjs` → `# pass 4`.
 
-- [ ] **Step 3: Ship `/admin/`.** In `scripts/package-site.mjs`, inside the CMS block, after the line `await shipFolder("uploads");` add:
+- [ ] **Step 3: Ship `/admin/`.** **Changed in Task 7:** `shipFolder` and the line `await shipFolder("uploads");` do not exist. Task 7 ships uploads with `shipUploads` (scripts/lib/uploads.mjs), which only copies upload images and their variants, so it cannot ship `/admin/`. In `scripts/package-site.mjs`, inside the CMS block, directly after the line that starts with ``console.log(`Uploads shipped:``, add:
   ```js
-  if(!await shipFolder("admin"))throw new Error("out/admin is missing: public/admin/ must be exported with the site.");
+  try{await fs.access("out/admin");}catch{throw new Error("out/admin is missing: public/admin/ must be exported with the site.");}
+  await fs.cp("out/admin",path.join(target,"admin"),{recursive:true,filter:file=>!path.basename(file).startsWith(".")});
   ```
+  `/admin/` holds only committed files (the page, `config.yml` and the hash-locked Sveltia files; editors cannot add files there), so copying it from `out/` as planned is fine. Dotfiles are skipped as before. Also update the CMS block's comment to mention `/admin/`.
 
 - [ ] **Step 4: Check the shipped admin.** In `scripts/check-export.mjs`, inside the CMS block, after the line `await scanUploads(root);` add:
   ```js
@@ -3192,7 +3214,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   if(/<script(?![^>]*\ssrc=)[^>]*>/.test(adminHtml))errors.push("admin/index.html must not use inline scripts (its CSP allows script-src 'self' only)");
   if(!/^\/admin\/\*\r?$/m.test(await fs.readFile(path.join(root,"_headers"),"utf8")))errors.push("dist/_headers has no /admin/* rule");
   ```
-  The existing scans already cover the admin files: the old-identity scan reads the vendored JS (0.250.0 contains none of those strings; checked in planning), and `admin/index.html`'s only local reference, `/icon.svg`, ships.
+  The existing scans already cover the admin files: the old-identity scan reads the vendored JS (0.230.1 contains none of those strings, nor does `config.yml` or `index.html`; checked in Task 9), and `admin/index.html`'s only local reference, `/icon.svg`, ships.
 
 - [ ] **Step 5: Assert noindex and no links in the SEO crawl.** In `scripts/check-seo.mjs`, insert before the line `  for (const path of [...links, ...assets]) assert.equal(`:
   ```js
@@ -3245,12 +3267,15 @@ The only task that edits section components. Each edit replaces `src={X}` with `
          await admin.goto(`${base}/admin/`, { waitUntil: "load" });
          await admin.getByRole("button", { name: /Work with Local Repository|Sign In with GitHub/ }).first().waitFor({ timeout: 30000 });
          await admin.waitForTimeout(1000);
-         // Sveltia asks unpkg.com whether a newer release exists; the admin CSP blocks that optional request on purpose.
-         const unexpected = blocked.filter(entry => !/^connect-src blocked https:\/\/unpkg\.com\//.test(entry));
+         // Exactly two optional requests are blocked on purpose (Task 9 review): Sveltia's update check on unpkg.com, and
+         // its GitHub status check, which it makes on the sign-in screen because the backend is github (Qbe in 0.230.1,
+         // inside try/catch; there is no setting to turn it off). connect-src stays 'self' blob: data:.
+         const tolerated = [/^connect-src blocked https:\/\/unpkg\.com\/@sveltia\/cms\/package\.json$/, /^connect-src blocked https:\/\/www\.githubstatus\.com\/api\/v2\/status\.json$/];
+         const unexpected = blocked.filter(entry => !tolerated.some(pattern => pattern.test(entry)));
          assert.deepEqual(unexpected, [], "/admin/: the CMS loads everything it needs under its CSP");
          assert.deepEqual(pageErrors, [], "/admin/: no page errors");
          await admin.screenshot({ path: "artifacts/admin.png" });
-         report.interactions.push(`/admin/: Sveltia CMS sign-in renders under its scoped CSP (${blocked.length} optional unpkg request(s) blocked by design)`);
+         report.interactions.push(`/admin/: Sveltia CMS sign-in renders under its scoped CSP (${blocked.length} optional request(s) blocked by design: the update check and the GitHub status check)`);
          await context.close();
        }
        // <<< CMS
@@ -3275,7 +3300,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   - `Browser checks passed: 6 profiles; …`; `artifacts/admin.png` shows the Sveltia sign-in screen with "Work with Local Repository" and real icons (not icon names as text).
   - `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
 
-- [ ] **Step 9: Real-browser check (controller or owner, in Chrome on the desktop).** Open `http://127.0.0.1:8788/admin/`, choose **Work with Local Repository**, select `E:\Personal\clone website\spacegear-cms`. Expected: the collections "Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Articles" and "Legal pages" are listed; "Questions & Answers" shows eight entries in site order; DevTools shows no CSP errors other than the blocked unpkg update check. Edit one FAQ answer, save, run `git -C "E:/Personal/clone website/spacegear-cms" diff --stat content/faqs` (one file changed), then revert with `git -C "E:/Personal/clone website/spacegear-cms" checkout -- content/faqs`. (Automation cannot pick a folder in the native dialog, so this step is manual.)
+- [ ] **Step 9: Real-browser check (controller or owner, in Chrome on the desktop).** Open `http://127.0.0.1:8788/admin/`, choose **Work with Local Repository**, select `E:\Personal\clone website\spacegear-cms`. Expected: the collections "Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Articles" and "Legal pages" are listed; "Questions & Answers" shows eight entries in site order; DevTools shows no CSP errors other than the two optional requests blocked by design: the unpkg update check and `https://www.githubstatus.com/api/v2/status.json`. Edit one FAQ answer, save, run `git -C "E:/Personal/clone website/spacegear-cms" diff --stat content/faqs` (one file changed), then revert with `git -C "E:/Personal/clone website/spacegear-cms" checkout -- content/faqs`. (Automation cannot pick a folder in the native dialog, so this step is manual.)
 
 - [ ] **Step 10: Commit.**
   ```bash
@@ -3292,7 +3317,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   ````markdown
   ## Editing content
 
-  All copy lives in [content/](content/) as JSON and Markdown; images added by editors go to `public/uploads/`. [src/lib/content.ts](src/lib/content.ts) loads and validates those files at build time, so the site never fetches content at run time. The editor at `/admin/` is [Sveltia CMS](https://sveltiacms.app/) 0.250.0, vendored in `public/admin/sveltia/` (no CMS code comes from a CDN). `/admin/` is not linked from the site, is `noindex` and has its own Content-Security-Policy.
+  All copy lives in [content/](content/) as JSON and Markdown; images added by editors go to `public/uploads/`. [src/lib/content.ts](src/lib/content.ts) loads and validates those files at build time, so the site never fetches content at run time. The editor at `/admin/` is [Sveltia CMS](https://sveltiacms.app/) 0.230.1, vendored in `public/admin/sveltia/` (no CMS code comes from a CDN). `/admin/` is not linked from the site, is `noindex` and has its own Content-Security-Policy.
 
   ### Edit locally (today)
 
@@ -3308,8 +3333,10 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   - The counts on the page (5/5, 01/03, the hero stats) match the services and engagements.
   - A testimonial renders only after its permission box is ticked. Team cards describe disciplines, not people.
   - Services and engagements cannot be added or removed in the CMS: each service has its own page and route lists.
-  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build writes 640 px and 1280 px variants next to each one (`-640.webp`, `-1280.webp`; these names are reserved). The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
-  - Legal pages (`content/legal/*.md`) accept `## ` headings and plain paragraphs only. The preview notice and the contact section come from the site settings.
+  - Images: upload JPEG, PNG or WebP (not HEIC). Chrome re-encodes uploads as WebP, which drops camera metadata, and the build makes 640 px and 1280 px variants of each one (kept in `.cache/upload-variants/` and shipped next to the upload as `<name>.w640.webp` and `<name>.w1280.webp`; no upload name is reserved). The CMS renames uploads to lowercase letters, digits, `-` and `_` (`Ảnh đẹp.JPG` becomes `anh-dep.webp`), but it keeps `~`, and a Turkish-language browser writes the dotless `ı` for `I`: the build then refuses the file and suggests a name, so rename such a file before uploading it. A Windows device name such as `con.png` cannot be uploaded. An upload must not carry location data (GPS); the CMS strips it from JPEG, PNG and AVIF, but keeps WebP and GIF as they are. The images that shipped before the CMS stay in `public/images/`: pick them under **Site images** or type their path.
+  - New entries are named after their title with the same rules. A title that starts with `_` (`_underscore start` gives `_underscore-start.json`), or that contains `~` or the dotless `ı`, gives a file name the build refuses; `npm run content:index` names the file to rename (lowercase letters, digits and `-`, starting with a letter or digit).
+  - Engagement stage numbers (01, 02, 03) follow the list order. Dragging engagements does not renumber them; check-content names the number to set.
+  - Legal pages (`content/legal/*.md`) accept `## ` headings and plain paragraphs only; the CMS refuses anything else before saving (lists, other heading levels, a heading with no text below it). The preview notice and the contact section come from the site settings.
 
   If you add, rename or delete an entry file by hand, run `npm run content:index`. The CMS configuration is [public/admin/config.yml](public/admin/config.yml); it mirrors [src/lib/content-model.ts](src/lib/content-model.ts), and `npm test` fails when they drift. The CMS reads `config.yml` from the preview, so rebuild after changing it.
 
@@ -3321,15 +3348,23 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   |---|---|---|
   | `script-src` | `'self'` | The vendored bundle and the chunks it loads next to itself. Sveltia needs no `unsafe-eval` or `unsafe-inline`. |
   | `style-src` | `'self' 'unsafe-inline'` | Sveltia injects its styles at run time. |
-  | `font-src` | `'self' https://cdn.jsdelivr.net/fontsource/` | The bundle's `@font-face` rules load its UI and icon fonts from Fontsource on jsDelivr. |
+  | `font-src` | `'self'` and the three Fontsource files on jsDelivr, each by its full URL (`…/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2`, `…/noto-mono@5.3.0/latin-400-normal.woff2`, `…/source-sans-3:vf@5.3.0/latin-wght-normal.woff2`) | The bundle's `@font-face` rules load its UI and icon fonts from these files and no others. A source with a path and no trailing slash allows that one file. |
   | `img-src` | `'self' data: blob:` | Previews of new uploads and inline icons. |
-  | `connect-src` | `'self' blob: data:` | The configuration and local files. Sveltia's optional update check to unpkg.com is blocked on purpose. |
+  | `connect-src` | `'self' blob: data:` | The configuration and local files. Two optional requests are blocked on purpose: the update check to unpkg.com, and the GitHub status check (`https://www.githubstatus.com/api/v2/status.json`), which Sveltia makes on the sign-in screen because the backend is GitHub. Both fail quietly, and 0.230.1 has no setting to turn the status check off. |
   | `media-src`, `frame-src`, `manifest-src` | `'self' blob:`, `blob:`, `'self' blob:` | As in Sveltia's CSP guide. |
   | `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'none'`, `'self'`, `'self'`, `'none'` | Hardening, as on the site. |
 
-  Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The site's own CSP is unchanged; `public/_headers` removes it for `/admin/*` only.
+  Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The site's own CSP is unchanged; `public/_headers` removes it for `/admin/*` only. The policy is pinned twice: in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the build's export check fail when they differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
 
-  To upgrade Sveltia: set `version`, `tarball` and `integrity` in `scripts/vendor-sveltia.mjs` from `npm view @sveltia/cms@<version> dist.tarball dist.integrity`, run `npm run cms:vendor`, then `npm test` and `npm run test:browser`. Check the release notes for new CSP needs.
+  #### Uploads are sandboxed
+
+  `public/_headers` also has a `/uploads/*` rule. It replaces the site CSP with `default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox` and sends `X-Content-Type-Options: nosniff` once.
+  - An image on a page is unaffected: an `<img>` element ignores the headers of the image it loads, and the page's own CSP allows images from the site.
+  - Opened on its own (a link, or a typed address), an upload is a sandboxed document. It runs no script, loads nothing but images from the site, and is never read as any type other than its own. That covers a file that only looks like an image, for example an HTML/PNG polyglot.
+  - A missing upload's 404 page is shown unstyled under the same rule.
+  - The export check (`UPLOADS_CSP` in `scripts/lib/headers.mjs`) and `npm run test:browser` both enforce the rule.
+
+  To upgrade Sveltia: in `SVELTIA` in `scripts/vendor-sveltia.mjs`, set `version`, `tarball` and `integrity` from `npm view @sveltia/cms@<version> dist.tarball dist.integrity` (a release at least 14 days old) and empty `files`. Run `npm run cms:vendor`, review what it extracted, copy the hashes from `scripts/sveltia-cms.lock.json` into `SVELTIA.files` (the second pin), then run `npm test` and `npm run test:browser`. If the new bundle names other font files, `npm test` lists them: put them in `font-src` in `public/_headers` and in `ADMIN_FONTS` in `scripts/lib/headers.mjs`. Check the release notes for new CSP needs.
 
   ### Edit from GitHub (later)
 
@@ -3340,7 +3375,13 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `GET /api/auth?provider=github&site_id=…&scope=repo`: create a random state, store it in an `HttpOnly; Secure; SameSite=Lax` cookie for 10 minutes and redirect to `https://github.com/login/oauth/authorize?client_id=…&scope=repo&state=…`.
      - `GET /api/auth/callback?code=…&state=…`: compare the state with the cookie, exchange the code at `https://github.com/login/oauth/access_token` (POST, `Accept: application/json`) and return a small HTML page. It posts `authorizing:github` to `window.opener`, and when the CMS answers from `https://spacegear.tech` it replies `authorization:github:success:{"provider":"github","token":"…"}` to that origin only. Give the page its own CSP header with a hash for its inline script: `_headers` rules do not apply to Worker responses.
   3. **`public/admin/config.yml`:** add `base_url: https://spacegear.tech` and `auth_endpoint: api/auth` under `backend`.
-  4. **Admin CSP:** add `https://api.github.com https://www.githubstatus.com` to `connect-src` and `https://avatars.githubusercontent.com` to `img-src`; update `tests/admin.test.mjs` and the `/admin/` check in `scripts/browser-check.mjs`.
+  4. **Admin CSP:** add `https://api.github.com https://www.githubstatus.com` to `connect-src`, and `https://avatars.githubusercontent.com` (the avatars host) to `img-src`. Change it in all of these places:
+     - `public/_headers`;
+     - `ADMIN_CSP` in `scripts/lib/headers.mjs`;
+     - the `connect-src` assertions in `tests/admin.test.mjs` and `tests/headers.test.mjs`;
+     - `TOLERATED` in `scripts/admin-check.mjs` (the GitHub status check is then allowed, no longer blocked).
+
+     Sveltia signs in through a popup window, so `form-action` stays `'self'`. Do not use `auth_type: pkce`: Sveltia 0.230.1 itself says PKCE is not supported with GitHub (`github_pkce_unsupported`).
   5. **Cloudflare Workers Builds:** connect the repository and the `main` branch; build command `npm run build:production` with the production variables from [the release runbook](docs/operations/cloudflare-release.md); deploy command `npx wrangler deploy --env production`. Every CMS save is a commit, so it triggers a build; a content error fails the build and the live site keeps the previous version.
   6. **Optional:** protect `/admin/*` with Cloudflare Access. The CMS cannot write without a GitHub login, but Access also hides the page.
   ````
@@ -3351,7 +3392,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
   cd "$CMS" && npm run lint && npm run typecheck && npm test && node scripts/vendor-sveltia.mjs --check && node scripts/build-content-index.mjs --check
   cd "$CMS" && node scripts/html-snapshot.mjs compare artifacts/html-baseline
   ```
-  Expected: all pass; `Vendored @sveltia/cms@0.250.0 matches scripts/sveltia-cms.lock.json.`; `Content index is up to date.`; the HTML compare result from Task 10 still holds (docs do not change the build, so no rebuild is needed).
+  Expected: all pass; `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`; `Content index is up to date.`; the HTML compare result from Task 10 still holds (docs do not change the build, so no rebuild is needed).
 
 - [ ] **Step 4: Commit and hand off.**
   ```bash
@@ -3363,29 +3404,756 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
 ## Merge notes (for the controller, merging `feat/showcase-cms` after Part 1)
 
-- **`src/lib/content.ts` is rewritten.** If Part 1 changed or added copy there (for example intro text), port the change into the matching `content/*.json` file, extend `content-model.ts` and `config.yml` if a field was added, then update `tests/fixtures/content-v1.json` (and `content-v1.d.ts` for a new export) for that deliberate change only, and record it under "Amendments". `npm test` (round-trip and mirror tests) shows exactly what is missing.
-- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (after the `x-content-type-options` assertion, and before the report is written) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
-- **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` is a new devDependency. Re-run `npm install --package-lock-only` after resolving a lockfile conflict.
-- **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
+- **`src/lib/content.ts` is rewritten.** As of `77ac72a` (main's HEAD at the Task 11 review round; the review itself saw `696e142`), Part 1 has not changed `content.ts`, `site.ts`, the legal pages, `README.md` or any test that Part 3 changed. If it changes or adds copy in `content.ts` later (for example intro text), the merge conflicts there:
+  1. Keep the loader, and port the change into the matching `content/*.json` file. Extend `content-model.ts` and `config.yml` if a field was added; `npm test` (the config mirror tests) shows what is missing.
+  2. `node scripts/check-migration.mjs` must then list exactly that change and nothing else.
+  3. Run `node scripts/check-migration.mjs --refresh` (or `--refresh-structure` if the change adds an export or a route), check `git diff tests/fixtures`, and commit the fixture with the reason. For a new or changed export type, edit `tests/fixtures/content-v1.d.ts` by hand and extend `src/lib/content-contract.ts` (`npm run typecheck` fails until then). Leave `tests/fixtures/sample-project/` alone: it is the tests' frozen input, not a copy of the live content.
+  4. Record it under "Amendments".
+- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment), `scripts/build-production.mjs` (before `const checks=`) and `src/app/globals.css` (the three `@source not` lines after `@import "tailwindcss";`: Task 9, and the configuration schema in the Task 11 review round). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module.
+- **`git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`** shows no conflict (Task 10; Task 11 with `feat/spacegear-showcase` at `d6e8e4e`; the Task 11 review round at `77ac72a`). Five files are changed on both sides, and all five merge cleanly:
+  - `package.json`: Part 1 adds `build:textures`; Part 3 changes the `build` line and adds three scripts, `js-yaml` and `ajv` (see the `package.json` bullet below);
+  - `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs`: Part 3's fenced blocks;
+  - `src/app/globals.css`: Part 3's fenced `@source not` lines.
+
+  `README.md`, `package-lock.json` and the tests Part 3 changed are changed on this branch only; Part 1 adds its own new test files. Main keeps moving (`696e142` at the review, `77ac72a` an hour later), so re-run the command right before merging.
+- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. Both are pinned exactly in `package.json`, and Part 1 keeps the same two versions (checked at `77ac72a`). If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
+- **The CMS browser check caches the three admin fonts** in `artifacts/cms-fonts/` (gitignored). In a checkout without that folder, the first `test:browser` fetches them once from jsDelivr. With no network and no cache, the check fails and says so.
+- **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
+  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. Part 1 still writes ``errors.push(`Excluded source/template asset: ${relative}`)`` at `77ac72a`. If Part 1 rewords that message, update the prefix: otherwise the first real upload fails check-export with that message.
+  - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
+- **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` 4.2.0 and `ajv` 6.15.0 are new exact devDependencies, both already in the tree through ESLint (one line each in `package.json` and `package-lock.json`). Re-run `npm install --package-lock-only` after resolving a lockfile conflict. After the merge, run `npm ls js-yaml tsx ajv`: each must resolve to one version (4.2.0, 4.23.15, 6.15.0), with no `invalid` or `missing`.
+- **Copy in main's `scripts/browser-check.mjs`** (Part 1 owns it). Several selectors name copy that editors can change in the CMS, so a valid edit would fail `test:browser` after the merge. Line numbers are those of the review's merged file; search for the strings, because main keeps moving:
+  - `:981`: the hero link by the name `/Discuss a project/` (`HOME.cta.label`);
+  - `:116` and `:464`: `#home .hero-copy a[href="/contact/"]` (`HOME.cta.href`);
+  - `:118`, `:732` and `:740`: `#home a[href="/services/applied-ai/"]` (`HOME.corner.href`, and the featured tile's service, `WORK.featured.slug`);
+  - `:646`: `words.count > 5`, while the schema allows a five-word headline (one lead word, three verbs, one tail word).
+
+  The fix after the merge: read `content/home.json` and `content/work.json` once at the top of `browser-check.mjs`, build those selectors from them, find the hero link with `getByRole("link", { name: HOME_COPY.cta.label, exact: true })`, and check the headline with `words.count >= 5` (or derive the count from the headline fields). `/contact/?service=applied-ai` (`:897`) names a service slug, which the CMS cannot change, so it can stay.
+- **Task 8 is deferred** (controller amendment). Nothing on this branch imports `contentImage()` yet, so an upload renders as its original until Task 8 runs. It runs after Part 2, in the main worktree, against the section components as Part 2 leaves them: its Step 1 grep finds the image render sites then, and each `src={x}` becomes `{...contentImage(x)}`.
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
-- After merging, rebuild and run the heavy gates once; the HTML baseline must then be re-saved from the merged build (Part 1 changes the hero markup on purpose).
+- **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
+  1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge. Also keep that build's chunks for step 2, removing any older copy first: `rm -rf artifacts/dist-pre-merge && mkdir -p artifacts/dist-pre-merge/_next/static && cp -r dist/_next/static/chunks artifacts/dist-pre-merge/_next/static/`.
+  2. Merge `feat/showcase-cms` and rebuild. Then run `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-pre-merge`. **Expect `New pages (not in the snapshot): admin/index.html` and identical pages, or only explained `"$module"` changes**:
+     - Part 3 is output-neutral and Task 8 is deferred.
+     - Turbopack's client module ids are not stable across branches; they shift whenever the module set changes. The Task 6b re-review found that 2 of 28 ids differed between this branch and the main worktree (`Pricing.tsx` 44815 / 89176, `ContactForm.tsx` 26675 / 65254), with byte-identical source and factory code.
+     - Without `--explain-client-ids`, a page that differs only in ids is listed with each change (export, old id → new id, line); with it, each change is checked.
+     - The ids are **explained** when all of these hold:
+       - the pages are identical apart from the ids;
+       - each changed id has the same `$client` export name at the same place;
+       - its factory code is identical in the two builds apart from module ids;
+       - every module id that differs maps one to one to a module that is explained the same way, recursively. Such an id can be the module's own id, which merged factories register as `e.s([...], id)`, an import (`e.i(N)`), or another export registration.
+
+       `--explain-client-ids` checks exactly this and passes only then.
+     - **Fallback** if it still refuses an id while the pages are identical apart from ids, and the reason names a module id:
+       1. Diff the two factories (`moduleFactory` in `scripts/html-snapshot.mjs`, or the chunks directly).
+       2. Confirm that every differing token is a module id and that each maps to a module that is itself the same code.
+       3. Record the pairs under "Amendments", or escalate. Any other difference is a real change.
+     - **`content.ts` differs on purpose.** `src/lib/content.ts` is module 13003 in both builds today (with the entry index merged into it on this branch). If the recursion of `--explain-client-ids` reaches it, its factory differs by design: on this branch it is the loader. Then do not escalate: take `--loose-client-ids` (pages identical apart from the ids) together with a green `node scripts/check-migration.mjs` as the evidence, and record it under "Amendments".
+     - `--loose-client-ids` only drops the ids (with a warning), for a first look.
+     - **The stylesheet.** Chunk names are masked, so also compare the CSS chunk with the one in `artifacts/dist-pre-merge` (for example `cmp`). Tailwind scans `docs/` and `README.md`, and the merged tree holds both branches' docs, so a class-like word in either can add a rule. Part 3's docs add none to Part 3's own build (Task 11: all 19 chunks byte-identical). If the merged stylesheet differs, find the added rules and reword the prose that produced them.
+  3. Once the compare passes (identical, or every id change explained), save the baseline again from the merged build and keep it for the remaining work.
+  4. **The other gates on the merged HEAD:** `npm run lint && npm run typecheck && npm test`; `npm ls js-yaml tsx ajv`; `node --experimental-strip-types scripts/check-content.mjs`; `npm run cms:vendor -- --check`; `node scripts/build-content-index.mjs --check`; `node scripts/check-sveltia-config.mjs`; `node scripts/check-migration.mjs` (green while no copy has been edited; see the first bullet); `check:seo`; `test:browser` twice; and the manual Chrome check of `/admin/` (Task 11 report).
+- **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
+  - The copy that step 1 runs from `artifacts/` is therefore format 3. It compares the markup plus the resolved RSC tree, keeps client module ids, and writes a `.format` marker.
+  - `compare` refuses format-1 folders (no marker) and format-2 folders, so save the pre-merge baseline with that copy, not with an older one.
+  - If the post-merge compare reports only changed `"$module"` ids (the module set changed), explain them with `--explain-client-ids` as in step 2. Then re-save the baseline.
 
 ## Amendments made during execution
 
 (Executors record here every deviation, failed expectation or extra normalization, with the reason.)
 
+- **Task 1, `node_modules`.** The first rebuild failed: `TurbopackInternalError: Symlink [project]/node_modules is invalid, it points out of the filesystem root`. The worktree's own `package-lock.json` makes it Turbopack's root, and the junction pointed to the main worktree's `node_modules`, outside that root. The controller removed the junction and ran `npm ci` in the CMS worktree (452 packages). Install dependencies there with plain `npm install`; the conventions, the research summary, Task 9 Step 1 and risks 2 and 10 now say so. `next.config.ts` is unchanged: a `turbopack.root` on the parent folder also builds, but it changes the `next/font` class hashes (below) and would reach the main worktree with the merge.
+- **Task 1, `scripts/html-snapshot.mjs` hardening** (Task 1 review; verified red, then green):
+  1. `compare` fails with `<dir> has no saved pages; run save first.` (exit 1) when the snapshot folder is missing or empty, instead of passing with 0 pages.
+  2. `save` only replaces a folder strictly inside this worktree's `artifacts/` (resolved path). It refuses `.`, `src`, `dist`, `artifacts` itself and anything outside, with exit 2, before deleting anything.
+  3. Without `.next/BUILD_ID`, the build ID comes from the page's own `\"b\":\"…\"` value in the RSC payload (it occurs once per page).
+  4. `normalize` turns CRLF into LF first.
+
+  All four are output-neutral: re-saving the baseline with the hardened script gives byte-identical files. A second rebuild with no changes (new build ID) compares identical: `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+- **`next/font` class hashes are deliberately not masked.** Names such as `inter_381028bd-module__L_xBwa__variable` and `mono_14708230-module__eivcfq__variable` derive from the module path relative to Turbopack's root. A trial build with `turbopack.root` on the parent folder changed exactly these two hashes on every page and nothing else. So a baseline is valid only for the project root and `node_modules` layout it was built with. The Task 1 baseline, built after `npm ci`, is byte-identical to the planning snapshot.
+- **The normalizer assumes Turbopack's flat chunk names** (`/_next/static/chunks/<name>.js|.css`, `/_next/static/media/<name>.<ext>`, no subfolders; checked in the Task 1 build). The chunk patterns do not match nested paths such as webpack's `chunks/app/…`. A `next build --webpack` build (Task 4's diagnostic retry) therefore cannot be compared with this baseline. If the bundler is ever switched, re-save the baseline from a webpack build of the unchanged source, and re-check the patterns, before comparing.
+- **Task 2 review follow-up** (one commit after `7cff37a`; each change seen red, then green). The committed `src/lib/content-schema.ts` and `tests/content-schema.test.mjs` (14 tests) supersede Task 2's code blocks; only the `HREF` and `IMAGE` lines there are kept current.
+  1. **Links.** `HREF` refuses protocol-relative `//host`: `^(?:\/(?!\/)[\w.~/#?=&%-]*|https:\/\/[^\s"<>]+)$`. Tests pin these refusals:
+     - links: `//host`, `data:`, `JAVASCRIPT:` and `mailto:`. Refusing `mailto:` is deliberate, because the only contact address is `SITE.contactEmail`, which is env-gated;
+     - images: `/uploads/../x.webp` and `data:image/svg+xml,…`;
+     - numbers: `JSON.parse("1e999")` (Infinity);
+     - objects: a `__proto__` key is an unknown field, and nothing is polluted.
+  2. **Images.** `IMAGE` now requires:
+     - lowercase names: folders and file names use `[a-z0-9_-]` only, so no dots and no uppercase;
+     - lowercase extensions;
+     - SVG only under `/images/`, because an SVG served from `/uploads/` is an active same-origin document.
+
+     The pattern is `^(?!\/uploads\/.*-(?:640|1280)\.webp$)(?!\/uploads\/.*\.svg$)\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$`. Every current image path, in the fixture and in `public/images/`, already fits. The message says what is required: "use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a -640 or -1280 variant".
+  3. **Optional groups.** The `nullable` JSDoc now says that `false` and `0` count as content, so a group with a boolean or number field is never "not added"; a test covers it. `isEmpty` stops at 64 nested levels with a `ContentError` (`<path>: nested more than 64 levels deep`) instead of a `RangeError`. `check` re-throws that error with the file name and keeps the problems found so far.
+  4. **Messages.**
+     - Counts read `1 item` / `N items`, and the same for characters.
+     - `oneOf` repeats the value: `"x" is not one of: a, b`.
+     - A whitespace-only required text says `required`. So does an empty text with `min > 1`, which used to say `needs at least N characters`.
+  5. **Length.** Text length counts code points (`[...value].length`), so an emoji is one character.
+
+  **Plan edits:**
+  - Task 3's loader tests now expect `"no-such-service" is not one of: ` and `links: 1 item, the limit is 0`.
+  - Task 9's `config.yml` has the new `&link_href` pattern, and the new pattern and message in all four image fields. The extracted `config.yml` still parses with js-yaml, and its 12 href and 8 image fields (aliases resolved) equal `HREF.source` and `IMAGE.source`.
+  - Task 7's `contentImage("/uploads/logo.svg")` test stays as it is: the helper does not validate, and only the schema refuses that path.
+
+  **For Task 9:**
+  1. Check how Sveltia 0.230.1's string widget counts `maxlength` (code points or UTF-16 units). Sveltia is the reference: if it counts UTF-16 units, change `textOf` to match and record that here.
+  2. Check that `slugify_filename: true` writes names that `IMAGE` accepts (lowercase ASCII letters, digits, `-`, `_`). If it keeps uppercase or non-ASCII letters, record it here, because the image field would then refuse those uploads with the message above.
+- **Task 3 review follow-up** (one commit after `71b6c98`; each change seen red, then green). On the points below, these committed files supersede Task 3's code blocks: `src/lib/content-model.ts`, `scripts/build-content-index.mjs`, `tests/helpers/content.mjs`, `tests/content-loader.test.mjs` and `tests/content-index.test.mjs`.
+  1. **Order.** The duplicate-order check skips any entry whose `order` is not a positive whole number (`!Number.isInteger(entry.order) || entry.order < 1`). The schema already reports that entry. So a missing order no longer also says `order undefined is already used by …`.
+  2. **Service slugs.** Only a slug that is a string and passes `SLUG` gets the "rename the file" check and joins the slugs that tiles and pillars may name. A malformed slug is reported by the schema alone. A missing slug is never read as `"undefined"`, which `SLUG` would accept.
+  3. **Uniqueness rule.** `buildContent` refuses repeated values that the site uses to tell items apart, as React keys and as the selected engagement (`Pricing.tsx` finds it by `name`). Empty and missing values are left to the schema. Each message names the file and the duplicate:
+     - **Across a collection:** FAQ `question`, engagement `name` and article `slug`. The later entry in display order is reported, for example `content/faqs/where-to-start.json: question "…" is already used by what-we-do.json; give every entry its own question`.
+     - **Within one entry:** a service's `deliverables`, and an engagement's `deliverables` and `outcomes`, for example `content/engagements/build.json: deliverables[3]: "…" repeats deliverables[1]; make every item different`. The review listed only the deliverables. `outcomes` was added because `Pricing.tsx` renders it with the same `<li key={entry}>`.
+  4. **Exactly one featured engagement.** Task 9's `config.yml` hint already promises this rule.
+     - With none featured: `content/engagements: no engagement is featured; set featured on exactly one`.
+     - For every featured entry after the first: `content/engagements/<file>: featured is already set on <first file>; set featured on exactly one engagement`.
+  5. **Index command** (`scripts/build-content-index.mjs`):
+     - The `.json` extension matches in any case, so `X.JSON` is refused by the name rule instead of being skipped silently.
+     - Paths resolve from the script's own location, through the new export `ROOT`, not from the cwd. `ROOT` is also the default `root` of `renderIndex` and `readIndex`.
+     - A bad entry name prints as a single line and exits 1, with no stack trace.
+     - A new test runs a temporary copy from a folder that has no `content/`. Each run gives the expected result:
+       - `--check` passes;
+       - after an entry is added, `--check` exits 1 with `Run: npm run content:index`;
+       - writing the index brings it up to date;
+       - a bad entry name prints only the message.
+  6. **`readJson`** (test helper) rethrows a JSON syntax error as `SyntaxError("<file>: <message>")`.
+  7. **Ordering test.** It reads the moved FAQ's question from the input instead of the literal.
+
+  The two Task 3 test files now hold 21 tests (14 before). The content files and the generated index are unchanged.
+- **Task 6** (`3617bed` for the Task 5 parser follow-ups, `22eda15` for Task 6; review follow-ups `b387688`, `a73e8d0`, `0a39f83`; Task 6b fix round `33545bc`, `e51c260`, `b55a995`). These committed files supersede Task 6's code blocks:
+  - `scripts/lib/honesty.mjs`, `scripts/check-content.mjs`, `scripts/lib/project-path.mjs`, `scripts/html-snapshot.mjs`;
+  - `tests/content.test.mjs`, `tests/html-snapshot.test.mjs`;
+  - from `0a39f83`: `src/lib/content-model.ts`, `src/lib/legal-markdown.ts`, `scripts/build-content-index.mjs`, `tests/legal.test.mjs` and `tests/content-loader.test.mjs`.
+  1. **Legal parser** (`3617bed`, `0a39f83`):
+     - a `## ` line starts a block even without a blank line before it. The split uses the `m` flag, so `$` means end of line;
+     - each problem names the file, the line and the character in context. Every problem is listed in `LegalPageError.issues`;
+     - an empty heading reports "the heading is empty". `#` is refused in heading text, and `~~` joins the refused inline syntax;
+     - a bare `-`, `=` or `1.` line is refused too;
+     - "start the page with a heading" is reported once;
+     - `INLINE_SYNTAX` is exported, and the signature is `legalSections(page, root = process.cwd())`;
+     - a leading byte order mark is ignored, and the context excerpt never splits a surrogate pair.
+  2. **Task 6 carry items** (`22eda15`):
+     - `tests/content.test.mjs` held 18 tests, not 17: an extra test runs `check-content` on a temporary copy, from a folder without `content/`;
+     - `check-content` runs every check and prints one list (`Content check failed. Fix these problems:`), then exits 1;
+     - it validates `content/site.json` with `siteSchema` and the legal pages, uses `ROOT` throughout, and prints Node's absolute paths from the project folder;
+     - `buildContent` refuses work tiles that repeat a slug (`Work.tsx` keys tiles by slug) and testimonials that repeat the carousel's `name|company` key;
+     - "no engagement is featured" is skipped when an entry's file has no true/false `featured`.
+  3. **The +622 B chunk split.** The uniqueness checks added about 0.6 KB to `content-model.ts`, which ships in the client bundle.
+     - Turbopack split the root layout's 46,857 B chunk into 11,687 B + 35,792 B. The export went from 155 files to 156.
+     - The layout gained one async `["$","script","script-N",…]` element, and React outlined the RSC rows differently, so the row ids shifted.
+     - The format-1 snapshot reported all 15 pages changed. The markup and the resolved React tree were identical.
+  4. **New gate: format 2** (`b387688`). `html-snapshot.mjs` compares, for each page:
+     - the HTML with only the `self.__next_f.push([1,"…"])` scripts removed. JSON-LD, the RSC bootstrap, the noModule polyfill and the chunk tags stay;
+     - the RSC tree, resolved from row 0. Text rows are decoded by UTF-8 byte length; `I`/`HL`/`HC`/`E`/`W`/`D` rows and hints are read; `$<hex>`, `$L`, `$@`, `$W` and `$Q` references are resolved; client references are reduced to the export name and async flag; only exact layout chunk-script elements are dropped.
+
+     Unknown reference forms, missing rows and unknown row tags throw.
+
+     **Corrected in format 3 (item 8):**
+     - Format 2 walked path references (`$<hex>:k:k`) by raw array keys, so React's own form `"$0:props:children:0:props:data"` threw.
+     - It also marked any reference into a row that was being resolved as a cycle, so two same-row references to different targets compared equal.
+     - Format 3 resolves paths the way React writes them and marks a cycle only for a containing value.
+
+     Proof of the gate:
+     - the synthetic plant tests in `tests/html-snapshot.test.mjs` (8 tests);
+     - 10 reviewer plants on real pages (RSC text, markup attributes, HTML-only and RSC-only JSON-LD, an I-row export name, an HL hint, an RSC className, a chunk-script prop, the noModule script). All were caught.
+
+     Baseline migration:
+     - `artifacts/html-baseline` was renamed to `artifacts/html-baseline-v1`. It is format 1 and normalized: the build ID, the I-row ids and the chunk names were masked, so it could not be converted.
+     - `f1224a3` was rebuilt in a detached checkout; the branch was not moved. That build compared identical to v1 under format 1, 15 pages. Its format-2 snapshot is `artifacts/html-baseline-t5`.
+     - The HEAD build compared identical to it under format 2, 15 pages. Only then was `artifacts/html-baseline` saved from HEAD in format 2.
+
+     Later tasks that touch client code must rebuild and compare. The expected result is still `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+  5. **Honesty coverage** (`a73e8d0`):
+     - **Folding:** text is folded before scanning: NFKC, then the class `[\u{AD}\u{200B}-\u{200D}\u{2060}\u{FEFF}]` removed. The Task 6b round replaced the class with `\p{Cf}` plus U+034F (item 8).
+     - **Decoded JSON:** JSON files were scanned raw and decoded (`scannedText`, `JSON.stringify(JSON.parse(src))`). That kept `\n`, `\t` and `\r` as escapes. Item 8 replaces it with a field-by-field scan of the decoded values.
+     - **New patterns:** the reviewer's set (`proposal.mjs`), plus `pounds` and a Unicode-bounded `đồng`. It covers currencies, rates, k/M figures, client and scale counts, percentages, multipliers, founding years and decades, offices, press, partner tiers, ratings and awards, and delivery timelines.
+     - **Scopes:**
+       - the `%` and k/M rules skip `content/measure.json` and `MEASURE`;
+       - the experience and timeline rules skip `content/legal/`;
+       - the `AWS` rule skips `content/legal/`, so a listed processor passes.
+     - **Per-export scan:** loaded content is scanned export by export (`scanExports`). `check-content` prints `forbidden claim in export <NAME>: …` and `forbidden claim in <file>: …`.
+     - **Tests:** all 41 probe claims are caught; 26 ordinary phrases pass; the real tree and the exports have zero hits; the Cloudflare processors named in the legal pages pass in any file.
+     - **Still not caught:** HTML entities such as `&#36;` (React renders them as text, and the legal parser refuses entities) and a literal backslash-u text.
+  6. **Review minors** (`0a39f83`):
+     - `check-content` keeps the stack of a genuine code bug. These stay bare: `issues` lists, `SyntaxError` (a broken `site.json` now throws one), `ERR_MODULE_NOT_FOUND` and `ENOENT`;
+     - the index's refused entry names are an `EntryNameError` with `issues`;
+     - `fromRoot` is case-insensitive on win32.
+  7. **Test counts:** 94 before Task 6, then 107 (`22eda15`), 115 (`b387688`), 119 (`a73e8d0`) and 121 (`0a39f83`).
+  8. **Task 6b fix round** (after the second review; each fix turned the reviewer's probe in `scratchpad/t6b-review/` green).
+     - **HTML snapshot format 3** (`33545bc`):
+       - **Path references** are resolved as React's Flight server writes them:
+         - `type`/`key`/`props`/`_owner` name items 1–4 of an `["$",…]` element;
+         - a path that walks through another reference follows that reference, with its own path, first;
+         - a path through a `$W`/`$Q`/`$@` value throws.
+       - **Cycles:** a reference is a cycle only when its row and path contain the value being resolved. Any other reference, also one into the same row, is resolved from the row's raw value.
+       - **Client identity:** client references keep their module id (`"$module"`). `compare --loose-client-ids` drops the ids and warns; it is for triaging a changed module set, for example at the merge. Item 9 adds `--explain-client-ids`.
+       - **Other changes:** hints are sorted (by their masked form); the build ID is the page's own `"b"` in row 0, and `.next/BUILD_ID` is not read; the dead `I[…]` and escaped chunk-list masks are gone, since the first one also masked markup text.
+       - **Format refusal:** `compare` refuses format-1 and format-2 folders.
+       - **Tests:** React's real dedupe output, from Next's compiled Flight server inside the test; same-row targets differ; cycles; inner references; both client-swap probes; hint order; markup `I[42,`; the CLI flags. The reviewer's `plants.mjs` gives 0 wrong results, its blind-spot probes are now caught, and `normalize-all.mjs` gives 0 throws.
+     - **Baseline chain:**
+       1. The reviewer's rebuild of `962ceb8` in `dist/` was confirmed identical to `html-baseline` (renamed `artifacts/html-baseline-v2`) and to `html-baseline-t5` under the saved format-2 script.
+       2. The format-3 `artifacts/html-baseline` was saved from that same `dist/`.
+       3. After the fixes, the rebuild compared identical under format 3, 15 pages.
+
+       The site output did not change in this round.
+     - **Honesty** (`e51c260`):
+       - **Decoded fields:** JSON files and exports are scanned as decoded string values, field by field, and problems name their field. Escaped line breaks and tabs no longer hide claims. Object keys are not scanned, because every schema has fixed field names.
+       - **Figure groups:** every object with a `value`, `unit`, `label` or `score` is also read as one text: `<value><unit> <score> <label> <scoreLabel> <sub> <title> <note> <tag>`. The real `HOME.stats` ("05 Core services", "03 Ways to engage") pass.
+       - **ReDoS:** `(?<![\w.,])` lookbehinds and bounded quantifiers make every pattern linear. The reviewer's 1 MB shapes take 46–73 ms each (before: 8–19 s at 100 KB); 18 more shapes for the new rules take ≤ 73 ms. A 200 KB regression test runs in `npm test`.
+       - **False positives fixed:**
+         - a "per X" price needs a number;
+         - "hundreds/thousands/millions of" needs a client noun;
+         - narrow exclusions for "decades-old", "HQ audio", "Our #1 rule", "100% of the code/IP/work" and "4K display".
+       - **Scopes:**
+         - in `measure.json` and `MEASURE`, only the figure fields (`FIGURE_FIELD`) skip the `%` and k/M rules;
+         - in `content/legal/`, only the "N years" and generic period rules and the bare `AWS` rule skip. Founding years, decades, delivery promises ("We deliver every project within 2 weeks") and partner tiers stay refused there.
+       - **Folding:** NFKC, then `\p{Cf}` and U+034F are removed. Invisible characters in source are written as `\u{…}` escapes.
+       - **New patterns, each with positive and negative tests:**
+         - star ratings;
+         - ISO/SOC certifications (a bare "ISO 27001" passes);
+         - "Fortune N";
+         - N-hour/N-day turnarounds;
+         - spelled-out client and team counts;
+         - client results ("Client satisfaction"), which also closes the dashboard's figure-plus-label gap.
+     - **check-content** (`b55a995`):
+       - a `SyntaxError` is a content problem only when its message names a `content/` file;
+       - a TypeScript syntax error in code keeps its stack and names the `src/lib` module that does not parse (Node's error does not name it);
+       - `pathsFromRoot` (`scripts/lib/project-path.mjs`) takes the platform, and a test covers case folding.
+     - **Known limitations (documented, not fixed):**
+       - Vietnamese phrasing: the site is English-only today; revisit when Vietnamese copy is planned;
+       - look-alike letters (Cyrillic "Ѕince") and non-ASCII digits (Arabic-Indic "٤٩٩");
+       - HTML entities such as `&#36;`;
+       - a literal backslash-u text;
+       - a claim split over list items (`["Since", "2012"]`);
+       - copy in JSON keys (refused by the schemas anyway);
+       - older bypasses: unlisted adjectives ("200 loyal clients"), "200 plus", "1 million users", "10,000 people", "served 120 organisations", "a team of 30" / "30-strong", "five stars on Google", "ISO/IEC 27001", "MVP in a month", "90-day plan".
+     - **Test counts:** 126 after `33545bc`, 129 after `e51c260`, 130 after `b55a995`.
+  9. **Task 6b re-review** (`d7d808e`, `e7d7a3d`, `deff22e`). Only `scripts/` and tests changed, so no rebuild was needed; the format-3 compare of the existing build stayed identical.
+     - **Client module ids across branches:** see the merge notes and the "Rendered output must not change" convention. `compare` now lists the changed ids. `--explain-client-ids <dist of the saved build>` checks the export, the place and the factory code. A factory can serve several ids (`},18140,10542,…,t=>{`).
+       - Checked read-only against the main worktree's build: `Pricing` 44815 / 89176 and `ContactForm` 26675 / 65254 have byte-identical factories.
+     - **Resolver budget:** at most 1,000,000 resolved values. The 22-level doubling DAG now fails in 0.4 s instead of resolving in 9.6 s.
+     - **Honesty, narrower rules:**
+       - **Client results:** need a figure next to them, or a stated satisfaction rate. "Analyse customer satisfaction surveys" and "Customers served by your support team" pass; "98% Client satisfaction" and "Customers served: 10,000" do not.
+       - **SOC 2:** "SOC 2 report" passes.
+       - **Partner claims:** no "and", "or" or comma may sit between the vendor and "partner", and "select" and "preferred" are no longer tiers.
+       - **Figures that are not claims:** model sizes ("Llama 3 70B", "7B and 13B parameter models"), "128k context" and "100% remotely" pass.
+       - **Still flagged outside the legal pages:** "6–12 weeks" and "within 90 days". Also still flagged: "3 projects" and "2 teams" (digit plus a scale noun).
+     - **Title and sub or text:** a group with a title and a sub or text is now read as one phrase, so `{ title: "Trusted by 200", sub: "companies across Asia" }` is caught. This adds no hits on the real tree or the ordinary-phrase list.
+     - **check-content:** blames a `src/lib` module only when `stripTypeScriptTypes` fails on it with the same code and message. `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` (enum, namespace) in loaded code gets the file prefix too.
+  10. **Task 6b final round** (`82d82f9`, `26f1562`). Only `scripts/` and tests changed, so no rebuild was needed; the format-3 compare stayed identical.
+     - **Self ids:** 6 of the 21 client factories register their exports under their own id (`e.s([...], id)`: 10403 Tile, 18140, 60719, 648 ProcessSteps, 71829, 84834), so a pure id shift used to fail `--explain-client-ids`.
+       - `explainModule` now compares factories token by token. A differing number counts only as a module reference (after `x.i(`, `x.r(`, `x.A(`… or `],`), and each differing pair must map one to one to a module that is the same, checked recursively. This covers the module's own id and shifted dependencies alike.
+       - Reviewer plants (`explain-plants.mjs`): the Tile shift with identical code is now explained. A one-character change, a dependency changed to another module, a component swap, an export rename and a swapped factory are still refused.
+       - On the real chunks, every client id explains against its own build, and a consistent shift of Pricing and its dependency 43476 is explained.
+     - **Honesty, reopened bypasses closed:**
+       - **Model sizes:** excused only as a B/M parameter count right after a model name (with `\b`) and an optional version, never before an audience or revenue noun. "Gemma 1M" therefore passes by design: it has the shape of a model size.
+       - **Sizing exclusions:** "parameters"/"models" excuse B sizes only; the context exclusion is the plain "k context window"; "tokens" is no longer excused.
+       - **SOC 2:** "our SOC 2 …" and "SOC 2 report available / on request" are caught.
+       - **Partners:** "a select partner", "preferred/select partner of|for" and "<Vendor>'s … partner" are caught.
+       - **Results:** `honesty-round3.mjs` regressions against `0913b94` went from 17 to 1 ("Gemma 1M"). The reviewer's 1 MB ReDoS shapes take at most 221 ms.
+- **Task 7** (`70f1c43`). These committed files supersede Task 7's code blocks: `scripts/build-upload-variants.mjs`, `scripts/lib/uploads.mjs` (new), `scripts/lib/content-assets.mjs`, `tests/uploads.test.mjs` and the fenced blocks. `src/lib/content-images.ts` is as planned. The plan's 7 tests are kept (one assertion added: no temporary file is left), plus 15 new ones; `npm test` went from 133 to 155 tests.
+  1. **Shared rules module** `scripts/lib/uploads.mjs`: `WIDTHS`, `RASTER`, `VARIANT`, `variantFile(s)`, `UPLOAD_EXTENSIONS`, `UPLOAD_PATH`, a listing that never follows links, the file-signature check, `uploadProblems` and `shipUploads`. `build-upload-variants.mjs` re-exports the names the plan gives it. `content-assets.mjs` imports from `scripts/lib/` only, so the check-content temp-copy test, which copies `scripts/lib`, still works. `package-site` and `check-export` import the module too.
+  2. **Idempotency by modification time, made robust.** Each variant is stamped with its original's mtime (`utimes`) and counts as current only when it is a regular file within 1 ms of that time. The plan's rule ("variant newer than its original") kept stale variants when an original was replaced by a file with an older mtime (`cp -p`, unzip); a test covers that. Variants are written to a temporary dotfile `.<variant>.<pid>.tmp` next to them and renamed into place, so a failed or interrupted run never leaves a partial variant that would count as current. `.gitignore` also ignores `/public/uploads/**/.*.tmp`.
+  3. **Decoding.** sharp is loaded only when a variant has to be written, with `sharp.cache(false)`. Settings: `autoOrient: true` (the sharp 0.34 constructor form of `rotate()`); `toColourspace("srgb")` (sharp already converts with the embedded profile and drops it; tests cover Display P3 and CMYK); WebP quality 80; a 120 s timeout; `limitInputPixels: MAX_INPUT_PIXELS`, sharp's own default of 268,402,689 px, set explicitly.
+     - The size is read from the header first: `metadata()` with `limitInputPixels: false`, because `metadata()` itself refuses an over-limit header and then gives no size to report. An animated WebP counts every frame.
+     - Too large (a decompression bomb claims a huge size), unreadable, truncated: each is a listed problem, never a crash. The other uploads still get variants, and the command exits 1.
+  4. **Animations.**
+     - An animated WebP gets animated variants (`animated: true`); every frame is kept.
+     - A GIF gets no variants and ships as it is; `contentImage()` returns `src` only, as planned.
+     - An animated PNG (`acTL` before `IDAT`) and an AVIF sequence (`avis` brand) are refused, because sharp reads only their first frame.
+     - An AVIF with several images (a collection, not an animation) uses its first image.
+  5. **Names.** The variant step processes only uploads whose path matches `UPLOAD_PATH`: `^(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif)$`, the schema's `IMAGE` rule without the `/uploads/` prefix. A test checks that the two agree. Other names (capitals, spaces, `..`, non-ASCII, bidi characters, `[ ]`) get no variants, nothing is written outside the folder, and check-content asks for a rename.
+     - A file named like a variant is never an original. With no original it is reported, never processed or deleted. The plan's "(safe to delete)" note is replaced, because it may be a real upload: "delete it if its original was removed, or rename it if it is an upload".
+  6. **Links** (symbolic links and junctions) are refused anywhere under `public/uploads/`, dot-named ones included, and so is a linked uploads folder. They are never followed. This matters because `next build` follows links when it copies `public/` into `out/` (`next/dist/lib/recursive-copy.js` calls `stat` on links): a linked file would reach `out/` as a regular file, and a linked folder would be copied whole. File symlinks need developer mode on this Windows machine, so the tests use junctions and skip the file-link case when the OS refuses with `EPERM`.
+  7. **`package-site` ships uploads from `public/uploads/`, not `out/uploads/`** (a deviation from the plan's `shipFolder`), for the reason in item 6. `shipUploads` empties `dist/uploads/` first, so a deleted upload never lingers, then copies only regular files that match `UPLOAD_PATH`, variants included. It logs `Uploads shipped: N files.` **Task 10:** `shipFolder` does not exist; ship `/admin/` with its own copy.
+  8. **check-content** (from `ROOT`; the plan passed a cwd-relative `"public"`):
+     - `uploadProblems` lists: links; anything that is not a regular file; any extension other than the six (SVG, HTML and the rest); names outside `UPLOAD_PATH`; and bytes that do not match the extension (WebP, PNG, JPEG, AVIF and GIF signatures). Dotfiles and dot-folders are exempt; they are never processed or shipped.
+     - `imageReferenceProblems` refuses any content string under `/images/` or `/uploads/`, links included, that is not a plain path (`..`, `.`, a dotfile, an empty segment, `%`, `\` or other characters) or that names a `-640`/`-1280` upload variant. Each problem names its place, for example `image path in export FAQ_CARD.img: …`. A refused path is not looked up on disk. The schema already refuses both in image fields; this covers the other fields.
+     - `missingImageFiles` is as planned.
+  9. **check-export** (fenced): the plan's `scanUploads`, plus `Unsafe upload path …` for a `/./` or `/../` segment, which a browser would resolve elsewhere, and `Not an upload that may ship: uploads/…` for any shipped file outside `UPLOAD_PATH`.
+  10. **`tests/content.test.mjs`:** the check-content temp-copy test also copies `public/images/`, because check-content now checks that referenced images exist.
+  11. **Results:**
+      - `check-content` on the real tree: `Content valid: 12 routes; preview mode.`
+      - The build log shows `Upload variants: 0 originals, 0 written, 0 up to date.`, `Uploads shipped: 0 files.` and `Export valid: 12 core pages, 156 files, 11.53 MiB total.`
+      - `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` The chunk file names are identical too, because `content-images.ts` has no importer until Task 8. No ids needed explaining, and the baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+      - A final rebuild on `70f1c43` gave the same results; the 8788 preview serves that build.
+      - A planted `.svg`, `.html` and junction in `public/uploads/` were refused by the variant step and check-content. A temp-copy package shipped only the image and its variants, and check-export passed. A planted SVG in `dist/uploads/`, a missing upload and a `/../` path were each refused by check-export.
+  12. **Time added to a build:** the variant step's process takes 66 ms with no `public/uploads/` and 61 ms with only a `.gitkeep` (median of 9; a bare `node -e ""` takes 50 ms). For 20 noisy 4032 × 3024 JPEGs (155.5 MiB, a worst case for size), the first run takes 8.5 s (40 variants), a re-run with everything current 7 ms, and a re-run after one original changed 390 ms.
+  13. **Known limitations:**
+      - A hard link cannot be told from a regular file (git does not store hard links).
+      - The check-then-copy window in `shipUploads` is not guarded.
+      - The variant step decodes by content, so a mislabelled but valid image gets variants; check-content refuses it in the same build.
+      - Risk 8 (`1280w` descriptors) is unchanged.
+  14. **For Task 9:** an upload whose name is outside `UPLOAD_PATH` now fails the build, not only its image field. Check that `slugify_filename` writes such names.
+- **Task 7 review fix round** (`3c21f12`). Where they differ, this supersedes items 2, 5, 7, 8 and 9 of the Task 7 entry above; the committed files supersede everything. The reviewer's probes are in `scratchpad/t7-review/`; the same cases, run against the new API, are in `artifacts/t7/probe-after.mjs`.
+  1. **Variants live in a cache, not in `public/uploads/`.** The reviewer found that a real `hero-1280.webp` next to `hero.webp` was silently overwritten and, being gitignored, never committed.
+     - **Layout:** variants are written to `.cache/upload-variants/files/<rel>.w640.webp` and `.w1280.webp`, with `manifest.json` beside `files/`. `/.cache/` is gitignored; the three `public/uploads` ignore lines are gone.
+     - **Names** keep the original's extension: `photo.jpg.w640.webp`, where the reviewer suggested `photo.w640.webp`. That way `team.jpg` and `team.png` never collide, and the "share a name" error is gone. No upload can have such a name, because upload names have no dot before the extension.
+     - **Nothing is reserved.** An upload named `-640`/`-1280` is an ordinary upload: `IMAGE` lost its `-640`/`-1280` lookahead, and the rule "a variant-named file is never an original" is gone. Content may still not point at a `.w640.webp`/`.w1280.webp` name (`imageReferenceProblems`, with its own message); the schema refuses it anyway, because of the dots.
+     - **Shipping:** `package-site` calls `shipUploads("public/uploads", dist/uploads, ".cache/upload-variants")`. It copies the originals plus the cached variants whose manifest SHA-1 matches the original's current bytes. URLs stay under `/uploads/`, so Task 10's `/uploads/*` rule covers the variants.
+     - **Pruning:** every run deletes, in the cache only, the variants of deleted or failing uploads, foreign files, links (removed, never followed) and a killed run's temporary files. Temporary files go first, even when the run then stops on a problem.
+       - A cache folder that is a link or a file is refused.
+       - `buildUploadVariants` requires a `cacheDir` for any folder other than `public/uploads/`, so a test can never prune the project's cache.
+       - No `.cache/` is created when there is nothing to cache.
+     - **`contentImage()`:** `/uploads/x.jpg` → `src` `/uploads/x.jpg.w1280.webp`, plus the srcset. It returns `{ src }` only when `NODE_ENV === "development"`, as `samples.ts` already does, because `next dev` serves only `public/`. This was the one drawback of the cache design: without it, uploads would 404 under `next dev`. Exported markup is unaffected.
+     - **Reviewer's probe after the fix:** `hero-1280.webp` is unchanged (1280 × 400), with no errors and `uploadProblems` `[]`. Shipped: `hero-1280.webp`, `hero-1280.webp.w640.webp`, `hero-1280.webp.w1280.webp`, `hero.webp`, `hero.webp.w640.webp` and `hero.webp.w1280.webp`.
+  2. **Content hash** (minor 1).
+     - The manifest is `{ recipe, uploads: { "<rel>": { sha1, size } } }`. A variant is current only when the SHA-1 matches and the variant is a regular file. A changed `RECIPE` (the encoding) rebuilds everything.
+     - There is no mtime pre-check: hashing is cheap enough.
+     - **The reviewer's same-mtime probe:** before the fix, 0 written and the variant stayed red, `[254, 0, 1]`. After it, 2 written and `[2, 0, 255]`.
+     - **Timing**, 20 × 12 MP JPEGs (4000 × 3000 noise, 150.7 MiB, 7.5 MiB each):
+       - SHA-1 of all 20: 145–149 ms;
+       - re-run with everything current: 146 ms;
+       - one photo changed: 561 ms;
+       - packaging, which hashes again: 331 ms;
+       - first run: 9.0 s.
+     - With no uploads, the step takes 64 ms against 46 ms for a bare `node -e ""` (median of 9).
+  3. **Uploads regex** (minor 2): `UPLOAD_REF` is now `(?<![\w.:/%-])\/uploads\/[\w./-]+\.(?:webp|png|jpe?g|avif|gif|svg)(?![\w.-])`, flags `gi`, in `scripts/lib/uploads.mjs`, with tests. On the reviewer's sample, the old regex hit `/uploads/2024/05/case-study.png` (inside an external URL) and `/uploads/a.webp` (truncating `a.webpx`); the new one finds neither.
+  4. **The excluded-asset rule** (minor 3): main's line 4 is unchanged. The fenced block drops that rule's `uploads/` errors by their message prefix (see the merge notes). In the plant check, `uploads/earth-4k.webp` and `uploads/galaxy-small-640.webp` shipped and `check-export` passed.
+  5. **Windows device names** (minor 4): `con`, `prn`, `aux`, `nul`, `com0`–`com9` and `lpt0`–`lpt9`, as any folder name or file stem, are refused by `UPLOAD_PATH`, `SITE_IMAGE_PATH` and `IMAGE`.
+     - `com10`, `icon`, `con-1` and `console/` pass.
+     - The list includes `0`, which Windows reserves too; Git's list has 1–9 only.
+     - The schema message now ends "not a Windows device name such as con or nul". The `IMAGE` line in Task 2 Step 3 and the four Task 9 `config.yml` image patterns and messages are updated in this plan.
+  6. **Letter case** (minor 5):
+     - `imageReferenceProblems` requires `/uploads/` paths to match `UPLOAD_PATH`, and `/images/` paths `SITE_IMAGE_PATH` (the lowercase `IMAGE` rule without its prefix).
+     - `missingImageFiles` uses `existsExact`, which reads the real directory listing.
+     - In `check-export`, `scanUploads` checks references by exact name (`exactIndex`). `wrongCaseReferences` flags every local asset path in pages, payloads and chunks (not `admin/`) that ships in another letter case. This also covers Part 1's `need` without editing it: in the plant check, `/images/Faq-Team.webp` passed `need` on Windows and was caught.
+  7. **`dist/uploads/` is re-checked** (minor 6) with `uploadProblems(…, { variants: true })`:
+     - originals follow the upload rules (type, bytes, name);
+     - a variant must be WebP and its original must be there.
+  8. **Hard links** (minor 7): a file with `nlink > 1` is refused by the variant step and check-content, and never shipped. `fs.linkSync` works on NTFS, so this is tested here.
+  9. **Temporary files** (minor 8): `.<variant>.<pid>.tmp` under `files/` and `manifest.json.<pid>.tmp` are removed at the start of each run. Two variant steps running at once would remove each other's temporary files; builds are serialized.
+  10. **Tests** (minor 9):
+      - The file-symlink case now reports `t.skip("file symlinks need developer mode on Windows")`.
+      - New tests kill the `isFile()` mutant (a folder where a variant belongs is replaced) and the decode-time `limitInputPixels: false` mutant (`writeVariant` is exported and refuses an image over the limit).
+      - `artifacts/t7/mutate.mjs` plants 16 mutants; all are killed except "ship variants of any original", which is equivalent, because a GIF has no manifest entry.
+      - `tests/uploads.test.mjs` holds 28 tests, 1 of them skipped on this machine. `npm test`: 161 tests, 160 pass, 1 skipped.
+  11. **Results:**
+      - Lint, typecheck and `npm test` pass; `Content valid: 12 routes; preview mode.`
+      - Rebuild on `3c21f12`: `Upload variants: 0 originals, 0 written, 0 up to date, 0 removed.`, `Uploads shipped: 0 files.`, `Export valid: 12 core pages, 156 files, 11.53 MiB total.`
+      - `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` One chunk was renamed (`1tn7orqpia2l5.js` → `1maa5m20t8jpc.js`): the shared chunk with `content-schema.ts`, which now holds the new `IMAGE` rule and message, plus the minifier's renamed locals. No client module id changed, so nothing needed explaining, and the baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+      - **Plant check** (temp copy, removed afterwards; nothing planted in the worktree):
+        - Planted: `logo.svg`, `page.html`, `con.webp` and a hard-linked `linked.jpg`, next to `hero.webp` and `hero-1280.webp`, `earth-4k.webp`, `galaxy-small-640.webp` and `team/photo.jpg`.
+        - The variant step refused the hard link.
+        - check-content listed all four plants.
+        - `package-site` shipped the five real uploads with their ten variants and none of the plants. The editor's `hero-1280.webp` shipped byte-identical (SHA-1 `d6accd1d…`).
+        - `check-export` passed.
+        - Then, planted straight into `dist/`, these were each refused: an SVG, a fake PNG, an orphan variant, `/uploads/Hero.webp` and `/images/Faq-Team.webp`. An external `…/wp-content/uploads/…` link and `/uploads/a.webpx` were not flagged.
+- **Task 7 re-review round** (`a53e7d0`). Only `scripts/` and tests changed; `src/` did not, so no rebuild was needed (the 8788 preview still serves the `3c21f12` build, whose rendered HTML compared identical). The reviewer's probes are `scratchpad/t7-review/probe-cache.mjs` and `probe-distdot.mjs`. A copy of the cache probe with one cleanup line adapted is `artifacts/t7/review2/probe-cache-after.mjs`: after the fix, `files/` is a real folder, so the probe's `unlinkSync` of it would throw.
+  1. **Links in the cache are never followed** (Important).
+     - `files/` and `manifest.json` are `lstat`ed first. A link there, or the wrong kind of entry, is removed: the cache is ours, and the link is never followed.
+     - `cacheFolderProblem(cacheDir, root)` checks every folder from the project down to the cache (`.cache/`, `.cache/upload-variants/`), or, for a cache outside the project, its parent and itself. A link or a non-folder there is refused before anything is written.
+     - `isRealFile` reaches cached variants and the manifest only through real folders, so packaging never reads through a link either.
+     - **Probe 4b** (a `files/` junction to a folder holding `keep.txt` and `sub/notes.md`): before, `removed: ["keep.txt", "sub/notes.md"]` and the folder then held the variants. After, `removed: ["files"]` (the link) and both files survive.
+     - **Probe 4c** (the cache's parent is a junction): before, the cache was written into the junction's target. After, it is refused (`dotcache: is a link (symbolic link or junction); the variant cache and the folders above it must be real folders, …`) and nothing is written.
+     - Tests cover a junction at `files/` and at `manifest.json`, a `.cache` junction under a project root, a non-folder in the chain, and a `files/` junction that appears after the variant step. That last one points at real copies of the variants, which are still not shipped.
+  2. **Variant fingerprints** (minor 1).
+     - The manifest records `variants: { "640": { size, sha1 }, "1280": … }` for every upload, and `RECIPE` became `v2`, so older manifests rebuild once.
+     - A variant counts as current, in the variant step and in `currentVariants` when packaging, only when its size and SHA-1 match the record.
+     - **Probe 3b** (the 1280 variant cut to 64 bytes): before, 2 up to date, shipped at 64 bytes and undecodable. After, 1 written and 1 up to date, shipped at 1,726 bytes, and it decodes.
+     - Packaged before the variant step repairs it, the upload ships without its variants.
+     - A test also flips one byte at the same size.
+  3. **Nothing hidden ships** (minor 2). With `variants: true` (dist mode; the option keeps the name the reviewer's probes use), `uploadProblems` lists dot entries too and refuses any file with a dot segment.
+     - **The reviewer's case:** before, `dist/uploads/.env` and `dist/uploads/.hidden/page.html` passed. After: `dist/uploads/.env: is hidden (a dotfile or inside a dot-folder), and nothing hidden may ship: remove it`, and the same for `.hidden/page.html`. `x.map` stays refused as a non-image.
+     - Public mode still exempts dotfiles, which never ship.
+  4. **Long Windows paths** (minor 3).
+     - Variants are now encoded to memory (`toBuffer()`) and written by Node, which handles long paths. libvips can neither write nor read paths of 260 characters or more here: a 315-character write and read both failed in a probe.
+     - An upload whose own path is 250 characters or more gets `its path is N characters long, and the image library cannot open paths of 250 or more on Windows: shorten the folder or file names`, on win32 only.
+     - **Probe 6:** before, a 274-character cache path failed with "unable to open for write … export it again as WebP, PNG, JPEG or AVIF". After, the probe's 259-character original gets the "shorten the folder or file names" problem.
+     - A test (win32 only) shows a 245-character upload with a cache path of 260 or more getting its variants, and a 252-character upload getting the problem.
+  5. **Task 9 notes** (minor 5) are in Task 9 Step 7's own text: `~` and the Turkish `ı` with `slugify_filename`, `raster_image` versus animation and metadata, and that `filename_template` is no longer needed. The Task 11 README rename advice names `~` and `ı`.
+  6. **Mutation check:** `artifacts/t7/review2/mutate3.mjs` runs this round's 12 mutants against `tests/uploads.test.mjs`. 10 are killed; 2 are equivalent:
+     - "isRealFile follows links": `lstat` of a link is neither a folder nor a file, so the type checks refuse it anyway;
+     - "manifest link not removed up front": `writeManifest` removes it before renaming into place.
+  7. **Gates and checks:**
+     - Lint and typecheck are clean. `npm test`: 165 tests, 164 pass, 1 skipped (file symlinks need developer mode on Windows).
+     - `check-content`: `Content valid: 12 routes; preview mode.` `check-export` passes on the current `dist/`.
+     - **Temp-copy packaging run:** `hero.webp` and `hero-1280.webp` shipped with 4 variants and `check-export` passed. A cached variant truncated afterwards was not shipped, along with its sibling, because the upload ships without variants until they are current. A planted `dist/uploads/.env` and `.hidden/page.html` were refused. The next variant step rewrote only the damaged file (1 written, 3 up to date).
+- **Task 9** (`7799d31`, `15685c7`, `8b3fb86`, `6fd9ea9`, `981aaa6`, `f662b61`). These committed files supersede Task 9's code blocks: `scripts/vendor-sveltia.mjs`, `scripts/sveltia-cms.lock.json`, `public/admin/config.yml`, `tests/admin.test.mjs` and `tests/cms-config.test.mjs`. New: `tests/cms-upload-names.test.mjs` with `tests/helpers/sveltia-names.mjs`, `tests/upload-checks.test.mjs` and `tests/helpers/project-temp.mjs`. `npm test` went from 165 to 189 tests (188 pass, 1 skipped).
+  1. **Pin `@sveltia/cms@0.230.1`** (controller amendment), published 2026-10-07T11:00Z.
+     - `npm view @sveltia/cms@0.230.1`: integrity `sha512-2iTmW3txB2ocqzEO6b/hkr9Txbw+AFMfmmmqarY3B0WrG5eikwXwYwFWB5CGoQMz1JT5RvcVnKINAWBcVfVRMg==`, shasum `d38cba36b78421d6401639cb6adbc3780f0f04f5`. `npm run cms:vendor` downloaded the tarball and verified it; the Task 7 reviewer's copy of the tarball has the same sha512.
+     - 0.230.1 ships only one chunk, so 3 files are vendored. Hashes (sha256, after the trailing `sourceMappingURL` comment is removed): `LICENSE.txt` `dcbe3c62…` (1,071 B), `chunks/react-dom.js` `9b5ffe4f…` (213,847 B), `sveltia-cms.js` `d3eff7b0…` (2,250,499 B). They match an independent cut of the reviewer's extracted copy.
+     - `.gitattributes` came first; `git check-attr` gives `text: unset` and `diff: unset`, and `git ls-files --eol` shows `i/lf w/lf attr/-text`.
+  2. **`js-yaml`** was declared with `npm install --save-dev --save-exact js-yaml@4.2.0` (released 2026-05-31). npm also moved `esbuild` into alphabetical order in both files; that move was undone, so each file gains one line.
+  3. **Vendor script** (deviations from Step 4):
+     - The `sourceMappingURL` comment is removed from the bytes read as latin1, which maps each byte to one character, instead of a UTF-8 round trip that could change bytes.
+     - Paths resolve from the script's own folder (`ROOT`), as in the other scripts.
+     - New tests: the ustar and pax reader, and a tarball with other bytes is refused (`Integrity mismatch for @sveltia/cms@0.230.1`). The vendored bundle must also name itself as `0.230.1` and carry no `sourceMappingURL`.
+  4. **Schema validation.** `public/admin/config.yml` is valid against 0.230.1's own `schema/sveltia-cms.json` (ajv 6.15.0, draft-07, `artifacts/t9/validate-config.mjs`; the schema is in the npm tarball, not vendored).
+     - The plan's Step 7 draft fails that schema in one way only: `auto_increment` on `&order`, which 0.230.1's `NumberField` does not have (`additionalProperties: false`). Without that key the draft is valid.
+     - Planted errors are caught: `use_emoji_autocomplete` at the top level, or on a number field.
+     - Booted headless (below), the CMS logs no configuration warning.
+  5. **`order` is a hidden field.** 0.230.1 has no `auto_increment`, but with `reorder: true` it numbers entries itself (bundle functions `P3` and `m5`): a new or duplicated entry gets the highest `order` plus one when it is saved, and dragging or deleting entries renumbers them 1, 2, 3… A visible required number field would be checked before that number is set, so editors would have to type a number that is then replaced.
+     - The mirror test accepts `widget: hidden` for `order` only in a collection with `reorder: true`, and requires the schema to be a whole number from 1.
+     - The CMS writes `order` as the first key of the JSON. So the first CMS save of an entry also moves `order` from the end to the top (seen in the headless edit). The loader orders keys by schema, so the site does not change. Moving `order` first in the 21 committed entry files would make those diffs one line; that is left to the controller.
+  6. **Legal pages** (controller amendment):
+     - `&legal_body` stays `widget: text`; a test pins it.
+     - Its `pattern` is ``^(?![\s\S]*(?:<INLINE_SYNTAX.source>))##[ \t]+\S``: a `## ` heading with text first, and none of the parser's inline syntax anywhere. The test builds the expected string from `INLINE_SYNTAX`, which `0a39f83` already exports, so the two cannot drift. The test also checks that the CMS rule and the parser agree on today's pages, on a good sample and on 13 refused samples.
+     - Sveltia tests a field pattern with `new RegExp(source)` (no flags) against the **trimmed** value (bundle function `Aje`).
+     - The hint now says "Leave a blank line before each heading".
+     - Headless, an edit that adds `*bold*` shows the pattern message and saves nothing. A plain edit saves `privacy.md` with no front matter, as the bundle's writer does for a file whose only field is `body` (`ZAe`).
+  7. **`use_emoji_autocomplete: false`** (controller amendment). In 0.230.1 this is an option on each string, text, markdown and rich-text field; the schema refuses it at the top level, and `field_defaults` covers only rich text. It is set on all 135 string and text fields, and a test requires it on every one.
+  8. **Uploads.**
+     - `slugify_filename: true`, and the `slug` options written out: `encoding: ascii`, `clean_accents: true`, `sanitize_replacement: "-"`, `trim: true`, `lowercase: true`, `maxlength: 60`. All exist in 0.230.1's schema.
+     - **Per-format transformations** (controller decision): `jpeg`, `png`, `avif` and `heic` become WebP at quality 85, at most 2560 × 2560. `gif` and `webp` are left out, so animations survive.
+       - The bundle picks a transformation as `o[sniffed format] ?? o[declared format] ?? raster_image` (`Zxe`). The conversion draws on a canvas, which drops all metadata.
+     - **HEIC** is in 0.230.1. Its decoder comes from unpkg (`@discourse/heic`, through a blob worker), which the site and admin CSPs block, so a HEIC upload is refused at upload time ("Failed to decode HEIC image", then shown as invalid). Without the key, 0.230.1 would save the raw `.heic`, because its upload check accepts unknown MIME types, and only the build would refuse it.
+     - **No `filename_template`.** A taken name already gets `-1`, `-2`… (`Mj`), and a file with identical bytes reuses the existing name. So an upload never replaces another by accident, and names stay readable.
+     - **Names, from the bundle's own code** (`tests/cms-upload-names.test.mjs` runs `oK`, `RV`, sanitize-filename and the transliteration tables, taken from the vendored file into a vm context):
+
+       | Original | Saved as |
+       |---|---|
+       | `Banner 1280.png` | `banner-1280.webp` |
+       | `Ảnh đẹp.JPG` | `anh-dep.webp` |
+       | `résumé (final).webp` | `resume-final.webp` |
+       | `scan~2.jpg` | `scan~2.webp`: `~` survives ASCII slugs (`[^\w-~]`), and the build refuses the name |
+       | `IMG_0042.JPG` with Turkish case rules | `ımg_0042.webp`: `toLocaleLowerCase()` uses the browser's language; refused |
+       | `con.png`, `COM1.jpg`, `nul.webp` | none: sanitize-filename empties the name and `RV` then throws a TypeError, so nothing is saved (headless: page error, no upload dialog) |
+       | emoji or CJK only | a random 12-hex-character id |
+       | over 60 characters | cut to 60 |
+
+     - **The same in headless Chromium** (asset library, with an Origin Private File System folder standing in for the native picker):
+       - The six samples were saved as `banner-1280.webp`, `anh-dep.webp` (its GPS EXIF stripped), `resume-final.webp` (byte-identical, GPS EXIF kept), `spinner-anim.gif` and `loop-anim.webp` (both byte-identical, 3 frames each) and `scan~2.webp`.
+       - Run on those files, check-content's rules list exactly `scan~2.webp` (rename) and `resume-final.webp` (location data).
+       - Playwright's `tr-TR` locale and `--lang=tr` did not change `"I".toLocaleLowerCase()` in headless Chromium, so the Turkish case is shown only by the vm test.
+     - **Answers to the Task 2 items "For Task 9":**
+       1. Sveltia's `maxlength` counts code points of the trimmed value (`[...d.trim()].length`, function `UQ`), the same as `textOf` for any valid value (the schema refuses outer spaces). `textOf` is unchanged.
+       2. `slugify_filename` writes names that `IMAGE` accepts, except the `~` and Turkish cases above.
+  9. **Location data (controller decision for animated uploads).** `check-content` now runs `locationProblems` (`scripts/lib/uploads.mjs`). It refuses any upload under `public/uploads/` that contains location data (wording: "contains location data … re-export it without location data and upload it again"):
+     - an EXIF GPS section with any tag but `GPSVersionID`, read from sharp's `metadata().exif` in either byte order, with or without the `Exif\0\0` prefix;
+     - an XMP `exif:GPS…` property other than `GPSVersionID`, under any prefix bound to the EXIF namespace;
+     - for GIF, which sharp does not read, the XMP packet in the file's bytes.
+
+     It also refuses an image whose metadata cannot be read, or whose EXIF is damaged. sharp is loaded lazily through a shared `loadSharp()`, which the variant step now imports too. Files are read into memory, so long Windows paths are fine.
+     - **Not read:** ImageMagick's hex "Raw profile type exif" PNG text chunks, and JPEG Extended XMP.
+  10. **Rename advice.** For a name outside `UPLOAD_PATH`, the message now suggests a name that fits and says what is wrong, for example `rename it, for example to scan-2.webp: upload names use … (not allowed here: "~")`. Other cases: `"ı", the dotless i that a Turkish-language browser writes for I`; capital letters; spaces; `"." before the extension`; `"con", a Windows device name`; and `U+202E` for invisible characters. The Task 7 test's expected message was updated.
+  11. **Temporary projects.** The check-content tests that copy the project and add uploads now create it in `artifacts/test-projects/`, because sharp must resolve from this repository's `node_modules`.
+  12. **Tailwind source detection** (`f662b61`). The first rebuild compared identical in HTML (chunk names are masked), but the chunk file comparison found the site stylesheet renamed. Tailwind v4 scans every file that git does not ignore, so the vendored bundle added eleven unused utilities (display, visibility and text-decoration rules; their class names are not written here, because this file is scanned too), +590 B. `@source not "../../public/admin";` in `src/app/globals.css` (fenced) fixes it, and a test pins it.
+  13. **Results** on `f662b61`:
+      - Lint and typecheck clean. `npm test`: 189 tests, 188 pass, 1 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+      - Rebuild: `Upload variants: 0 originals…`, `Uploads shipped: 0 files.`, `Export valid: 12 core pages, 156 files, 11.53 MiB total.` `out/admin/` is exported, and `dist/admin/` is not shipped (Task 10).
+      - All 19 chunks are byte-identical to the build before Task 9. `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.` The baseline was not re-saved.
+      - `check:seo` and `test:browser` pass.
+  14. **For Task 10:**
+      - Until `/admin/` ships, the preview answers 404 there.
+      - Headless boot under the planned admin CSP: the sign-in screen renders with its icon font, with no page errors. The CSP blocks two requests: the unpkg update check (expected) and `https://www.githubstatus.com/api/v2/status.json`. **Task 10's browser check as written allows only `connect-src blocked https://unpkg.com/` and would fail on the second.** Either allow `https://www.githubstatus.com` in `connect-src` now, or accept that violation in the check.
+      - Under today's site CSP the page also boots, but the jsDelivr fonts and a `data:` fetch are blocked too, and the icons show as words.
+      - Sveltia adds its own `<meta name="robots" content="noindex">` next to the page's `noindex, nofollow`.
+      - The update check finds 0.250.1 when it is not blocked, and logs a console warning.
+- **Task 9 review round** (`c1a663f`, `9fec21f`, `e88205a`, `140fbb2`, `b1285f9`, `5439001`, `70e702a`). This round supersedes the Task 9 entry above on: the legal pattern (6), the vendor script (3), location data (9) and the `order` key (5).
+  1. **The legal pattern mirrors the whole parser** (Important).
+     - **The gap:** the pattern mirrored only the inline rules. In the reviewer's fuzz, 354 of 800 bodies were accepted by the CMS and refused by the build: lists, `## Section #2`, `### Detail`, a heading with no text below it, a `---` line, a wrapped line that starts `2026. `.
+     - **The fix:** `src/lib/legal-markdown.ts` exports `BLOCK_SYNTAX_LINE` (a `#` that does not open a valid `## ` heading, list items, lines of only `-` or `=`) and `LEGAL_BODY_PATTERN`. The pattern is built from `INLINE_SYNTAX`, that piece and an empty-section lookahead, and is the reviewer's verified drop-in, character for character.
+     - **The config:** `config.yml` carries the pattern verbatim, and its message now names lists, other heading levels, `#` in a heading and headings without text.
+     - **Tests** (`tests/cms-legal-pattern.test.mjs`):
+       - The config string must equal `LEGAL_BODY_PATTERN`.
+       - Sveltia's own `eU`/`Aje`, taken from the vendored bundle, compile it with no flags and test the trimmed value. On 1,000 seeded bodies (20 % with CRLF), today's pages and the 14 cases above, the CMS and the parser agree in both directions.
+       - The `u` flag agrees too.
+       - Nine 200 KB hostile bodies each take under 250 ms (in practice about 1 ms).
+     - **Counts:**
+
+       | Bodies | Before the fix | After |
+       |---|---|---|
+       | the test's 1,000 | 483 accepted by the CMS and refused by the build | 0 disagreements |
+       | 10,000 more, other seeds | 4,684 accepted by the CMS and refused by the build | 0 disagreements |
+
+       Script: `artifacts/t9/legal-fuzz-counts.mjs`.
+     - **Plants** (`artifacts/t9/plant.mjs legal`, scratch copies under `artifacts/`). Each of these turns the tests red, and the baseline stays green:
+       - the parser stops refusing `-` or `+` list items;
+       - the parser accepts a section without text;
+       - the parser allows `#` in a heading;
+       - the pattern drops numbered items or the empty-section check, with the config regenerated to match;
+       - the pattern changes in code but not in the config;
+       - the message loses "lists".
+
+       The `+`-only plant is caught by the fuzz alone.
+     - **Headless Sveltia** (the save probe with a stand-in folder): adding a list item, a numbered item, a `### Detail` section or an empty `## ` section to Privacy shows the pattern message and saves nothing. A plain edit afterwards saves.
+  2. **Vendor script hardening:**
+     - Wanted names must be letters, digits, `_`, `.` and `-`, with no `.` or `..` folder.
+     - A wanted entry that is not a regular file (tar types 1, 2, 5) or that appears twice is refused, not skipped.
+     - Writes and checks resolve inside `public/admin/sveltia/`.
+     - `gunzipSync(tgz, { maxOutputLength: 64 MiB })`; 0.230.1 unpacks to 41.8 MiB.
+     - **Second trust root:** `SVELTIA.files` pins the three sha256 values. Extraction and `--check` compare against it, and the lock must repeat it. A file and its lock changed together now fail with `scripts/sveltia-cms.lock.json lists other files or hashes than SVELTIA.files …`.
+     - The `--check` message is now `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+     - Re-vendoring from the registry gave byte-identical files and lock.
+     - Tests cover each case: unsafe names, link, hard link and folder types, a duplicate name, wrong pinned hashes, a 64 MiB + 1 B gzip bomb (a 64 KB download), a write or pinned path that leaves the folder, and the file-plus-lock plant.
+  3. **ImageMagick PNG raw profiles.** sharp lists `Raw profile type exif` / `xmp` / `APP1` text chunks as `metadata.comments`, not as `exif` (`convert x.jpg x.png` writes one).
+     - `locationProblems` now hex-decodes them (`rawProfileBytes`) and checks them like the other blocks.
+     - An unreadable profile is reported as "has metadata that cannot be read" (the message no longer says "EXIF", because it can be any block).
+     - On the reviewer's probe, both raw-profile PNGs are now refused.
+     - **Known limits:** DJI's own XMP fields (`drone-dji:GpsLatitude`), EXIF properties in a default-namespace XMP element, and JPEG Extended XMP.
+  4. **`tsconfig.json`** excludes `artifacts`. A planted leftover `.ts` with a type error under `artifacts/test-projects/` failed `tsc` before the change and passes after.
+  5. **Engagement stage numbers.**
+     - `scripts/lib/content-rules.mjs` `stageNumberProblems`, run by check-content, reports each engagement whose `stageNo` is not its list position, with the number to set. It never writes.
+     - The CMS field hint says "Keep stage numbers in list order…".
+     - Test: dragging "Embed & improve" to the top in a temporary project lists all three engagements and leaves the files as they were.
+  6. **`order` first in every entry file** (reviewer's recommendation).
+     - The 21 entry files now start with `order`, followed by the fields in config order, as `JSON.stringify(_, null, 2)` plus a newline: exactly what the CMS writes. Each changed by +2/−2 lines, 42/42 in all, with values re-parsed and compared.
+     - Singletons and `site.json` were already in this form. `tests/content-canonical.test.mjs` (`tests/helpers/canonical.mjs`) pins it for all 33 files.
+     - **Output:** HTML identical on 15 pages. The one client chunk that holds the entry data (`1maa5m20t8jpc.js` → `37m8l54uq1gib.js`) has the same length (35,838 B) and the same 21 `order` members, and is identical once they are removed.
+     - The headless FAQ edit's diff is now just the answer line.
+  7. **Tailwind and `content/`.** `@source not "../../content"` is kept: with it, the CSS chunk is byte-identical to the build before Task 9 (`2x7ydj9-2a8lt.css`), so `content/` contributed no rule.
+     - **Found on the way:** the Task 9 amendment (`85cc5c1`) had written three utility class names in this file. Tailwind scans `docs/` too, so the next build gained three rules. They are reworded now.
+     - Excluding `docs/` as well was tried: it removes 27 rules (old class names quoted in earlier plans), and proving none of them is used was out of scope, so `docs/` stays scanned.
+     - **For every later edit to `docs/` or `README.md`:** rebuild and compare the CSS chunk. Do not write Tailwind class names in prose.
+  8. **README text (Task 11)** now covers:
+     - which upload names the CMS keeps that the build refuses (`~`, the dotless `ı`, device names);
+     - entry file names that start with `_`, or contain `~` or `ı`;
+     - stage numbers after dragging;
+     - the legal page rules the CMS enforces;
+     - the two blocked optional requests;
+     - the second pin in the upgrade steps.
+
+     Task 10's browser check tolerates exactly those two blocked requests, and `connect-src` stays `'self' blob: data:`.
+  9. **Results** on the docs commit that records this round (the plan is scanned by Tailwind, so the build was compared after it):
+     - Lint and typecheck clean. `npm test`: 204 tests, 203 pass, 1 skipped.
+     - `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.` `config.yml` is still valid against 0.230.1's schema.
+     - Rebuild: `Export valid: 12 core pages, 156 files, 11.53 MiB total.` `compare --explain-client-ids`: `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+     - `check:seo` and `test:browser` pass.
+- **Task 10** (`aa8da28`, `69c1037`, `cda5aaa`). These committed files supersede Task 10's code blocks: the fenced blocks in `public/_headers`, `scripts/package-site.mjs`, `scripts/check-export.mjs`, `scripts/check-seo.mjs` and `scripts/browser-check.mjs`; the new `scripts/lib/headers.mjs`, `scripts/lib/admin.mjs` and `scripts/admin-check.mjs`; and the tests. `tests/admin.test.mjs` has the plan's two header tests plus one for `/uploads/*`. The new `tests/headers.test.mjs` and `tests/admin-packaging.test.mjs` cover the two modules. `npm test` went from 204 to 216 tests (214 pass, 2 skipped: the file-symlink cases need developer mode on Windows).
+  1. **`/uploads/*` rule** (controller amendment): `! Content-Security-Policy` and `! X-Content-Type-Options`, then `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox` and `X-Content-Type-Options: nosniff`.
+     - `nosniff` is removed and set again, so it is sent once and not as `nosniff, nosniff`. The admin rule does the same with `X-Robots-Tag`.
+     - The asset worker adds custom headers to every response it makes, including the 404 page and redirects. So a missing upload's 404 also gets the sandbox policy, and `/admin` (the redirect to `/admin/`) keeps the site CSP.
+  2. **Header simulation (`scripts/lib/headers.mjs`).** It mirrors wrangler 4.151's `_headers` parser and the asset worker's `attachCustomHeaders`; the module's header comment cites both.
+     - **What the sources show:**
+       - Lines are trimmed, so indentation does not mark a header line. The plan's test parser relies on indentation; it is kept as written and agrees on this file.
+       - A repeated path keeps its first place and its last headers.
+       - Removed names keep their case, and removal ignores case.
+     - **`headerProblems`** runs on `dist/_headers` in check-export, for every shipped path plus probes (`/uploads/probe.webp`, `/admin`, `/administrator/`, `/uploadsx/` and others). It reports when:
+       - the admin or uploads rule is missing, or comes before `/*`;
+       - an `/admin/` path does not get the admin CSP alone, or `X-Robots-Tag` once;
+       - an `/uploads/` path does not get the sandbox CSP;
+       - any other path gets anything but exactly the `/*` CSP, whatever that is after Part 1;
+       - a path lacks `nosniff`;
+       - the admin CSP widens `script-src` beyond `'self'` or `connect-src` beyond `'self' blob: data:`, or allows unpkg, eval or a wildcard.
+     - The same fault on many paths is reported once, naming three of them.
+     - The browser check compares every response it fetches with the simulation, so the simulation is tested against the real asset worker.
+  3. **Shipping `/admin/`** (controller amendment; replaces Step 3's `fs.cp` from `out/admin`).
+     - `shipAdmin` copies from `public/admin/`, for the same reason `shipUploads` does: `next build` follows links when it copies `public/`.
+     - It empties `dist/admin/` first, skips dotfiles, and ships exactly `ADMIN_FILES`: `index.html`, `config.yml`, `sveltia/LICENSE.txt`, `sveltia/chunks/react-dom.js` and `sveltia/sveltia-cms.js`.
+     - It refuses the whole folder, so packaging stops and nothing is copied, for any of these:
+       - a link anywhere, dot-named ones included;
+       - a hard link or a special file;
+       - an unexpected or missing file;
+       - a vendored file whose sha256 is not in `SVELTIA.files`;
+       - an `index.html` without its robots `noindex` meta tag, or with an inline script.
+     - Log line: `Admin shipped: 5 files.`
+  4. **check-export** (replaces Step 4). `adminProblems` checks `dist/admin/` against `public/admin`: the same rules, plus nothing hidden, and the page and `config.yml` byte-equal to the committed ones. The plan's checks (files present, robots meta, no inline script, a `/admin/*` rule) are part of it and of `headerProblems`. Result: `Export valid: 12 core pages, 161 files, 13.92 MiB total.` (5 more files, 2.39 MiB more, nearly all of it the bundle).
+  5. **check-seo** as planned, with one difference: `X-Robots-Tag` must equal `noindex, nofollow` exactly, so a doubled value fails. A comment says why `robots.txt` does not disallow `/admin/`.
+  6. **browser-check** (Step 6 moved into `scripts/admin-check.mjs`, so that `browser-check.mjs` gets one fenced line; see the merge notes). The module runs three checks:
+     - **Headers.**
+       - The 12 routes and a chunk serve exactly the site CSP, and so do `/administrator/` (a 404) and the `/admin` redirect.
+       - The five `/admin/` URLs serve the admin CSP and `X-Robots-Tag` once, and the three Sveltia files have their pinned bytes.
+       - A 404 under `/uploads/` serves the sandbox CSP and `nosniff` once.
+       - Six security headers of every response equal the simulation's.
+     - **The uploads sandbox.** Fixture bytes are served under `/uploads/__browser-check/` (route-fulfilled) with the headers the preview really sends there, taken from its 404 response. Nothing is planted in `public/` or `dist/`.
+       - A site `<img>` on `/privacy/` decodes the upload (40 × 30) with no CSP violation.
+       - Opened on its own, the upload is an image document with an opaque origin (`window.origin` is `"null"`), and the image shows.
+       - These run no script or event handler: an HTML/PNG polyglot served as `image/png`, the same polyglot served as `text/html`, an SVG with a script, and the preview's own 404 page under `/uploads/` (24 scripts).
+       - Control: the same polyglot without those headers runs its handler, so the probe can see a script run.
+     - **`/admin/`** (en-US context).
+       - The page boots with no page errors.
+       - Code comes only from `/admin/sveltia/`; only `sveltia-cms.js` loads up to the collection list.
+       - Responses from other origins are Fontsource fonts only.
+       - Blocked requests must be among the two tolerated ones, compared as whole strings.
+       - "Work with Local Repository" opens an Origin Private File System copy of `content/` and `public/images/`, served to that context by a route; nothing on disk is written. The eight collections are listed, the Material Symbols font is `loaded`, and all 13 icons on screen are at most 1.5 em wide (glyphs, not words).
+       - Screenshots: `artifacts/admin.png` and `artifacts/admin-collections.png`.
+       - The icon check needs network access to `cdn.jsdelivr.net`; offline it fails, and its message says jsDelivr may be unreachable.
+  7. **Extra proofs** (throwaway scripts in `artifacts/t10/`):
+     - **Mutants.** `npm test` caught all 13 mutants of the final `admin.mjs` (6) and `headers.mjs` (7). The browser check caught 3 more: the icon font aborted, the GitHub status check not tolerated, and uploads served without the sandbox CSP.
+     - **Plants in a temporary copy of `dist/`.** check-export refused each of these:
+       - an extra file;
+       - a junction;
+       - a changed vendored byte;
+       - a changed `config.yml`;
+       - a dotfile;
+       - a loosened sandbox;
+       - a renamed admin rule;
+       - one path whose site CSP is widened.
+
+       In a temporary project, package-site refused an extra file and a junction.
+     - **End to end.** A temporary copy of `dist/` with real planted uploads was served by its own assets-only wrangler preview (port 8799, stopped afterwards; wrangler: `Parsed 5 valid header rules.`).
+       - Every planted file came back with the sandbox CSP and `nosniff`, served as `image/webp`, `image/png` or `text/html`.
+       - A site `<img>` with the variant in `srcset` rendered.
+       - Opened directly, the WebP showed with an opaque origin.
+       - The polyglot ran nothing, and neither did a planted `.html` (packaging refuses one; it existed only in the copy).
+  8. **Results:**
+     - Lint and typecheck clean. `npm test`: 216 tests, 214 pass, 2 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+     - Rebuild, run with this entry in place (Tailwind scans the plan):
+       - `Uploads shipped: 0 files.`, `Admin shipped: 5 files.`, `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+       - All 19 chunks, the stylesheet included, are byte-identical to the build before Task 10.
+       - `compare --explain-client-ids`: `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.` No id needed explaining, and the baseline was not re-saved.
+     - `check:seo` passes, and `test:browser` passes twice.
+     - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` shows no conflict. Five files are changed on both sides and merge cleanly: `package.json`, `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs` and `src/app/globals.css`.
+  9. **For Task 11:** the README's admin CSP section should also describe the `/uploads/*` rule (sandbox, `nosniff`, and why a site `<img>` is unaffected). Step 9's manual check in Chrome is still needed.
+- **Task 10 review round** (`0ee6147`, `7b87e3b`, `fc24404`). It supersedes items 2, 4 and 6 of the Task 10 entry above where they differ. The reviewer's probes are in `scratchpad/t10-review/`. Adapted copies are in `artifacts/t10/`: `review-mutate.mjs` with `review-code-mutants.mjs`, `mirror-live.mjs` and `font-probes.mjs`.
+  1. **The production header gate failed open** (Important).
+     - **The fault:** if the `/admin/*` rule lost its `Content-Security-Policy` line but kept `! Content-Security-Policy`, the admin policy was `undefined`, its checks were skipped, and check-export passed. `/admin/` would have shipped with no CSP.
+     - **The fix:** `scripts/lib/headers.mjs` now exports `ADMIN_CSP` (next to `UPLOADS_CSP`), `ADMIN_HEADERS` and `UPLOADS_HEADERS`. Every `/admin/` path must get exactly `ADMIN_HEADERS`: the CSP, `X-Robots-Tag`, `X-Content-Type-Options` and `X-Frame-Options`, each once. Every `/uploads/` path must get exactly `UPLOADS_HEADERS` (CSP, `nosniff`, `X-Frame-Options`). Both also need every other header `/*` sets, unchanged.
+     - The directive-by-directive admin checks are gone; the exact pin covers them. `tests/admin.test.mjs` requires the `/admin/*` rule to equal `ADMIN_CSP`.
+     - **The reviewer's survivors are all red now, in both `npm test` and check-export:** admin CSP line deleted, `form-action` dropped, `worker-src blob:` added, `font-src` widened to all of jsDelivr, uploads `X-Frame-Options` dropped. So is the `default-src` plus jsDelivr mutant.
+     - **Mutation table** (`artifacts/t10/review-mutate.mjs`, run in a project copy with `public/_headers` in CRLF as in the reviewer's run; only H8's swap and the code mutants were adapted, because the text they targeted changed):
+       - H1 to H18 (header mutants): red in `npm test` and red in check-export, every one.
+       - M1 to M9 (simulator code mutants): red in `npm test`.
+         - M1 (sets before removals) and M5 (case-sensitive removals) are also red in check-export.
+         - The rest (M2 to M4, M6 to M9) are green there, as expected: a bug in the simulator itself does not show when it reads a correct file. `npm test` catches them by comparing with Cloudflare's own code.
+         - M1 to M5 are the reviewer's; M6 to M9 are new: no wildcard check, headers kept after a refused path, paths not normalised, placeholders in values not replaced.
+  2. **`font-src` names three files** (minor 1).
+     - The value is `'self'` plus `https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2`, `…/noto-mono@5.3.0/latin-400-normal.woff2` and `…/source-sans-3:vf@5.3.0/latin-wght-normal.woff2`.
+     - `:` and `@` are valid path characters in a CSP host-source (RFC 3986 `pchar`), so nothing is percent-encoded. Chromium logs no CSP parse warning (the browser check now fails on one), and all three fonts load.
+     - `ADMIN_FONTS` holds the list, and `tests/admin.test.mjs` requires it to equal the Fontsource URLs found in the vendored bundle. So an upgrade that changes the fonts fails `npm test` and names them.
+  3. **Fonts in the browser check** (minor 2).
+     - A route on `https://cdn.jsdelivr.net/fontsource/fonts/**` serves each file from `artifacts/cms-fonts/<sha256 of the URL>.woff2`. When a file is not cached yet, it is fetched once with `route.fetch()`, checked to be WOFF2 and stored; a damaged cached file is fetched again.
+     - With neither cache nor network, the check fails: "the CMS fonts are neither in artifacts/cms-fonts/ nor reachable on jsDelivr …".
+     - Every font face the bundle declares is loaded, Noto Mono included, which the collection screen does not use. The requested font URLs must equal `ADMIN_FONTS` exactly.
+     - **Probes:**
+       - A planted `font-src 'self'`, with the route and the cache in place, still fails: "every font face … loads under the admin CSP (Source Sans 3 error, Noto Mono error, Material Symbols Outlined error)". The CSP is enforced before the request reaches the route.
+       - A browser behind a dead proxy, with no cache, fails with the explicit message.
+  4. **Wrangler's path rules** (minor 3).
+     - The reader now does what wrangler does:
+       - it refuses two `*`, `*` with `:splat`, a port, and a scheme other than https;
+       - after a refused path it skips the header lines until the next path;
+       - it normalises a path as wrangler's `extractPathname` does (`/a b/../c/*?q#h` is `/c/*`);
+       - it keeps wrangler's messages and order;
+       - it stops at 100 rules.
+     - **Matching** builds the asset worker's pattern, named groups included: a placeholder name used twice does not compile, so that rule never applies and is reported. `:name` and `:splat` in header values are replaced by what they matched.
+     - A rule for one host is reported, because it applies on that host only.
+     - **`tests/headers.test.mjs`** runs wrangler's own `parseHeaders` and `constructHeaders` and the asset worker's `attachCustomHeaders` from `node_modules` in a vm (`tests/helpers/wrangler-headers.mjs`). It compares rules, invalid lines and the headers of 35 paths on five texts (the real file, the preview form, an edge-case file, 102 rules, and the reviewer's synthetic set). All agree.
+     - **Live:** a wrangler preview (port 8799, through `wt.sh`, stopped afterwards) on `dist/_headers` plus the edge-case file agreed on 24 paths (0 mismatches; `content-encoding` is transport, not `_headers`). Wrangler reported "Parsed 16 valid header rules" and "Found 10 invalid header rules"; the reader has 15 rules (those 16 with the repeated `/ok` merged into one) and 10 invalid lines.
+  5. `admin-check.mjs` counts `ADMIN_FILES.length` (minor 4).
+  6. **A linked folder in `/admin/`** is reported once, and the files under it are no longer also reported missing (minor 5). Test: `public/admin/sveltia` as a junction gives exactly one problem.
+  7. **The Task 11 text** now names `scripts/lib/headers.mjs` (`ADMIN_CSP`), `public/_headers`, the two tests and `TOLERATED` for the later GitHub CSP. It carries the reviewer's note on GitHub sign-in: popup, `form-action` unaffected, no `auth_type: pkce` (Sveltia 0.230.1 says PKCE is not supported with GitHub). It describes the `/uploads/*` rule, the exact `font-src` and the font step of an upgrade.
+  8. **Found on the way: a race in the uploads check.**
+     - On a preview that had just started, the check added its `<img>` to `<main>` while React was still hydrating, which is React error 418 (a hydration mismatch). It showed as a page error once.
+     - The check now waits until `<main>`'s last element carries React's fiber key.
+     - A probe confirms the cause: adding the node at DOMContentLoaded gives 418, and after the wait it does not. Two runs right after a preview restart passed.
+  9. **Results:**
+     - Lint and typecheck clean. `npm test`: 220 tests, 218 pass, 2 skipped. `Content valid: 12 routes; preview mode.` `Vendored @sveltia/cms@0.230.1 matches scripts/sveltia-cms.lock.json and the pinned hashes.`
+     - Rebuild, run with this entry in place:
+       - `Admin shipped: 5 files.`, `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+       - All 19 chunks byte-identical.
+       - `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+     - `check:seo` passes.
+     - `test:browser` passes twice: once with the font cache removed (the fonts came from the network) and once with it in place (from the cache).
+     - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`: no conflict.
+- **Task 11** (`fe4ba85`, `bedd17e`, `1be9396`, `ee6aa3d` and the docs commit that records this entry). The committed files supersede Task 11's text. Throwaway scripts and logs are in `artifacts/t11/`.
+  1. **The frozen fixture is now a one-off migration check** (controller amendment "Frozen-fixture value tests must not block CMS editing", and the Task 5 follow-up for `tests/legal.test.mjs`).
+     - **`scripts/check-migration.mjs`** is not part of `npm test`. It compares:
+       - every `content.ts` export with `tests/fixtures/content-v1.json` (`values`, key order included);
+       - `buildContent()` on the files read from `content/` with those exports, so a stale index shows too;
+       - `serviceBySlug` for every fixture service;
+       - the site name, description and social profiles (`site`);
+       - for each legal page, the headings, the paragraphs per section (one each in the pre-CMS copy) and the full text, against the new `tests/fixtures/legal-v1.json`.
+     - **`legal-v1.json`** holds the plain section text of the pre-CMS JSX at `f1224a3^` (5 privacy and 4 terms sections; the notice and the contact section stay in the pages). It was extracted once with `artifacts/t11/extract-legal.mjs` and equals today's parse.
+     - The script loads TypeScript through tsx's `register()`: `src/lib/site.ts` imports `./content` without an extension, which `--experimental-strip-types` cannot resolve. So the command is plain `node scripts/check-migration.mjs`.
+     - **Messages:** each check lists at most five differences. A text shows from its first differing character (counted in code points), list positions start at 0, and the last line points to the README.
+     - **`--refresh`** rewrites both fixtures from the current content, in the original form. At HEAD it leaves `content-v1.json` byte-identical and the legal sections unchanged; only `legal-v1.json`'s `about` line changes, to say it was refreshed.
+     - **`npm test` keeps:**
+       - the export names and the routes (`tests/content-exports.test.mjs`, renamed from `content-roundtrip.test.mjs`). The routes stay, a deviation, because no CMS edit can change them: services cannot be added or removed, and a service file must be named after its slug;
+       - `serviceBySlug`'s behaviour, now against `SERVICES`;
+       - the names `buildContent` returns;
+       - one structural legal test in place of the three literal ones;
+       - the exact type contract (`npm run typecheck`), and the schema, uniqueness, honesty, index and canonical-form tests.
+     - **Found on the way (deviation):** `tests/content.test.mjs` ("hero copy keeps the original four-line headline rhythm") asserted the exact hero verbs and the call-to-action label. An edit of either in the CMS failed `npm test`. It now checks the shape only (three verbs of at most six characters, a non-empty label), and the migration check compares the words.
+     - **Left as it is (shared file):** `scripts/browser-check.mjs` finds the hero link by the literal name "Discuss a project" (`.hero-copy` link in the failed-WebGL check). An edit of `HOME.cta.label` would fail `test:browser`. Part 1 owns that line; reading the label from `content/home.json` would fix it after the merge.
+     - **Test counts:** 220 before (218 pass, 2 skipped), 196 after (194 pass, 2 skipped): −22 per-export value tests and the site test, +1 routes test; −3 literal legal tests, +1 structural one.
+     - **Proof** in `artifacts/test-projects/migration-proof/`: a copy of the worktree with a `node_modules` junction (one html-snapshot test reads `node_modules/next/…` from the cwd). The worktree was not touched.
+       - Unedited: `npm test` 196 tests, 194 pass, 2 skipped; the migration check passes.
+       - One FAQ answer edited as the CMS writes it (`content/faqs/what-we-do.json`, `JSON.stringify(_, null, 2)` plus a newline, one line changed): `npm test` still passes (194). The migration check exits 1 with exactly one difference, `FAQS[0].answer, from character 23: …`.
+       - More edits of the same kind: the hero verbs and call-to-action label, the site description, a service summary, a team discipline name, a privacy paragraph and a new privacy section. check-content passes and `npm test` passes; the migration check lists every change. The `0a2d6b2` versions of the four test files fail 11 tests on the same edits.
+       - `--refresh` after the edits makes the check pass again, and `npm test` stays green.
+  2. **The uploads check waits for `<main>`'s own fiber key** (Task 10 re-review). React sets an element's fiber key in `prepareToHydrateHostInstance`, right after `popHydrationState` has checked that element's children (`completeWork` in `react-dom-client`), so the wait is deterministic. The "last element under `<main>` has a key" condition is gone. Probe (`artifacts/t11/hydration-probe.mjs`): with an unmanaged `<span>` appended to `<main>` after hydration, the old condition is false, so the wait would time out, and the new one stays true; no page errors.
+  3. **README** (deviations from Step 1's draft):
+     - It has two parts: "Editing content" for editors and "Maintaining the CMS" for maintainers (the admin CSP, the uploads sandbox, upgrades, the migration check, the HTML snapshot, costs and Tailwind).
+     - Uploads: AVIF and GIF are listed, and the 10 MiB limit; HEIC is refused at upload; GIF and WebP keep animations and metadata, so location data in them is refused by the build.
+     - Variants are named `photo.jpg.w640.webp`. The draft's `<name>.w640.webp` predates the Task 7 cache. `contentImage()` has no importer until Task 8, so pages show the original upload for now.
+     - The `font-src` row gives the three full URLs, and the hardening row includes `default-src`.
+     - New sections: reading the content check (positions start at 0), the honesty scan (what it reads, two exceptions, known gaps, message format), upgrading wrangler or miniflare, the config schema and bundle-anchor steps of a Sveltia upgrade, the migration check and its refresh, the HTML snapshot (format 3, `--explain-client-ids`, `--loose-client-ids`), costs.
+     - **Costs** (no budget is set): the client chunk with the copy and its validation is 35,838 B (12,021 B gzipped). The Worker bundled with esbuild, unminified, is 61,954 B (17,035 B gzipped), against 18,892 B (6,491 B) at `dc4b6af`. The Task 4 and Task 7 measurements are quoted.
+     - The release runbook's sentence points to "The admin Content-Security-Policy", where the font policy is now explained, rather than "Editing content".
+  4. **Merge notes** updated:
+     - the `content.ts` procedure now goes through `check-migration` and `--refresh`;
+     - the `globals.css` fence and the five files changed on both sides;
+     - Part 1's excluded-asset wording, checked at `d6e8e4e`;
+     - Task 8 deferred;
+     - the pinned wrangler and miniflare versions, which Part 1 keeps;
+     - step 2 runs `--explain-client-ids artifacts/dist-pre-merge` directly and expects `admin/index.html` as a new page;
+     - the stylesheet comparison, and the list of the other gates.
+  5. **`npm run build:production`** needs production facts, not secrets: `NEXT_PUBLIC_SITE_URL` (the confirmed HTTPS origin), a verified `NEXT_PUBLIC_CONTACT_EMAIL`, `POLICIES_APPROVED=true`, a real `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, and a fresh checkout without `dist/`. Without them it stops at `check-content --production` (`confirmed HTTPS origin required`, `verified contact email required`, `policies must be approved before publication`) before `next build`, so `dist/` is untouched. They were not faked.
+  6. **Results** before this entry, on `ee6aa3d`:
+     - The rebuild gave `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+     - All 19 chunks, the stylesheet included, are byte-identical to the `0a2d6b2` build, so the README added no Tailwind rule.
+     - `compare --explain-client-ids`: `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+     - `check:seo` and `test:browser` pass.
+
+     The gates on the final HEAD are in the Task 11 report.
+
+- **Task 11 review round** (`84cc6ea`, `2bff18e`, `3fb3403`, `6669d69` and the docs commit that records this entry). It supersedes the Task 11 entry above where they differ. The reviewer's plants are `scratchpad/t11-review/plant.sh`; the same script, pointed at a one-commit copy of each tree, is `artifacts/plants/plant.sh` (`setup.sh`, `run-all.sh`, `table.mjs`, and one summary per run).
+  1. **CMS edits no longer fail `npm test`** (Important 1).
+     - **Frozen sample tree.** `tests/fixtures/sample-project/content/` is a copy of `content/` as it was when the CMS landed. It is never refreshed. `tests/helpers/content.mjs` exports `SAMPLE_ROOT`, `sampleInput()` and `copySampleContent(root)`; the last copies the sample into a temporary project and writes the entry index that matches it there.
+     - **Moved onto the sample:** every test that changes entries by file name or position (`content-loader.test.mjs`, the temporary-copy tests in `content.test.mjs`, `content-rules.test.mjs`, `upload-checks.test.mjs`, `uploads.test.mjs`). `uploads.test.mjs`'s `setImage` read the live file instead of the copy; it now reads the copy.
+     - **Other fixes:** the canonical-form test asserts only the fixed collections (5 services, 3 engagements); the stage-number test builds its expected names from the copied files; the processor test uses a fixed list of Cloudflare services plus the sample pages' names; the scan-coverage test derives its file list from the live entries.
+     - **Still on the live `content/`**, because a valid edit keeps them true: validation, the canonical form, the index, the content rules, the honesty scan, the structural legal tests, the export names and the routes.
+  2. **Copy rules move into check-content** (Important 2). `scripts/lib/content-rules.mjs` gains `countProblems`, `teamProblems`, `illustrativeProblems`, `stockImageProblems`, `linkProblems` and `contentRuleProblems` (all of them, with `stageNumberProblems`), and check-content runs them, so `build:production` enforces them in GitHub mode. They are the rules that only `npm test` enforced: displayed counts, disciplines rather than people (the original heuristic first; item 9 replaces it), the illustrative labels, the stock portraits and art, and links to real pages. `content.test.mjs` keeps only what the schemas and the loader guarantee; `content-rules.test.mjs` has a unit test per rule on the sample, a test that the live content and the sample pass, and a temporary-project run of check-content with the reviewer's three policy plants.
+  3. **Migration check** (minors 1 to 4):
+     - Content that does not load stops the check with its problems and exit 1: a `ContentError` or `LegalPageError` (its `issues`), and a broken or missing content file. Every content JSON file is parsed before the loader imports it, because tsx reports a broken JSON import outside any catch, with a stack. A missing or broken fixture gives a clear message.
+     - `--refresh` keeps `exports` and `site.routes` unless `--refresh-structure` is passed, says what changed, warns when `tests/fixtures/` already has uncommitted changes, and keeps `legal-v1.json`'s `about` line when the legal pages did not change.
+     - `--help` and every failure say that character positions count from 1 and list positions from 0.
+     - **Hidden content:** `tests/fixtures/content-files-v1.json` holds every JSON file of `content/` as parsed values, and the check compares them, key order aside. The unconfirmed testimonial is now red.
+  4. **Config-schema validator** (concern 3):
+     - The vendor script keeps `package/schema/sveltia-cms.json` from the same verified tarball as `scripts/sveltia-cms.schema.json` (`extractSchema`), pinned in `SVELTIA.schema` and repeated in the lock as `schema`, outside `SVELTIA.files`, so `ADMIN_FILES` and `/admin/` are unchanged. sha256 `59a82ee7…fb9c778` (417,141 B, one line, no line ending), equal to the schema in the Task 7 reviewer's copy of the tarball. Re-vendoring left the three vendored files byte-identical.
+     - `.gitattributes` marks the schema `-text -diff`, and `src/app/globals.css` (fenced) excludes it from Tailwind's scan, with a test.
+     - `scripts/check-sveltia-config.mjs` validates `config.yml` against it offline with ajv 6 (draft-07, the Task 9 options). `ajv` 6.15.0 is an exact devDependency, the version ESLint already brings: `npm install --save-dev --save-exact ajv@6.15.0 --offline` changed one line in each manifest after npm's reordering of `esbuild` was undone, and downloaded nothing.
+     - `tests/cms-config.test.mjs` runs it: the committed config is valid; a top-level `bogus_option` gives exactly `/ should NOT have additional properties (bogus_option)`; a top-level `use_emoji_autocomplete` and an `auto_increment` on `order` are refused. The CLI on a planted copy exits 1 with the same line.
+  5. **README:** the review's eleven points. The site's CSP does set `frame-ancestors 'none'` (and `X-Frame-Options: DENY`), so the hardening row keeps it and now also names the header.
+  6. **Merge notes:** the copy-dependent selectors in main's `browser-check.mjs` and their fix, `content.ts` as module 13003, `npm ls js-yaml tsx ajv`, main's HEAD (`77ac72a` now), the third `@source not` line and `ajv`.
+  7. **Test counts:** 196 (194 pass) after Task 11, 199 after the sample tree and the rules (197 pass), 202 after the validator (200 pass, 2 skipped).
+  8. **Plants** (`artifacts/plants/`, each on a one-commit copy of the tree; every result is the reviewer's plant applied, the three checks run, then the copy reset):
+
+     | Plant | Kind | check-content | check-migration before → after | `npm test` before → after |
+     |---|---|---|---|---|
+     | engagement-rename | CMS edit | valid | red → red | red (1 fail) → green |
+     | faq-drag | CMS edit | valid | red → red | red (2 fail) → green |
+     | faq-drag-last | CMS edit | valid | red → red | red (3 fail) → green |
+     | faq-delete | CMS edit | valid | red → red | red (7 fail) → green |
+     | team-delete | CMS edit | valid | red → red | red (2 fail) → green |
+     | faq-add | CMS edit | valid | red → red | red (1 fail) → green |
+     | team-add | CMS edit | valid | red → red | red (1 fail) → green |
+     | testimonial-hidden | CMS edit | valid | green → red | red (1 fail) → green |
+     | cta-label | CMS edit | valid | red → red | green → green |
+     | faq-answer-example | CMS edit | valid | red → red | green → green |
+     | legal-drop-section | CMS edit | valid | red → red | red (1 fail) → green |
+     | count-edit | policy | valid → refused | red → red | red (1 fail) → red (1 fail) |
+     | policy-edits | policy | valid → refused | red → red | red (2 fail) → red (1 fail) |
+     | legal-empty | structural | refused | red (stack trace) → red (stops: does not load) | red (6 fail) → red (2 fail) |
+     | legal-heading-only | structural | refused | red (stack trace) → red (stops: does not load) | red (5 fail) → red (2 fail) |
+     | export-rename | structural | valid | red → red | red (3 fail) → red (3 fail) |
+     | service-file-rename | structural | refused | red (stack trace) → red (stops: does not load) | red (28 fail) → red (14 fail) |
+     | service-slug-edit | structural | refused | red (stack trace) → red (stops: does not load) | red (27 fail) → red (14 fail) |
+
+     Every CMS-style edit keeps `npm test` green and turns `check-migration` red; the policy plants fail check-content (and the live-content rule test in `npm test`); the structural plants still fail `npm test`. Before the round, at `c0ce8f7`, 9 of the 11 CMS-style plants failed `npm test`, the policy plants passed check-content, and the hidden testimonial passed `check-migration`.
+  9. **Controller follow-up: the person-name rule and links** (one commit after `19e2f5e`; only `scripts/`, tests and docs changed, so no rebuild).
+     - **The fault:** `/^[A-Z][a-z]+ [A-Z][a-z]+$/` refused 16 of the reviewer's 19 likely discipline names ("Product Design", "Data Engineering", "Machine Learning"…), and it missed "J. Smith", "Anna-Lena Berg", "Nguyễn Văn An" and "Ludwig van Beethoven". It blocked builds.
+     - **The rule now** (`readsLikePerson`, the reviewer's prototype in `scratchpad/t11-review/person-rule-proposal.mjs`): a name of 2 to 4 words reads like a person's when its first word is an honorific (Dr, Mr, Mrs, Ms, Mx, Prof, Sir, Dame), or when every word is a capitalised Unicode name word or initial (`/^\p{Lu}\p{Ll}+(?:[-'’]\p{Lu}?\p{Ll}+)*$|^\p{Lu}\.$/u`) or a particle (van, von, de, da, di, du, del, der, le, la, bin, binti) and none is in the exported `DISCIPLINE_WORDS` (67 lowercase words). "&", digits, acronyms and lowercase words never read as a person. It still blocks (controller decision). The message tells the editor to write a discipline in sentence case ("Brand storytelling") or with "&", and the maintainer to add the word to `DISCIPLINE_WORDS`.
+     - **Probes** (`tests/content-rules.test.mjs`): the 21 discipline names pass, "Data engineering", "Applied AI" and a one-word "Ada" included; the 10 person names are refused, "J. Smith", "Dr Smith", "Anna-Lena Berg", "Nguyễn Văn An", "Lê Minh" and "Ludwig van Beethoven" included; today's 5 live names and the sample's pass.
+     - **Links:** `linkProblems` accepts a query or fragment after a known page (`/about/#team`, `/contact/?service=applied-ai`, `/#pricing`) and still refuses an unknown page with or without one (`/blog/?page=2`, `/nope/#top`). Section anchors are no longer listed one by one: any fragment on a known page passes.
+
 ## Risks and open questions
 
 1. **Turbopack and `with { type: "json" }`** is the one combination not probed in planning (all other tools were). Task 4 Step 8 exercises it first, before anything depends on it, and says what to do on failure.
-2. **Fonts come from jsDelivr at run time on `/admin/` only.** The CMS code is vendored, but the IIFE bundle hard-codes its Fontsource URLs; blocking them turns the Material Symbols icons into words. The admin CSP allows only `https://cdn.jsdelivr.net/fontsource/` for fonts. Fully self-hosting fonts would need the npm build bundled with esbuild and `@sveltia/cms` plus its dependencies installed into the shared `node_modules`; left for later.
-3. **Sveltia 0.250.0 was released on 2026-10-21**, the day of this plan, and the project releases several times a week. The pin is verified (integrity, hashes, schema validation of `config.yml`); upgrades follow the README procedure.
+2. **Fonts come from jsDelivr at run time on `/admin/` only.** The CMS code is vendored, but the IIFE bundle hard-codes its Fontsource URLs; blocking them turns the Material Symbols icons into words. The admin CSP allows only `https://cdn.jsdelivr.net/fontsource/` for fonts. Fully self-hosting fonts would need the npm build bundled with esbuild and `@sveltia/cms` plus its dependencies installed into `node_modules`; left for later.
+3. **Sveltia 0.250.0 was released on 2026-10-21**, the day of this plan, and the project releases several times a week. The controller pinned 0.230.1 (2026-10-07) instead, a release at least 14 days old. The pin is verified (integrity, hashes, schema validation of `config.yml`); upgrades follow the README procedure.
 4. **Blocked optional requests.** The update check logs a CSP error in DevTools (harmless, try/catch in the bundle). A non-English browser gets an error about translations and falls back to English. HEIC uploads, maps, PDF thumbnails and code highlighting are unavailable; none is used.
 5. **Linked worktree.** The local workflow saves into a linked worktree but cannot commit from the browser (Sveltia limitation); the owner commits with git.
 6. **New entries** created in the CMS need the index regenerated; every build does that, and `npm test` names the stale index if someone tests before building.
-7. **Upload variants are build output** (gitignored). Stale variants are reported, not deleted. Original uploads ship too (`uploads/**`, per the spec); the Chrome-side WebP re-encode strips camera metadata, but a file added outside the CMS keeps its metadata.
+7. **Upload variants are build output**, kept in the gitignored `.cache/upload-variants/` and pruned there by every build (the cache is the build's own, so nothing an editor made is ever deleted). Under `next dev` uploads render from the original, because the variants are not under `public/`. Original uploads ship too (`uploads/**`, per the spec); the Chrome-side WebP re-encode strips camera metadata, but a file added outside the CMS keeps its metadata.
 8. **`srcset` descriptors** for uploads narrower than 1280 px still say `1280w` (the variant is the original width); the browser may pick it slightly early. Harmless.
 9. **Task 8** edits files Part 2 will rework (see "Merge notes"); it can be deferred.
-10. **`js-yaml`** was already installed through ESLint; Task 9 only declares it (`--package-lock-only`), with a manual fallback.
+10. **`js-yaml`** was already installed through ESLint; Task 9 only declares it (plain `npm install` in the CMS worktree's own `node_modules`), with a manual fallback.
 
 ## Deviations from the spec, with reasons
 
@@ -3426,4 +4194,41 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
   If 0.230.1 lacks something the config needs, stop and report it rather than moving to a newer version.
 - **Task 8 is deferred.** It edits section components that Part 2 reworks. It runs after Part 2, in the main worktree (`feat/spacegear-showcase`, port 8787), against the components as they are then. Tasks 1–7 and 9–11 run in `spacegear-cms` on `feat/showcase-cms` (port 8788).
-- **Order:** Part 3 runs in parallel with Part 1. The controller merges `feat/showcase-cms` into `feat/spacegear-showcase` after Part 1 finishes, following the merge notes above, and re-saves the HTML baseline after the merge.
+- **Order:** Part 3 runs in parallel with Part 1. The controller merges `feat/showcase-cms` into `feat/spacegear-showcase` after Part 1 finishes, following the merge notes above, including their HTML-baseline order (save in the main worktree before the merge, compare after it).
+- **Uploaded SVGs (from the Task 2 re-review).** The schema refuses references to `/uploads/*.svg`, but the media library can still upload one, and `shipFolder("uploads")` would ship it. Do both of these:
+  - **Task 7:** `shipFolder("uploads")` ships only `.webp`, `.png`, `.jpg`, `.jpeg`, `.avif` and `.gif`. `check-content` fails on any other file under `public/uploads/` (dotfiles such as `.gitkeep` excepted). Add tests for both.
+  - **Task 10:** add a `/uploads/*` rule to `public/_headers`: `! Content-Security-Policy`, then `Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox`. Also add `X-Content-Type-Options: nosniff`, which `/*` already sets. The header check in `check-export` and the browser check must assert it. It does not affect `<img>` rendering on site pages.
+- **Frozen-fixture value tests must not block CMS editing** (from the Task 3 review).
+  - **Problem:** `content-loader.test.mjs` and Task 4's `content-roundtrip.test.mjs` require content values to equal `tests/fixtures/content-v1.json`. Once editors use the CMS, every legitimate copy edit would turn `npm test` red.
+  - **Tasks 4–10:** keep the tests as written. They prove the migration changed nothing.
+  - **Task 11:**
+    - Move every value-equality assertion against the fixture out of `npm test` into a one-off `scripts/check-migration.mjs`. The same goes for the HTML snapshot comparison, which is local-only anyway.
+    - Keep these in `npm test`: the compile-time type contract against `content-v1.d.ts`, the key and shape checks, the schema and uniqueness rules, the honesty scan and the index freshness check.
+    - In the README, say that `check-migration` documents the original migration, and that it is expected to fail after deliberate copy edits.
+  - **Uniqueness gaps, out of scope for now:** some list values used as React keys are still not checked: the Analytics labels and glyphs, process `step`, pillar `no`, and footer link hrefs. A duplicate only causes a React key warning; there is no build or data failure.
+- **Task 4 review: client validation is accepted as is.**
+  - **Cost:**
+    - The content validation (schema plus `buildContent`) ships in a shared client chunk: +13.6 KB raw, +4.8 KB gzip. That is about 2 % of mobile JS.
+    - It costs about +6 ms of evaluation per full page load.
+    - The Worker bundle grows from about 20 KB to 61 KB and runs `buildContent` at cold start (about 6–7 ms).
+  - **Why accepted:** `buildContent` also normalises and derives values. Skipping it in the browser would break hydration.
+  - **Later option:** a generated, pre-validated data module, if a JS budget is ever set.
+  - **Folded into Task 5:**
+    - Tighten `Same` in `content-contract.ts` to the exact-equality form, so an added optional key and `any` are also caught.
+    - Fix the `content.ts` header comment: validation also runs in the browser and the Worker.
+  - **Task 6 must** validate `content/site.json` in `check-content`, and print content errors without a stack trace.
+- **Task 5 review follow-ups.**
+  - **Legal parser** (Task 6 does this first, as its own commit):
+    - A `## ` heading line starts a new block even without a blank line before it: `split(/\n\s*\n|\n(?=[ \t]*##(?:[ \t]|$))/)`.
+    - Error messages give the file, the **line number** and the offending character, with context.
+    - An empty `## ` reports "the heading is empty".
+    - Reject `#` inside headings, and add `~~` to `INLINE_SYNTAX`.
+    - Add tests for the rejections that are not covered yet, and assert the message text in a few cases.
+    - `legalSections(page, root = process.cwd())`.
+    - Do not add `import "server-only"` to `legal.ts`.
+  - **Task 9:**
+    - `&legal_body` stays `widget: text`. Pin it with a test (`field.widget === "text"`), because the markdown and rich-text widgets write `\` escapes that the parser rejects.
+    - Add a CMS `pattern` that mirrors the parser's rules: start with `## ` and use no inline syntax. Export `INLINE_SYNTAX` and add a mirror test.
+    - Extend the hint with "Leave a blank line before each heading".
+    - Set `use_emoji_autocomplete: false`.
+  - **Task 11:** move the literal legal-copy assertions in `tests/legal.test.mjs` (exact headings, section counts, "one plain paragraph today") into `scripts/check-migration.mjs`, along with a full-text equality check against the pre-CMS copy. `npm test` keeps only the structural checks.

@@ -52,3 +52,8 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# CMS: the upload variant cache is build output (scripts/build-upload-variants.mjs); Sveltia's
+# temporary save files
+/.cache/
+.sveltia-tmp-*
