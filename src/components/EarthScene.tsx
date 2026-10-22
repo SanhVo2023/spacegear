@@ -8,7 +8,7 @@ import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
 import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_FPS, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, STREAM_IDLE_FALLBACK_MS, STREAM_IDLE_TIMEOUT_MS, SUN_END, SUN_START } from "@/components/globe/constants";
 import { readNavigatorFacts, rendererName } from "@/components/globe/device";
-import { createDragState, createSpring, openingHeld, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
+import { createDragState, createSpring, openingRamp, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
 import { createPendingLoads } from "@/components/globe/pending-load";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
@@ -137,7 +137,7 @@ type Upgrade = {
 
 type ContentsProps = {
   variant: SceneVariant;
-  load: Promise<HeroTextures>;
+  loaded: HeroTextures;
   active: boolean;
   progress?: MotionValue<number>;
   pointer: RefObject<PointerInput>;
@@ -145,8 +145,7 @@ type ContentsProps = {
   onTier?: (tier: GlobeTier) => void;
 };
 
-function SceneContents({ variant, load, active, progress, pointer, onReady, onTier }: ContentsProps) {
-  const loaded = use(load);
+function SceneContents({ variant, loaded, active, progress, pointer, onReady, onTier }: ContentsProps) {
   // The texture set on screen: the first set, then (capable desktops) the 4k set.
   const [globe, setGlobe] = useState<GlobeTextureSet>(loaded.globe);
   const shown = useRef<GlobeTextureSet>(loaded.globe);
@@ -312,10 +311,10 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
 
   // Per-frame driver, called by the Globe before it applies the frame.
   const drive = (f: GlobeFrame, delta: number, state: RootState) => {
-    // The opening pose (the poster's) holds through the canvas's fade-in: no idle spin, cloud drift or
-    // cursor tilt until the canvas covers the poster (the Backdrop holds its sky turn and parallax too).
-    const held = openingHeld(warm.current, seconds());
-    f.idle = !held;
+    // The opening pose (the poster's) holds through the canvas's fade-in, then the motion eases in: the
+    // idle spin, cloud drift and cursor tilt scale with the ramp (the Backdrop's sky turn and parallax too).
+    const ramp = openingRamp(warm.current, seconds());
+    f.idle = ramp;
     const p = progress?.get() ?? 0;
     const targets = scroll.current;
     if (p !== targets.p) {
@@ -334,10 +333,10 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
     else f.sun.copy(targets.sun);
     if (variant !== "cinematic") return;
     state.camera.position.z = settled ? THREE.MathUtils.damp(state.camera.position.z, targets.cameraZ, 3, delta) : targets.cameraZ;
-    // Cursor tilt (spring, ≤ 6°, level while the opening pose holds, then eased toward the cursor) plus
-    // drag spin with inertia and a sprung pitch (fine pointers only).
+    // Cursor tilt (spring, ≤ 6°: level while the opening pose holds, its target growing with the ramp) plus
+    // drag spin with inertia and a sprung pitch (fine pointers only; a drag is never held back).
     const input = pointer.current;
-    const aim = held ? 0 : MAX_TILT;
+    const aim = MAX_TILT * ramp;
     f.spinBoost = stepDrag(input, drag.current, delta, window.innerWidth);
     f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * aim, delta) + drag.current.pitch.value;
     f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * aim, delta);
@@ -371,6 +370,36 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   );
 }
 
+/** The first texture set as a result that never rejects. */
+type LoadResult = { textures: HeroTextures } | { error: unknown };
+const results = new WeakMap<Promise<HeroTextures>, Promise<LoadResult>>();
+/**
+ * One result per load, so a retried render reads the same promise. A failed set must not be thrown inside
+ * the Canvas: R3F hands its root's caught errors to reportError, which surfaces as an uncaught page error
+ * before the Canvas passes the error on to the hero's boundary. The scene reports it through onLost instead.
+ */
+function settle(load: Promise<HeroTextures>): Promise<LoadResult> {
+  let result = results.get(load);
+  if (!result) {
+    result = load.then((textures) => ({ textures }), (error: unknown) => ({ error }));
+    results.set(load, result);
+  }
+  return result;
+}
+
+/** A failed first set: the hero drops the canvas and keeps the poster (desktop) or the galaxy (phones). */
+function LoadFailed({ onLost }: { onLost: () => void }) {
+  useEffect(() => onLost(), [onLost]);
+  return null;
+}
+
+/** Waits for the first set (Suspense), then shows the scene, or reports a failure through onLost. */
+function SceneLoader({ result, onLost, ...props }: Omit<ContentsProps, "loaded"> & { result: Promise<LoadResult>; onLost: () => void }) {
+  const settled = use(result);
+  if ("error" in settled) return <LoadFailed onLost={onLost} />;
+  return <SceneContents loaded={settled.textures} {...props} />;
+}
+
 /**
  * A scene's first texture set, started once and shared by every render attempt until a scene commits
  * with it (pending-load.ts): a first render retried before commit reuses it instead of refetching.
@@ -392,6 +421,7 @@ const pendingLoads = createPendingLoads<SceneVariant, HeroTextures>((variant) =>
  */
 export default function EarthScene({ variant, active, progress, dragTarget, onReady, onTier, onLost }: EarthSceneProps) {
   const [load] = useState(() => pendingLoads.take(variant));
+  const [result] = useState(() => settle(load));
   // Committed: this scene owns its load, and a later mount starts its own.
   useEffect(() => pendingLoads.commit(variant, load), [variant, load]);
   const cinematic = variant === "cinematic";
@@ -427,7 +457,7 @@ export default function EarthScene({ variant, active, progress, dragTarget, onRe
       style={cinematic ? undefined : { pointerEvents: "none" }}
     >
       <Suspense fallback={null}>
-        <SceneContents variant={variant} load={load} active={active} progress={progress} pointer={pointer} onReady={onReady} onTier={onTier} />
+        <SceneLoader variant={variant} result={result} active={active} progress={progress} pointer={pointer} onReady={onReady} onTier={onTier} onLost={onLost} />
       </Suspense>
     </Canvas>
   );

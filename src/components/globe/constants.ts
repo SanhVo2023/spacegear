@@ -61,6 +61,15 @@ export const DRAG_FRICTION = 2.2;
 export const MAX_SPIN = 2 * Math.PI;
 /** Radians at the viewport edge. */
 export const STAR_PARALLAX = 0.03;
+/** rad/s, the galaxy sphere's slow turn. */
+export const SKY_TURN = 0.004;
+/**
+ * The desktop backdrop's 3D stars (Stars.tsx): drei's <Stars radius={45} depth={55} count={7000} factor={7}
+ * saturation={0}> as its shader drew them (it doubles the distance: a shell 145–200 units out), from a
+ * fixed seed so the poster and every load agree, and without its pulse. pointScale is drei's size factor
+ * at the pulse's resting value (60 × 2.5).
+ */
+export const STARS = { count: 7000, near: 145, far: 200, factor: 7, saturation: 0, lightness: 0.9, pointScale: 150, seed: 0x5ace9ea2 } as const;
 
 /**
  * Intro reveal: the globe holds as a black silhouette against the galaxy (an eclipse) for
@@ -74,10 +83,12 @@ export const FLARE_GAIN = 2.2;
 /**
  * The canvas's fade-in over the poster (globals.css, `.hero-scene`). The globe holds its opening pose
  * (no idle spin or cloud drift, no sky turn, no cursor tilt or parallax) for this long after its first
- * frame, so it fades in exactly over the poster (scripts/capture-hero-poster.mjs), which is that pose;
- * it starts to move, and turns toward the cursor, once it covers the poster.
+ * frame, so it fades in exactly over the poster (scripts/capture-hero-poster.mjs), which is that pose.
  */
 export const OPENING_HOLD_SECONDS = 0.6;
+/** Then its motion eases in over this long (smoothstep): the spin, drift and sky turn speed up from rest,
+ *  and the tilt and parallax targets grow toward the cursor, so nothing starts in one frame. */
+export const OPENING_RAMP_SECONDS = 0.8;
 /** From the start of the overlay's lift until the globe's fade-up and flare are over. */
 export const REVEAL_END_SECONDS = REVEAL_DELAY_SECONDS + Math.max(REVEAL_SECONDS, FLARE_SECONDS);
 /**

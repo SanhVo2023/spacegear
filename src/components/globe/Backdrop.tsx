@@ -1,11 +1,11 @@
 "use client";
 
-import { Stars } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
-import { STAR_PARALLAX } from "./constants";
-import { openingHeld, unitOrZero, type PointerInput } from "./interaction";
+import { SKY_TURN, STAR_PARALLAX } from "./constants";
+import { openingRamp, unitOrZero, type PointerInput } from "./interaction";
+import Stars from "./Stars";
 
 // The visible sun: a faint warm haze in the upper-left corner, behind the globe. Placed high and wide
 // enough that the disc stays clear of the hero copy on common desktop viewports.
@@ -36,7 +36,8 @@ type BackdropProps = {
  * Galaxy sphere, 3D stars and the visible sun. They drift slightly against the cursor (parallax)
  * while the globe tilts toward it. Everything here lies behind the origin, so a turn of the group
  * in the same sense as the globe's tilt moves it the other way on screen. Through the canvas's fade-in
- * over the poster (openingHeld) the sky neither turns nor follows the cursor, so it lands on the poster.
+ * over the poster the sky neither turns nor follows the cursor, so it lands on the poster; then both ease
+ * in with the opening ramp.
  */
 export default function Backdrop({ galaxy, pointer, settled }: BackdropProps) {
   const parallax = useRef<THREE.Group>(null);
@@ -44,24 +45,27 @@ export default function Backdrop({ galaxy, pointer, settled }: BackdropProps) {
   const glow = useMemo(() => sunGlow(), []);
 
   useFrame((_, raw) => {
-    if (openingHeld(settled.current, performance.now() / 1000)) return;
+    const ramp = openingRamp(settled.current, performance.now() / 1000);
     const delta = Math.min(raw, 0.1);
-    if (sky.current) sky.current.rotation.y += delta * 0.004;
+    if (sky.current) sky.current.rotation.y += delta * SKY_TURN * ramp;
     const group = parallax.current;
     if (!group) return;
     const input = pointer.current;
     // Signs are the reverse of the plan's code (-x, +y), which moved the backdrop toward the cursor.
-    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, unitOrZero(input.x) * STAR_PARALLAX, 3, delta);
-    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, -unitOrZero(input.y) * STAR_PARALLAX * 0.6, 3, delta);
+    const aim = STAR_PARALLAX * ramp;
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, unitOrZero(input.x) * aim, 3, delta);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, -unitOrZero(input.y) * aim * 0.6, 3, delta);
   });
 
   return (
     <group ref={parallax}>
-      <Stars radius={45} depth={55} count={7000} factor={7} saturation={0} fade speed={0.5} />
-      <mesh ref={sky} scale={120}>
+      <Stars />
+      {/* The sky is the background: drawn first and without writing depth, so the 3D stars beyond it show
+          over it and only the globe hides them. */}
+      <mesh ref={sky} scale={120} renderOrder={-1}>
         <sphereGeometry args={[1, 64, 64]} />
         {/* slight multiply keeps it calm while letting the nebula read clearly */}
-        <meshBasicMaterial map={galaxy} color="#b6b6c0" side={THREE.BackSide} />
+        <meshBasicMaterial map={galaxy} color="#b6b6c0" side={THREE.BackSide} depthWrite={false} />
       </mesh>
       <group position={SUN_POSITION}>
         <mesh>

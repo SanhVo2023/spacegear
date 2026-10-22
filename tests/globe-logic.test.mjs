@@ -236,16 +236,38 @@ test("60 Hz and 144 Hz screens fling the globe alike", () => {
   assert.ok(Math.abs(paused[0] / paused[1] - 1) < 0.15, `50 ms pause: 60 Hz ${paused[0]} vs 144 Hz ${paused[1]}`);
 });
 
-test("the globe holds its opening pose until its first frame has faded in over the poster", () => {
-  const hold = constants.OPENING_HOLD_SECONDS;
+test("the globe holds its opening pose through its fade-in over the poster, then eases into motion", () => {
+  const hold = constants.OPENING_HOLD_SECONDS, ease = constants.OPENING_RAMP_SECONDS;
   assert.ok(hold >= 0.6, `the hold lasts the canvas's 0.6 s fade-in (${hold} s)`);
+  assert.ok(ease >= 0.5, `the motion eases in, not in one frame (${ease} s)`);
   const css = /\.hero-scene,\s*\.hero-mobile-globe \{ opacity: 0; transition: opacity (\d+(?:\.\d+)?)s/.exec(globalsCss);
   assert.equal(Number(css?.[1]), hold, "the hold matches the fade-in in globals.css");
-  assert.equal(interaction.openingHeld({ announced: false, announcedAt: -1 }, 100), true, "held until the first frame is announced");
-  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10), true, "held at the first frame");
-  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10 + hold - 0.01), true, "held through the fade-in");
-  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10 + hold + 1e-6), false, "released once the canvas covers the poster");
-  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 9), true, "a clock that reads earlier still holds");
+  const ramp = (now, scene = { announced: true, announcedAt: 10 }) => interaction.openingRamp(scene, now);
+  assert.equal(ramp(100, { announced: false, announcedAt: -1 }), 0, "still until the first frame is announced");
+  assert.equal(ramp(10), 0, "still at the first frame");
+  assert.equal(ramp(10 + hold - 0.01), 0, "still through the fade-in");
+  assert.equal(ramp(9), 0, "a clock that reads earlier stays still");
+  assert.equal(ramp(Number.NaN), 0, "a broken clock stays still");
+  assert.ok(near(ramp(10 + hold + ease / 2), 0.5, 1e-9), "halfway through the ease");
+  assert.equal(ramp(10 + hold + ease + 1e-6), 1, "full motion after the ease");
+  assert.equal(ramp(1e9), 1);
+  // Smooth: rising monotonically, with no step at either end (the first and last 1/60 s move it by < 0.5 %).
+  let previous = 0;
+  for (let t = 0; t <= ease + 1e-9; t += ease / 200) {
+    const value = ramp(10 + hold + t);
+    assert.ok(value >= previous - 1e-12, `monotonic at ${t}`);
+    previous = value;
+  }
+  assert.ok(ramp(10 + hold + 1 / 60) < 0.005 && 1 - ramp(10 + hold + ease - 1 / 60) < 0.005, "no step at either end");
+});
+
+test("the opening ramp runs on the wall clock in every frame callback that uses it", async () => {
+  // R3F's clock restarts whenever the frame loop pauses (EarthScene's seconds()); the ramp must not.
+  const scene = await fs.readFile(new URL("../src/components/EarthScene.tsx", import.meta.url), "utf8");
+  const backdrop = await fs.readFile(new URL("../src/components/globe/Backdrop.tsx", import.meta.url), "utf8");
+  assert.match(scene, /const seconds = \(\) => performance\.now\(\) \/ 1000;/);
+  assert.match(scene, /openingRamp\(warm\.current, seconds\(\)\)/);
+  assert.match(backdrop, /openingRamp\(settled\.current, performance\.now\(\) \/ 1000\)/);
 });
 
 test("the hero mode follows the spec's device table", () => {

@@ -1,12 +1,16 @@
-import { DRAG_FRICTION, DRAG_RADIANS_PER_VIEWPORT, MAX_PITCH, MAX_SPIN, OPENING_HOLD_SECONDS } from "./constants";
+import { DRAG_FRICTION, DRAG_RADIANS_PER_VIEWPORT, MAX_PITCH, MAX_SPIN, OPENING_HOLD_SECONDS, OPENING_RAMP_SECONDS } from "./constants";
+import { smoothstep } from "./scroll";
 
 /**
- * Whether the globe still holds its opening pose (the poster's): until its first frame is announced and
- * for OPENING_HOLD_SECONDS after, the canvas's fade-in over the poster. `now` and `announcedAt` are
- * wall-clock seconds.
+ * How much of the globe's ambient motion runs (0…1). 0 holds the opening pose (the poster's): until the
+ * first frame is announced and for OPENING_HOLD_SECONDS after, the canvas's fade-in over the poster. Then
+ * it eases to 1 over OPENING_RAMP_SECONDS (smoothstep), so the spin, drift and sky turn speed up from rest
+ * and the tilt and parallax ease toward the cursor. `now` and `announcedAt` are wall-clock seconds (R3F's
+ * clock restarts whenever the frame loop pauses); a NaN reads as 0.
  */
-export function openingHeld(scene: { announced: boolean; announcedAt: number }, now: number): boolean {
-  return !scene.announced || !(now - scene.announcedAt >= OPENING_HOLD_SECONDS);
+export function openingRamp(scene: { announced: boolean; announcedAt: number }, now: number): number {
+  if (!scene.announced) return 0;
+  return smoothstep(0, OPENING_RAMP_SECONDS, now - scene.announcedAt - OPENING_HOLD_SECONDS);
 }
 
 /** Seconds: the fling velocity follows the pointer's speed with this time constant, at any frame rate. */

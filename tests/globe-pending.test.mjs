@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 const { createPendingLoads } = await import("../src/components/globe/pending-load.ts");
 
@@ -87,4 +88,15 @@ test("a rejection is handled by the module, so it never surfaces as unhandled", 
   } finally {
     process.off("unhandledRejection", onUnhandled);
   }
+});
+
+test("EarthScene takes its first load from the shared pending loads and hands it over on commit", async () => {
+  // The module above is only as good as its wiring: a scene that started its own load per render attempt
+  // would refetch the set again (the duplicate-load bug this module fixed).
+  const source = await fs.readFile(new URL("../src/components/EarthScene.tsx", import.meta.url), "utf8");
+  assert.match(source, /import \{ createPendingLoads \} from "@\/components\/globe\/pending-load";/);
+  assert.match(source, /const pendingLoads = createPendingLoads<SceneVariant, HeroTextures>\(/);
+  assert.match(source, /const \[load\] = useState\(\(\) => pendingLoads\.take\(variant\)\);/, "every render attempt takes the pending load");
+  assert.match(source, /useEffect\(\(\) => pendingLoads\.commit\(variant, load\), \[variant, load\]\);/, "the committed scene hands it over");
+  assert.equal(source.match(/loadHeroTextures\(/g)?.length, 1, "the texture set starts only inside the pending loads' start function");
 });

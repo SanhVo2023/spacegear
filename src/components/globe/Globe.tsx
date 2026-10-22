@@ -9,11 +9,12 @@ import type { GlobeTextureSet } from "./textures";
 
 /**
  * Per-frame inputs. The scene's driver writes them and the globe applies them in the same frame.
- * `idle`: the idle spin and the cloud drift run (false while the globe holds its opening pose).
+ * `idle`: how much of the idle spin and the cloud drift runs (0 while the globe holds its opening pose,
+ * easing to 1: EarthScene's openingRamp).
  */
-export type GlobeFrame = { sun: THREE.Vector3; spinBoost: number; tiltX: number; tiltY: number; reveal: number; flare: number; idle: boolean };
+export type GlobeFrame = { sun: THREE.Vector3; spinBoost: number; tiltX: number; tiltY: number; reveal: number; flare: number; idle: number };
 export function createGlobeFrame(): GlobeFrame {
-  return { sun: new THREE.Vector3(0, 0, 1), spinBoost: 0, tiltX: 0, tiltY: 0, reveal: 1, flare: 1, idle: true };
+  return { sun: new THREE.Vector3(0, 0, 1), spinBoost: 0, tiltX: 0, tiltY: 0, reveal: 1, flare: 1, idle: 1 };
 }
 
 const AXIS: [number, number, number] = [0, 0, AXIAL_TILT];
@@ -57,7 +58,7 @@ export default function Globe({ textures, frame, onFrame }: GlobeProps) {
     const f = frame.current;
     const delta = Math.min(raw, 0.1);
     onFrame?.(f, delta, state);
-    const idle = f.idle ? delta : 0;
+    const idle = f.idle * delta;
     spinGroup.rotation.y += IDLE_SPIN * idle + f.spinBoost;
     // The clouds turn slightly faster than the surface; the earth shader offsets its cloud lookups
     // (shadows, glint and city-light dimming) by the same angle.
