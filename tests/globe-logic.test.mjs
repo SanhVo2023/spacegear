@@ -12,6 +12,7 @@ const tiers = await import("../src/components/globe/tiers.ts");
 const intro = await import("../src/components/globe/intro-store.ts");
 const gate = await import("../src/components/globe/intro-gate.ts");
 const manifest = await import("../src/components/globe/texture-manifest.ts");
+const globalsCss = await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 const nearVec = (a, b, eps = 1e-9) => a.every((value, index) => near(value, b[index], eps));
@@ -233,6 +234,18 @@ test("60 Hz and 144 Hz screens fling the globe alike", () => {
   const paused = [releaseVelocity(60, { pause: 0.05 }), releaseVelocity(144, { pause: 0.05 })];
   assert.ok(paused.every((v) => v > 0 && v < expected), `a pause before release slows the fling (${paused})`);
   assert.ok(Math.abs(paused[0] / paused[1] - 1) < 0.15, `50 ms pause: 60 Hz ${paused[0]} vs 144 Hz ${paused[1]}`);
+});
+
+test("the globe holds its opening pose until its first frame has faded in over the poster", () => {
+  const hold = constants.OPENING_HOLD_SECONDS;
+  assert.ok(hold >= 0.6, `the hold lasts the canvas's 0.6 s fade-in (${hold} s)`);
+  const css = /\.hero-scene,\s*\.hero-mobile-globe \{ opacity: 0; transition: opacity (\d+(?:\.\d+)?)s/.exec(globalsCss);
+  assert.equal(Number(css?.[1]), hold, "the hold matches the fade-in in globals.css");
+  assert.equal(interaction.openingHeld({ announced: false, announcedAt: -1 }, 100), true, "held until the first frame is announced");
+  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10), true, "held at the first frame");
+  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10 + hold - 0.01), true, "held through the fade-in");
+  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 10 + hold + 1e-6), false, "released once the canvas covers the poster");
+  assert.equal(interaction.openingHeld({ announced: true, announcedAt: 10 }, 9), true, "a clock that reads earlier still holds");
 });
 
 test("the hero mode follows the spec's device table", () => {

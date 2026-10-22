@@ -7,10 +7,13 @@ import { ATMOSPHERE_RADIUS, AXIAL_TILT, CLOUD_DRIFT, CLOUD_RADIUS, IDLE_SPIN, IN
 import { applyGlobeTextures, createGlobeMaterials, LOOK } from "./materials";
 import type { GlobeTextureSet } from "./textures";
 
-/** Per-frame inputs. The scene's driver writes them and the globe applies them in the same frame. */
-export type GlobeFrame = { sun: THREE.Vector3; spinBoost: number; tiltX: number; tiltY: number; reveal: number; flare: number };
+/**
+ * Per-frame inputs. The scene's driver writes them and the globe applies them in the same frame.
+ * `idle`: the idle spin and the cloud drift run (false while the globe holds its opening pose).
+ */
+export type GlobeFrame = { sun: THREE.Vector3; spinBoost: number; tiltX: number; tiltY: number; reveal: number; flare: number; idle: boolean };
 export function createGlobeFrame(): GlobeFrame {
-  return { sun: new THREE.Vector3(0, 0, 1), spinBoost: 0, tiltX: 0, tiltY: 0, reveal: 1, flare: 1 };
+  return { sun: new THREE.Vector3(0, 0, 1), spinBoost: 0, tiltX: 0, tiltY: 0, reveal: 1, flare: 1, idle: true };
 }
 
 const AXIS: [number, number, number] = [0, 0, AXIAL_TILT];
@@ -54,10 +57,11 @@ export default function Globe({ textures, frame, onFrame }: GlobeProps) {
     const f = frame.current;
     const delta = Math.min(raw, 0.1);
     onFrame?.(f, delta, state);
-    spinGroup.rotation.y += IDLE_SPIN * delta + f.spinBoost;
+    const idle = f.idle ? delta : 0;
+    spinGroup.rotation.y += IDLE_SPIN * idle + f.spinBoost;
     // The clouds turn slightly faster than the surface; the earth shader offsets its cloud lookups
     // (shadows, glint and city-light dimming) by the same angle.
-    cloudMesh.rotation.y = (cloudMesh.rotation.y + CLOUD_DRIFT * delta) % TURN;
+    cloudMesh.rotation.y = (cloudMesh.rotation.y + CLOUD_DRIFT * idle) % TURN;
     tiltGroup.rotation.set(f.tiltX, f.tiltY, 0);
     // uSunDir and uReveal are shared by every shell (materials.ts).
     const uniforms = (earthMesh.material as THREE.ShaderMaterial).uniforms;

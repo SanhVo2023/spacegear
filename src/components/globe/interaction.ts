@@ -1,4 +1,13 @@
-import { DRAG_FRICTION, DRAG_RADIANS_PER_VIEWPORT, MAX_PITCH, MAX_SPIN } from "./constants";
+import { DRAG_FRICTION, DRAG_RADIANS_PER_VIEWPORT, MAX_PITCH, MAX_SPIN, OPENING_HOLD_SECONDS } from "./constants";
+
+/**
+ * Whether the globe still holds its opening pose (the poster's): until its first frame is announced and
+ * for OPENING_HOLD_SECONDS after, the canvas's fade-in over the poster. `now` and `announcedAt` are
+ * wall-clock seconds.
+ */
+export function openingHeld(scene: { announced: boolean; announcedAt: number }, now: number): boolean {
+  return !scene.announced || !(now - scene.announcedAt >= OPENING_HOLD_SECONDS);
+}
 
 /** Seconds: the fling velocity follows the pointer's speed with this time constant, at any frame rate. */
 const VELOCITY_SMOOTHING = 0.04;

@@ -71,6 +71,13 @@ export const REVEAL_DELAY_SECONDS = 0.6;
 export const REVEAL_SECONDS = 1.4;
 export const FLARE_SECONDS = 1.8;
 export const FLARE_GAIN = 2.2;
+/**
+ * The canvas's fade-in over the poster (globals.css, `.hero-scene`). The globe holds its opening pose
+ * (no idle spin or cloud drift, no sky turn, no cursor tilt or parallax) for this long after its first
+ * frame, so it fades in exactly over the poster (scripts/capture-hero-poster.mjs), which is that pose;
+ * it starts to move, and turns toward the cursor, once it covers the poster.
+ */
+export const OPENING_HOLD_SECONDS = 0.6;
 /** From the start of the overlay's lift until the globe's fade-up and flare are over. */
 export const REVEAL_END_SECONDS = REVEAL_DELAY_SECONDS + Math.max(REVEAL_SECONDS, FLARE_SECONDS);
 /**

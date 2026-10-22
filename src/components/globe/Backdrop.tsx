@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { STAR_PARALLAX } from "./constants";
-import { unitOrZero, type PointerInput } from "./interaction";
+import { openingHeld, unitOrZero, type PointerInput } from "./interaction";
 
 // The visible sun: a faint warm haze in the upper-left corner, behind the globe. Placed high and wide
 // enough that the disc stays clear of the hero copy on common desktop viewports.
@@ -25,17 +25,26 @@ function sunGlow(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
+type BackdropProps = {
+  galaxy: THREE.Texture;
+  pointer: RefObject<PointerInput>;
+  /** The scene's first-frame state: the sky holds still while the globe holds its opening pose. */
+  settled: RefObject<{ announced: boolean; announcedAt: number }>;
+};
+
 /**
  * Galaxy sphere, 3D stars and the visible sun. They drift slightly against the cursor (parallax)
  * while the globe tilts toward it. Everything here lies behind the origin, so a turn of the group
- * in the same sense as the globe's tilt moves it the other way on screen.
+ * in the same sense as the globe's tilt moves it the other way on screen. Through the canvas's fade-in
+ * over the poster (openingHeld) the sky neither turns nor follows the cursor, so it lands on the poster.
  */
-export default function Backdrop({ galaxy, pointer }: { galaxy: THREE.Texture; pointer: RefObject<PointerInput> }) {
+export default function Backdrop({ galaxy, pointer, settled }: BackdropProps) {
   const parallax = useRef<THREE.Group>(null);
   const sky = useRef<THREE.Mesh>(null);
   const glow = useMemo(() => sunGlow(), []);
 
   useFrame((_, raw) => {
+    if (openingHeld(settled.current, performance.now() / 1000)) return;
     const delta = Math.min(raw, 0.1);
     if (sky.current) sky.current.rotation.y += delta * 0.004;
     const group = parallax.current;

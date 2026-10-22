@@ -8,7 +8,7 @@ import Backdrop from "@/components/globe/Backdrop";
 import Globe, { createGlobeFrame, type GlobeFrame } from "@/components/globe/Globe";
 import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MOBILE_FPS, MOBILE_RADIUS, MOBILE_SUN_T, REVEAL_DELAY_SECONDS, REVEAL_SECONDS, RIG_SCALE, RIG_X, STREAM_IDLE_FALLBACK_MS, STREAM_IDLE_TIMEOUT_MS, SUN_END, SUN_START } from "@/components/globe/constants";
 import { readNavigatorFacts, rendererName } from "@/components/globe/device";
-import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
+import { createDragState, createSpring, openingHeld, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
 import { createPendingLoads } from "@/components/globe/pending-load";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
@@ -312,6 +312,10 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
 
   // Per-frame driver, called by the Globe before it applies the frame.
   const drive = (f: GlobeFrame, delta: number, state: RootState) => {
+    // The opening pose (the poster's) holds through the canvas's fade-in: no idle spin, cloud drift or
+    // cursor tilt until the canvas covers the poster (the Backdrop holds its sky turn and parallax too).
+    const held = openingHeld(warm.current, seconds());
+    f.idle = !held;
     const p = progress?.get() ?? 0;
     const targets = scroll.current;
     if (p !== targets.p) {
@@ -330,11 +334,13 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
     else f.sun.copy(targets.sun);
     if (variant !== "cinematic") return;
     state.camera.position.z = settled ? THREE.MathUtils.damp(state.camera.position.z, targets.cameraZ, 3, delta) : targets.cameraZ;
-    // Cursor tilt (spring, ≤ 6°) plus drag spin with inertia and a sprung pitch (fine pointers only).
+    // Cursor tilt (spring, ≤ 6°, level while the opening pose holds, then eased toward the cursor) plus
+    // drag spin with inertia and a sprung pitch (fine pointers only).
     const input = pointer.current;
+    const aim = held ? 0 : MAX_TILT;
     f.spinBoost = stepDrag(input, drag.current, delta, window.innerWidth);
-    f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * MAX_TILT, delta) + drag.current.pitch.value;
-    f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * MAX_TILT, delta);
+    f.tiltX = stepSpring(tilt.current.x, -unitOrZero(input.y) * aim, delta) + drag.current.pitch.value;
+    f.tiltY = stepSpring(tilt.current.y, unitOrZero(input.x) * aim, delta);
 
     // Intro reveal. A globe that became ready under the overlay stays black until the overlay lifts and
     // for REVEAL_DELAY_SECONDS after (a silhouette against the galaxy, like an eclipse), then fades up
@@ -359,7 +365,7 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
   const globeNode = <Globe textures={globe} frame={frame} onFrame={drive} />;
   return (
     <group ref={root} visible={false}>
-      {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} pointer={pointer} />}
+      {variant === "cinematic" && loaded.backdrop && <Backdrop galaxy={loaded.backdrop} pointer={pointer} settled={warm} />}
       {variant === "cinematic" && progress ? <Rig progress={progress} settled={warm}>{globeNode}</Rig> : <group scale={MOBILE_RADIUS}>{globeNode}</group>}
     </group>
   );
