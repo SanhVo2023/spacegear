@@ -6,7 +6,7 @@ export function buildMetadata({ title, description, path }: { title: string; des
   const fullTitle = path === "/" ? `${SITE.name} | Digital Transformation & AI Consulting` : `${title} | ${SITE.name}`;
   return {
     title: { absolute: fullTitle }, description, alternates: { canonical: canonicalUrl(path) },
-    openGraph: { type: "website", siteName: SITE.name, title: fullTitle, description, url: canonicalUrl(path), images: [{ url: "/seo/og.png", width: 1200, height: 630, alt: `${SITE.name} — Strategy to working systems` }] },
+    openGraph: { type: "website", siteName: SITE.name, title: fullTitle, description, url: canonicalUrl(path), images: [{ url: "/seo/og.png", width: 1200, height: 630, alt: "spacegear logo" }] },
     twitter: { card: "summary_large_image", title: fullTitle, description, images: ["/seo/og.png"] },
   };
 }
