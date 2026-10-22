@@ -3,7 +3,12 @@
 // base URL, which is required (no default port):
 //   node scripts/fx-checks.mjs http://127.0.0.1:8791
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+// Section titles that editors can change in the CMS (content/sections.json), read once so the checks follow
+// an edit instead of hard-coding the copy (browser-check.mjs reads content/home.json the same way).
+const SECTION_COPY = JSON.parse(readFileSync(new URL("../content/sections.json", import.meta.url), "utf8"));
 
 /** Page instrumentation, installed before any page script: counts animation frames and view transitions, and
  *  records the window's scroll positions (a scroll the browser animates fires dozens of scroll events). */
@@ -570,6 +575,57 @@ desktop("split titles break into the same lines as the plain title", async (page
     return { label: heading.getAttribute("aria-label"), split: heading.offsetHeight, plain };
   }));
   for (const title of lines) assert.equal(title.split, title.plain, `desktop: "${title.label}" keeps its height and line breaks once split`);
+});
+
+desktop("the progress rail is keyboard-reachable and tracks the section in view", async (page) => {
+  // The rail lists every home section after the hero, in page order (Testimonials and Labs only when they render).
+  const listed = await page.evaluate(() => ({
+    rail: [...document.querySelectorAll("[data-fx-rail] a")].map((a) => a.getAttribute("href")),
+    sections: [...document.querySelectorAll("main section[id]:not(#home)")].map((s) => `#${s.id}`),
+  }));
+  assert.deepEqual(listed.rail, listed.sections, "desktop: the rail links every home section after the hero, in order");
+  const idle = await page.evaluate(() => {
+    const rail = document.querySelector("[data-fx-rail]");
+    return { idle: rail.hasAttribute("data-idle"), opacity: parseFloat(getComputedStyle(rail).opacity), events: getComputedStyle(rail).pointerEvents };
+  });
+  assert.deepEqual(idle, { idle: true, opacity: 0, events: "none" }, "desktop: over the hero the rail is faded out and click-through");
+  await page.locator("header").getByRole("link", { name: "Discuss a project" }).focus();
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(450);
+  const first = await page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el?.closest("[data-fx-rail]")) return null;
+    let opacity = 1;
+    for (let node = el; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+    const r = el.getBoundingClientRect();
+    return {
+      href: el.getAttribute("href"),
+      name: el.textContent.trim(),
+      outline: getComputedStyle(el).outlineStyle !== "none",
+      inView: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth,
+      opacity,
+      labelOpacity: parseFloat(getComputedStyle(el.querySelector(".fx-rail-label")).opacity),
+    };
+  });
+  assert.ok(first, "desktop: Tab from the header reaches the progress rail");
+  assert.deepEqual({ href: first.href, name: first.name, outline: first.outline, inView: first.inView }, { href: "#work", name: SECTION_COPY.work.title, outline: true, inView: true }, "desktop: the first rail link is focused, named and in view");
+  assert.ok(first.opacity >= 0.99 && first.labelOpacity >= 0.99, "desktop: the focused rail link and its label are visible");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => {
+    const work = document.getElementById("work");
+    const offset = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) + parseFloat(getComputedStyle(work).scrollMarginTop);
+    return Math.abs(work.getBoundingClientRect().top - offset) < 4;
+  }, null, { timeout: 4000 });
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => document.querySelector('[data-fx-rail] a[aria-current="location"]')?.getAttribute("href")), "#work", "desktop: the rail marks the section in view");
+  // Past the hero, without focus, the rail stays shown and its fill has grown with the page.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.waitForTimeout(450);
+  const shown = await page.evaluate(() => {
+    const rail = document.querySelector("[data-fx-rail]");
+    return { idle: rail.hasAttribute("data-idle"), opacity: parseFloat(getComputedStyle(rail).opacity), fill: new DOMMatrixReadOnly(getComputedStyle(rail.querySelector(".fx-rail-fill")).transform).d };
+  });
+  assert.ok(!shown.idle && shown.opacity >= 0.99 && shown.fill > 0, `desktop: past the hero the rail shows and its fill tracks the page (${JSON.stringify(shown)})`);
 });
 
 // --- Run alone ---

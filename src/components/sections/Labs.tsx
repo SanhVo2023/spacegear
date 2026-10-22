@@ -7,6 +7,8 @@ import { SAMPLE_ARTICLES, SAMPLE_MARKER, SHOW_SAMPLES } from "@/lib/samples";
 
 const USING_SAMPLES = ARTICLES.length === 0 && SHOW_SAMPLES;
 const ITEMS = ARTICLES.length ? ARTICLES : USING_SAMPLES ? SAMPLE_ARTICLES : [];
+/** Whether the section renders (the home progress rail lists it only then). */
+export const HAS_LABS = ITEMS.length > 0;
 
 function ArticleCard({ a }: { a: Article }) {
   const external = /^https?:\/\//.test(a.href);
@@ -41,7 +43,7 @@ function ArticleCard({ a }: { a: Article }) {
 
 export default function Labs() {
   // Renders only real published articles (or dev samples).
-  if (ITEMS.length === 0) return null;
+  if (!HAS_LABS) return null;
   return (
     <section id="labs" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
       <Container>
