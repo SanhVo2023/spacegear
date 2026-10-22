@@ -49,6 +49,12 @@ export async function scrollPass(page) {
   await page.waitForTimeout(200);
 }
 
+/** Waits (up to 3 s) until no view transition runs. A route change commits inside the page curtain
+ *  (PageTransition.tsx), and React runs the new page's passive effects only once the curtain has finished. */
+export function transitionsDone(page) {
+  return page.waitForFunction(() => !document.getAnimations().some((a) => a.effect?.pseudoElement?.startsWith("::view-transition")), null, { timeout: 3000 });
+}
+
 /** Animation frames requested during `ms` of idle time. */
 export async function idleFrames(page, ms = 300) {
   const before = await page.evaluate(() => window.__fx.raf);
@@ -157,7 +163,11 @@ export async function checkFxDesktop({ context, base, report }) {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(instrument);
   const ctx = { base, deepLinkTop: null };
+  // FX_ONLY=<regex> runs only the desktop checks whose names match (a faster loop while building one effect;
+  // include the checks a precondition needs, such as "deep link"). browser-check.mjs never sets it.
+  const only = process.env.FX_ONLY ? new RegExp(process.env.FX_ONLY, "i") : null;
   for (const [name, check] of DESKTOP_CHECKS) {
+    if (only && !only.test(name)) continue;
     await fresh(page, base);
     await check(page, ctx);
     report.interactions.push(`fx desktop: ${name}`);
@@ -490,7 +500,8 @@ desktop("the cursor dot stays under the pointer while it morphs, and a click nav
   await page.mouse.down();
   await page.mouse.up();
   await page.waitForURL((url) => url.pathname === href);
-  await page.waitForTimeout(800);
+  await transitionsDone(page);
+  await page.waitForTimeout(300);
   const under = await page.evaluate(({ x, y }) => {
     const el = document.elementFromPoint(x, y);
     if (el?.closest("[data-cursor]")) return `label:${el.closest("[data-cursor]").dataset.cursor}`;
@@ -676,6 +687,164 @@ desktop("the nav pill slides, buttons sweep, links underline and fields glow", a
   const service = await page.evaluate(() => document.querySelector('header li.group ul a[href^="/services/"]')?.getAttribute("href"));
   await fresh(page, ctx.base, service);
   assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: "/services/", current: ["/services/=true"] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
+});
+
+/** Curtain animations (PageTransition.tsx) in `state`, or in any state. They exist only while a transition runs. */
+const curtains = (page, state) => page.evaluate((s) => document.getAnimations().filter((a) => a.animationName === "fx-curtain" && (!s || a.playState === s)).length, state);
+const waitForCurtain = (page) => page.waitForFunction(() => document.getAnimations().some((a) => a.animationName === "fx-curtain"), null, { timeout: 3000 });
+/** Scroll events since the last reset that reported a position strictly between `from` and `to` (a glide). */
+const scrollsBetween = (page, from, to) => page.evaluate(([a, b]) => window.__fx.scrolls.filter((y) => y > Math.min(a, b) + 4 && y < Math.max(a, b) - 4).length, [from, to]);
+/** Lenis's state classes on <html>: "lenis" alone when it is idle and running. */
+const lenisClasses = (page) => page.evaluate(() => [...document.documentElement.classList].filter((name) => name.startsWith("lenis")).sort().join(" "));
+
+desktop("a route change plays the orange curtain under the nav and the cursor", async (page) => {
+  assert.equal(await page.evaluate(() => window.__fx.vt), 0, "desktop: the first load starts no view transition");
+  const about = page.locator("header").getByRole("link", { name: "About", exact: true });
+  const box = await about.boundingBox();
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y + 120);
+  await page.mouse.move(at.x, at.y, { steps: 3 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await waitForCurtain(page);
+  // While the curtain runs, the nav and the cursor are lifted above it: named only now, so the nav keeps its
+  // backdrop blur the rest of the time. (A named element takes no pointer events while it is captured.)
+  const during = await page.evaluate(() => ({
+    nav: getComputedStyle(document.querySelector("body > header")).viewTransitionName,
+    cursor: getComputedStyle(document.querySelector("[data-fx-cursor-root]")).viewTransitionName,
+  }));
+  assert.deepEqual(during, { nav: "fx-nav", cursor: "fx-cursor" }, "desktop: during the curtain the nav and the cursor ride above it");
+  await page.waitForURL("**/about/");
+  assert.ok(await page.evaluate(() => window.__fx.vt) >= 1, "desktop: navigation starts a view transition");
+  await transitionsDone(page);
+  assert.equal(await curtains(page, "running"), 0, "desktop: the curtain finishes");
+  assert.ok(await page.locator("h1").isVisible(), "desktop: the new page shows after the curtain");
+  const after = await page.evaluate(({ x, y }) => ({
+    nav: getComputedStyle(document.querySelector("body > header")).viewTransitionName,
+    hit: document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href") ?? null,
+    pills: [...document.querySelectorAll("[data-nav-pill]")].map((el) => el.closest("a")?.getAttribute("href") ?? null),
+    cursors: document.querySelectorAll("[data-fx-cursor-root]").length,
+    y: window.scrollY,
+  }), at);
+  assert.deepEqual(after, { nav: "none", hit: "/about/", pills: ["/about/"], cursors: 1, y: 0 }, "desktop: after the curtain the nav is plain and clickable again, one pill sits on About, one cursor, and the page opens at its top");
+  assert.equal(await lenisClasses(page), "lenis", "desktop: smooth scrolling survives the navigation, idle and not stopped");
+});
+
+desktop("a route change mid-glide opens the next page at its top, and Lenis glides again there", async (page) => {
+  await jumpTo(page, await sectionTop(page, "process"));
+  await page.mouse.move(6, 500);
+  await page.waitForTimeout(600);
+  await page.mouse.wheel(0, 1500);
+  await page.waitForTimeout(60);
+  assert.equal(await lenisClasses(page), "lenis lenis-scrolling lenis-smooth", "desktop: a glide is under way (precondition)");
+  // A navigation no press or key started (a router.push): only the route change itself can end the glide.
+  await page.evaluate(() => { window.__fx.scrolls = []; document.querySelector('header a[href="/about/"]').click(); });
+  await waitForCurtain(page);
+  // The pill slides along the nav to About; the scroll reset under it must not send it flying from below.
+  const pillDrift = await page.evaluate(() => new Promise((resolve) => {
+    const nav = document.querySelector("body > header nav").getBoundingClientRect();
+    let worst = 0;
+    const until = performance.now() + 700;
+    const sample = () => {
+      const pill = document.querySelector("[data-nav-pill]")?.getBoundingClientRect();
+      if (pill) worst = Math.max(worst, nav.top - pill.top, pill.bottom - nav.bottom);
+      if (performance.now() < until) requestAnimationFrame(sample);
+      else resolve(Math.round(worst));
+    };
+    sample();
+  }));
+  assert.ok(pillDrift <= 2, `desktop: the nav pill stays inside the nav through a route change from far down the page (${pillDrift}px outside)`);
+  await page.waitForURL("**/about/");
+  await page.waitForTimeout(1500);
+  const landed = await page.evaluate(() => window.scrollY);
+  assert.ok(landed <= 1, `desktop: the next page opens at its top, not where the old glide was heading (${landed}px)`);
+  assert.equal(await lenisClasses(page), "lenis", "desktop: no glide or stop is left over");
+  await page.mouse.move(6, 600);
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(80);
+  assert.equal(await lenisClasses(page), "lenis lenis-scrolling lenis-smooth", "desktop: the wheel glides on the new page");
+  await page.waitForTimeout(1400);
+  const moved = await page.evaluate(() => window.scrollY);
+  assert.ok(moved > 300 && moved <= 401, `desktop: the glide on the new page covers the wheel delta (${moved}px)`);
+});
+
+desktop("a hash route lands on its anchor, a route within one section gets the curtain too, and Back restores", async (page, ctx) => {
+  assert.equal(typeof ctx.deepLinkTop, "number", "desktop: the deep-link result is available (precondition)");
+  // A same-page hash link only scrolls: no curtain.
+  const vt0 = await page.evaluate(() => window.__fx.vt);
+  await page.locator('header a[href="/#pricing"]').first().click();
+  await page.waitForTimeout(1500);
+  assert.equal(await page.evaluate(() => window.__fx.vt), vt0, "desktop: a same-page hash link plays no transition");
+  // /about/ → /#pricing: the curtain, then #pricing exactly where a deep link puts it, without a glide.
+  await page.locator('header a[href="/about/"]').first().click();
+  await page.waitForURL("**/about/");
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => { window.__fx.scrolls = []; });
+  const vt1 = await page.evaluate(() => window.__fx.vt);
+  await page.locator('header a[href="/#pricing"]').first().click();
+  await waitForCurtain(page);
+  await page.waitForURL((url) => url.pathname === "/" && url.hash === "#pricing");
+  await page.waitForTimeout(1500);
+  const hashed = await page.evaluate(() => ({ top: document.getElementById("pricing").getBoundingClientRect().top, y: Math.round(window.scrollY) }));
+  assert.ok(await page.evaluate(() => window.__fx.vt) > vt1, "desktop: /about/ → /#pricing plays the curtain");
+  assert.ok(Math.abs(hashed.top - ctx.deepLinkTop) <= 4, `desktop: /#pricing from /about/ lands where a deep link does (${hashed.top}px, deep link ${ctx.deepLinkTop}px)`);
+  assert.ok(await scrollsBetween(page, 0, hashed.y) <= 2, "desktop: the hash target is reached at once, not by a glide from the top");
+  assert.equal(await lenisClasses(page), "lenis", "desktop: Lenis is idle after the hash route");
+  // /services/ → /services/<slug>/ shares the first segment: the pathname key still remounts the page.
+  await fresh(page, ctx.base, "/services/");
+  await jumpTo(page, 600);
+  await page.waitForTimeout(400);
+  const held = await page.evaluate(() => window.scrollY);
+  // A service link already in view, clicked where it is (a locator click could scroll the page first).
+  const target = await page.evaluate(() => {
+    for (const a of document.querySelectorAll('main a[href^="/services/"]:not([href="/services/"])')) {
+      const r = a.getBoundingClientRect();
+      if (r.top > 120 && r.bottom < innerHeight - 40 && r.width > 0) return { href: a.getAttribute("href"), x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2 };
+    }
+    return null;
+  });
+  assert.ok(target, "desktop: a service link is in view on /services/ (precondition)");
+  const href = target.href;
+  const vt2 = await page.evaluate(() => window.__fx.vt);
+  await page.mouse.move(target.x, target.y, { steps: 2 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await waitForCurtain(page);
+  await page.waitForURL((url) => url.pathname === href);
+  await page.waitForTimeout(1200);
+  assert.ok(await page.evaluate(() => window.__fx.vt) > vt2, `desktop: /services/ → ${href} plays the curtain`);
+  assert.equal(await page.evaluate(() => window.scrollY), 0, `desktop: ${href} opens at its top`);
+  await page.evaluate(() => { window.__fx.scrolls = []; });
+  await page.goBack();
+  await page.waitForURL((url) => url.pathname === "/services/");
+  await page.waitForTimeout(2000);
+  const back = await page.evaluate(() => window.scrollY);
+  assert.ok(Math.abs(back - held) <= 8 && (await scrollsBetween(page, 0, held)) <= 2, `desktop: Back to /services/ restores ${held}px at once (${back}px)`);
+  assert.equal(await curtains(page, "running"), 0, "desktop: no curtain is left running after Back");
+  assert.equal(await lenisClasses(page), "lenis", "desktop: Lenis is idle after Back");
+});
+
+desktop("without the View Transitions API the route change is instant", async (page) => {
+  await page.evaluate(() => { delete Document.prototype.startViewTransition; });
+  await page.locator("header").getByRole("link", { name: "About", exact: true }).click();
+  await page.waitForURL("**/about/");
+  await page.locator("h1").waitFor({ state: "visible", timeout: 2000 });
+  assert.equal(await curtains(page), 0, "desktop: no curtain without the API");
+  assert.equal(await page.evaluate(() => window.scrollY), 0, "desktop: the page still opens at its top");
+});
+
+desktop("under reduced motion the route change is instant", async (page) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  try {
+    await page.waitForFunction(() => !document.documentElement.hasAttribute("data-fx"));
+    await page.locator("header").getByRole("link", { name: "About", exact: true }).click();
+    await page.waitForURL("**/about/");
+    await page.waitForTimeout(60);
+    assert.equal(await curtains(page, "running"), 0, "reduced motion: the curtain does not play");
+    assert.ok(await page.locator("h1").isVisible(), "reduced motion: the new page shows at once");
+  } finally {
+    await page.emulateMedia({ reducedMotion: null });
+  }
 });
 
 // --- Run alone ---

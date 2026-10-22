@@ -2,7 +2,7 @@
 
 import Lenis from "lenis";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useInsertionEffect, useRef } from "react";
 import { createIdleLoop } from "./idle-loop";
 import { SCROLL_LOCK_ATTR } from "./scroll-lock";
 
@@ -83,12 +83,19 @@ export default function SmoothScroll() {
     };
   }, []);
 
-  // A new route has a new height: end any glide and re-measure.
-  useEffect(() => {
+  // A route change ends any glide in the commit itself, before Next moves the page (its scroll to the top or
+  // to the hash target runs in the same commit's layout phase, inside the page transition). Lenis then reads
+  // that move as an ordinary native scroll and comes to rest: settling after it would leave Lenis "natively
+  // scrolling" with no velocity to reset, and a passive effect could come only after the 720 ms curtain,
+  // with the old glide still pulling the new page.
+  useInsertionEffect(() => {
     const lenis = lenisRef.current;
-    if (!lenis) return;
-    settle(lenis);
-    lenis.resize();
+    if (lenis) settle(lenis);
+  }, [pathname]);
+
+  // A new route has a new height: re-measure (only the dimensions, so the pending native scroll still counts).
+  useEffect(() => {
+    lenisRef.current?.dimensions.resize();
   }, [pathname]);
 
   return null;

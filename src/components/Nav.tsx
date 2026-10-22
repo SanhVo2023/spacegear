@@ -39,12 +39,17 @@ const mouseOnly = (onHover: () => void) => (event: PointerEvent) => {
 };
 
 /** The pill behind the current (or hovered) link; Motion's shared layout slides it between links by
- *  transform only. The radius is a style, so Motion keeps it round while the pill stretches. */
+ *  transform only. The radius is a style, so Motion keeps it round while the pill stretches.
+ *  === FX === One shared layout per page: a route change starts a fresh pill on the new page's link. Motion
+ *  measures in page coordinates, so when Next resets the scroll under this fixed header (and the page
+ *  transition shows the nav above its curtain), a shared pill would fly in from where the old scroll put it. */
 function Pill() {
+  const page = usePathname();
   return (
     <motion.span
+      key={page}
       data-nav-pill=""
-      layoutId="nav-pill"
+      layoutId={`nav-pill:${page}`}
       aria-hidden
       className="absolute inset-0 -z-10 bg-card-2"
       style={{ borderRadius: 8 }}
