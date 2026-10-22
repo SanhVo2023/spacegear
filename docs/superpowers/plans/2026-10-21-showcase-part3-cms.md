@@ -3589,7 +3589,7 @@ The only task that edits section components. Each edit replaces `src={X}` with `
          - a path through a `$W`/`$Q`/`$@` value throws.
        - **Cycles:** a reference is a cycle only when its row and path contain the value being resolved. Any other reference, also one into the same row, is resolved from the row's raw value.
        - **Client identity:** client references keep their module id (`"$module"`). `compare --loose-client-ids` drops the ids and warns; it is for triaging a changed module set, for example at the merge. Item 9 adds `--explain-client-ids`.
-       - **Other changes:** hints are sorted (by their masked form); the build ID is the page's own row-0 `"b"`, and `.next/BUILD_ID` is not read; the dead `I[…]` and escaped chunk-list masks are gone, since the first one also masked markup text.
+       - **Other changes:** hints are sorted (by their masked form); the build ID is the page's own `"b"` in row 0, and `.next/BUILD_ID` is not read; the dead `I[…]` and escaped chunk-list masks are gone, since the first one also masked markup text.
        - **Format refusal:** `compare` refuses format-1 and format-2 folders.
        - **Tests:** React's real dedupe output, from Next's compiled Flight server inside the test; same-row targets differ; cycles; inner references; both client-swap probes; hint order; markup `I[42,`; the CLI flags. The reviewer's `plants.mjs` gives 0 wrong results, its blind-spot probes are now caught, and `normalize-all.mjs` gives 0 throws.
      - **Baseline chain:**

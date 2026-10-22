@@ -297,7 +297,7 @@ test("save writes the format marker and compare refuses a folder saved in anothe
     assert.match(result.stderr, /"default" 123 → 124 \(line \d+\): module 124 not found in dist/);
     assert.equal(run("compare", snap, "--explain-client-ids").status, 2, "the option needs the other build's dist folder");
 
-    fs.writeFileSync(path.join(root, "dist", "terms", "index.html"), page(base({ markupClass: "p-9" })));
+    fs.writeFileSync(path.join(root, "dist", "terms", "index.html"), page(base({ markupClass: "changed-class" })));
     result = run("compare", snap, "--loose-client-ids");
     assert.equal(result.status, 1);
     assert.match(result.stderr, /changed page: terms\/index\.html/);
