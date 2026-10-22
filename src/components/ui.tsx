@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
 import ScrollColorTitle from "@/components/ScrollColorTitle";
+import { MagneticLink } from "@/components/fx/Magnetic";
 
 /** Clean diagonal ↗ glyph (no emoji). */
 function DiagArrow() {
@@ -26,6 +26,7 @@ function DiagArrow() {
 export function ArrowIcon({ size = 14 }: { size?: number }) {
   return (
     <span
+      data-magnetic-glyph=""
       className="relative inline-block overflow-hidden"
       style={{ width: size, height: size }}
     >
@@ -98,15 +99,15 @@ export function FlameButton({
   href?: string;
   className?: string;
 }) {
+  // transition-[filter,box-shadow], not transition-all: the magnetic pull writes transform every frame.
   return (
-    <Link
-      prefetch={false}
+    <MagneticLink
       href={href}
-      className={`group inline-flex items-center justify-center gap-2 rounded-xl bg-flame px-5 py-[14px] text-[13px] font-medium text-[#161719] transition-all duration-300 hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)] ${className}`}
+      className={`group inline-flex items-center justify-center gap-2 rounded-xl bg-flame px-5 py-[14px] text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] duration-300 hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)] ${className}`}
     >
       {children}
       <ArrowIcon />
-    </Link>
+    </MagneticLink>
   );
 }
 
@@ -120,13 +121,12 @@ export function GhostButton({
   className?: string;
 }) {
   return (
-    <Link
-      prefetch={false}
+    <MagneticLink
       href={href}
       className={`inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card-2/60 px-5 py-[14px] text-[13px] font-medium text-ink transition-colors duration-300 hover:border-mut-3 hover:bg-card-3/60 ${className}`}
     >
       {children}
-    </Link>
+    </MagneticLink>
   );
 }
 

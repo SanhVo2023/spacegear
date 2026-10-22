@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import Reveal from "@/components/Reveal";
 import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
+import Tilt from "@/components/fx/Tilt";
 import { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS, type Engagement } from "@/lib/content";
 
 /** Original billing toggle, repurposed: switch the list between deliverables and outcomes. */
@@ -142,7 +143,9 @@ export default function Pricing() {
         <div className="mt-12 hidden space-y-4 lg:block">
           {ENGAGEMENTS.map((item, i) => (
             <Reveal as="div" key={item.name} delay={80 + i * 80}>
-              <EngagementRow item={item} selected={selected === item.name} onSelect={() => setSelected(item.name)} />
+              <Tilt spotlight max={1.5} className="rounded-2xl">
+                <EngagementRow item={item} selected={selected === item.name} onSelect={() => setSelected(item.name)} />
+              </Tilt>
             </Reveal>
           ))}
         </div>

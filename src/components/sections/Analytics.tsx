@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import Reveal from "@/components/Reveal";
 import { FillBar, FillColumn } from "@/components/motion";
 import { Container, SectionHeader } from "@/components/ui";
+import Tilt from "@/components/fx/Tilt";
 import { MEASURE, SECTIONS } from "@/lib/content";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -31,7 +32,11 @@ function Dial({ h, m }: { h: number; m: number }) {
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-line bg-card/55 p-6 ${className}`}>{children}</div>;
+  return (
+    <Tilt spotlight max={3} className={`rounded-2xl border border-line bg-card/55 p-6 ${className}`}>
+      {children}
+    </Tilt>
+  );
 }
 
 export default function Analytics() {
@@ -53,15 +58,17 @@ export default function Analytics() {
         {/* top row */}
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-[1.25fr_0.85fr_1.15fr]">
           <Reveal as="div">
-            <div className="relative h-full min-h-[280px] overflow-hidden rounded-2xl border border-line">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={MEASURE.imageCard.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e] via-[#0b0c0e]/30 to-transparent" />
-              <span className="absolute left-5 top-5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink">
-                <span className="text-flame">{MEASURE.imageCard.accent}</span> {MEASURE.imageCard.label}
-              </span>
-              <Brand className="absolute bottom-5 left-5 h-5 w-auto text-flame" />
-            </div>
+            <Tilt spotlight max={3} className="h-full rounded-2xl">
+              <div className="relative h-full min-h-[280px] overflow-hidden rounded-2xl border border-line">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={MEASURE.imageCard.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e] via-[#0b0c0e]/30 to-transparent" />
+                <span className="absolute left-5 top-5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink">
+                  <span className="text-flame">{MEASURE.imageCard.accent}</span> {MEASURE.imageCard.label}
+                </span>
+                <Brand className="absolute bottom-5 left-5 h-5 w-auto text-flame" />
+              </div>
+            </Tilt>
           </Reveal>
 
           <Reveal as="div" delay={60}>

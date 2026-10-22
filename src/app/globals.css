@@ -483,4 +483,11 @@ html[data-fx-cursor] :is(input, textarea, select, [contenteditable]) { cursor: a
 .fx-cursor[data-state="label"] .fx-cursor-label { opacity: 1; }
 .fx-cursor:is([data-state="hidden"], [data-state="text"]) :is(.fx-cursor-dot, .fx-cursor-disc) { opacity: 0; }
 
+/* Magnetic (Magnetic.tsx): the arrow glyph travels a little further than its button. */
+html[data-fx] [data-magnetic] [data-magnetic-glyph] { translate: calc(var(--mx, 0) * 3px) calc(var(--my, 0) * 3px); transition: translate 0.3s var(--fx-ease); }
+
+/* Spotlight (Spotlight.tsx, Tilt.tsx): a warm highlight under the pointer. Decorative and click-through. */
+.fx-spotlight { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(280px circle at var(--sx, 50%) var(--sy, 50%), rgba(250, 110, 67, 0.18), transparent 65%); transition: opacity 0.35s ease-out; }
+html[data-fx] [data-spotlight]:hover > .fx-spotlight { opacity: 1; }
+
 /* === /FX === */

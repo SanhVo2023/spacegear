@@ -6,6 +6,7 @@ import { Container, ArrowButton } from "@/components/ui";
 import ScrollColorTitle from "@/components/ScrollColorTitle";
 import StackCards from "@/components/StackCards";
 import DotField from "@/components/DotField";
+import Tilt from "@/components/fx/Tilt";
 import { SECTIONS, WORK, type WorkTile } from "@/lib/content";
 
 /** small animated drag-handle dots, top-right of each tile */
@@ -172,21 +173,23 @@ export default function Work() {
         <AppearGroup className="mt-10 hidden auto-rows-[200px] gap-4 lg:grid lg:grid-cols-3 lg:[grid-auto-rows:200px]" stagger={0.07}>
           {/* featured service — spans 2 cols, 2 rows */}
           <AppearItem className="sm:col-span-2 sm:row-span-2">
-            <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
-              <div className="relative flex h-full flex-col justify-between p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">{f.label}</span>
-                    <h3 className="display mt-1 text-2xl text-ink-strong">{f.name}</h3>
+            <Tilt spotlight className="h-full rounded-2xl">
+              <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
+                <div className="relative flex h-full flex-col justify-between p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">{f.label}</span>
+                      <h3 className="display mt-1 text-2xl text-ink-strong">{f.name}</h3>
+                    </div>
+                    <GridDots />
                   </div>
-                  <GridDots />
+                  <ArrowBtn />
                 </div>
-                <ArrowBtn />
-              </div>
-            </Link>
+              </Link>
+            </Tilt>
           </AppearItem>
 
           {/* service lineup orange panel — spans 2 rows */}
@@ -196,7 +199,9 @@ export default function Work() {
 
           {WORK.tiles.map((tile) => (
             <AppearItem key={tile.slug} className="h-full">
-              <Tile {...tile} />
+              <Tilt spotlight className="h-full rounded-2xl">
+                <Tile {...tile} />
+              </Tilt>
             </AppearItem>
           ))}
 

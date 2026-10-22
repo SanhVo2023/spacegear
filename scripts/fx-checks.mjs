@@ -385,6 +385,57 @@ desktop("the cursor never takes a pointer event, and the live globe labels it Dr
   assert.deepEqual(over, { state: "label", label: "Drag", clickThrough: true, hitsGlobe: true, hidden: "true" }, "desktop: over the live globe the cursor reads Drag, passes every pointer event to the globe and stays hidden from assistive technology");
 });
 
+desktop("magnetic CTAs lean toward the pointer and nudge their arrow", async (page) => {
+  const cta = page.locator("#process a[data-magnetic]").first();
+  await cta.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  const box = await cta.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width - 3, box.y + box.height / 2, { steps: 5 });
+  await page.waitForTimeout(600);
+  const pulled = await matrixOf(cta);
+  assert.ok(pulled.m41 > 1 && pulled.m41 <= 10.5, `desktop: the CTA leans toward the pointer, at most 10 px (${pulled.m41}px)`);
+  const nudge = await cta.locator("[data-magnetic-glyph]").evaluate((el) => parseFloat(getComputedStyle(el).translate));
+  assert.ok(nudge > 1, `desktop: the arrow glyph nudges further (${nudge}px)`);
+  await page.mouse.move(6, 500, { steps: 4 });
+  await page.waitForTimeout(900);
+  assert.ok(Math.abs((await matrixOf(cta)).m41) < 0.5, "desktop: the CTA springs back when the pointer leaves");
+  const frames = await idleFrames(page);
+  assert.ok(frames <= 2, `desktop: the settled spring requests no frames (${frames} in 300 ms)`);
+  // Still a plain link: its name is its visible text, and keyboard focus shows the global focus ring.
+  const text = (await cta.textContent()).trim();
+  assert.ok(await page.locator("#process").getByRole("link", { name: text, exact: true }).count() >= 1, `desktop: the magnetic CTA keeps its accessible name ("${text}")`);
+  await page.keyboard.press("Shift");
+  await cta.focus();
+  const ring = await cta.evaluate((el) => ({ visible: el.matches(":focus-visible"), outline: getComputedStyle(el).outlineStyle !== "none" && parseFloat(getComputedStyle(el).outlineWidth) >= 2 }));
+  assert.deepEqual(ring, { visible: true, outline: true }, "desktop: keyboard focus on the magnetic CTA shows the focus ring");
+});
+
+desktop("What We Do tiles tilt toward the pointer under a spotlight", async (page) => {
+  await jumpTo(page, await sectionTop(page, "work"));
+  await page.waitForTimeout(900);
+  const card = page.locator("#work [data-tilt]").first();
+  // Layout boxes (offsets ignore transforms) of the tile and the whole bento.
+  const layout = () => card.evaluate((el) => [el, el.parentElement.parentElement].map((node) => [node.offsetLeft, node.offsetTop, node.offsetWidth, node.offsetHeight].join()).join("|"));
+  const rest = await card.evaluate((el) => getComputedStyle(el).transform);
+  const restLayout = await layout();
+  const box = await card.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+  await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.2, { steps: 6 });
+  await page.waitForTimeout(700);
+  const tilted = await card.evaluate((el, at) => ({
+    transform: getComputedStyle(el).transform,
+    spot: parseFloat(getComputedStyle(el.querySelector(":scope > .fx-spotlight")).opacity),
+    // The pointer still reaches the tile's link through the spotlight layer.
+    hitsLink: document.elementFromPoint(at.x, at.y)?.closest("a") === el.querySelector("a"),
+  }), { x: box.x + box.width * 0.85, y: box.y + box.height * 0.2 });
+  assert.match(tilted.transform, /^matrix3d\(/, "desktop: the tile tilts in 3D");
+  assert.notEqual(tilted.transform, rest, "desktop: the tilt follows the pointer");
+  assert.ok(tilted.spot > 0.99, "desktop: the spotlight shows under the pointer");
+  assert.equal(tilted.hitsLink, true, "desktop: the spotlight never takes the pointer from the tile's link");
+  assert.equal(await layout(), restLayout, "desktop: tilting moves no layout box");
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
