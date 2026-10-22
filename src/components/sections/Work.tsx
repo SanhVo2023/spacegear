@@ -10,6 +10,7 @@ import Parallax from "@/components/fx/Parallax";
 import ScrollDepth from "@/components/fx/ScrollDepth";
 import Tilt from "@/components/fx/Tilt";
 import { SECTIONS, WORK, type WorkTile } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 /** small animated drag-handle dots, top-right of each tile */
 function GridDots() {
@@ -33,7 +34,7 @@ export function Tile({ name, img, desc, href, still = false }: WorkTile & { stil
   const image = (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={img}
+      {...contentImage(img)}
       alt=""
       loading="lazy"
       decoding="async"
@@ -186,7 +187,7 @@ export default function Work() {
                 <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
                   <Parallax className="absolute inset-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+                    <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
                   </Parallax>
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
                   <div className="relative flex h-full flex-col justify-between p-6">
@@ -247,7 +248,7 @@ export default function Work() {
           <StackCards top={88} step={14} gap={64}>
             <Link prefetch={false} href={f.href} className="group relative block h-[46vh] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+              <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/85 via-transparent to-[#0c0d0f]/30" />
               <div className="relative flex h-full flex-col justify-between p-6">
                 <div className="flex items-start justify-between">

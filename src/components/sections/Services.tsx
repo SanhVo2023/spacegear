@@ -6,6 +6,7 @@ import Reveal from "@/components/Reveal";
 import DotField from "@/components/DotField";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
 import { CORE_PANEL, PILLARS, SECTIONS } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 /**
  * Geometry of the desktop accordion: the open column takes 2.6 shares of the row and the others 0.8 each, with
@@ -98,7 +99,7 @@ export default function Services() {
                       {/* the image settles from a slight zoom as an orange panel wipes off it (globals.css, FX block) */}
                       <div className="relative mt-5 h-48 w-full max-w-sm overflow-hidden rounded-xl">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={s.img} alt="" loading="lazy" decoding="async" className="fx-reveal-img h-full w-full object-cover" />
+                        <img {...contentImage(s.img)} alt="" loading="lazy" decoding="async" className="fx-reveal-img h-full w-full object-cover" />
                         <span aria-hidden className="fx-reveal-wipe" />
                       </div>
                     </div>

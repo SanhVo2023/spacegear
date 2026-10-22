@@ -6,6 +6,7 @@ import { ProcessSteps } from "@/components/sections/Process";
 import { FaqAccordion, StillQuestionsCard } from "@/components/sections/Faq";
 import { Tile } from "@/components/sections/Work";
 import { PILLARS, SERVICES } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { SITE } from "@/lib/site";
 import { buildMetadata, breadcrumbData, canonicalUrl } from "@/lib/seo";
 
@@ -55,7 +56,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
               {pillar && (
                 <div className="relative mt-auto h-40 overflow-hidden rounded-xl border border-line">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pillar.img} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  <img {...contentImage(pillar.img)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                 </div>
               )}
             </div>

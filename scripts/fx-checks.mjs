@@ -1330,6 +1330,97 @@ if (SITE_COPY.socialProfiles.length === 0) {
   });
 }
 
+// The hero CTA and corner card that editors can change in the CMS (content/home.json), selected as
+// browser-check.mjs selects them: the CTA by its link inside the copy block, the corner card outside it.
+const HOME_COPY = JSON.parse(readFileSync(new URL("../content/home.json", import.meta.url), "utf8"));
+const HERO_CTA = `#home .hero-copy a[href=${JSON.stringify(HOME_COPY.cta.href)}]`;
+const HERO_CORNER = `#home a[href=${JSON.stringify(HOME_COPY.corner.href)}]:not(.hero-copy a)`;
+
+/** Waits until this tab's intro (only the first load in a run plays it) has ended and the hero CTA has risen
+ *  in: fully opaque and still for two polls, so a pointer placed from its box lands where it rests. */
+async function heroCtaAtRest(page) {
+  await page.waitForFunction(() => !["play", "reveal"].includes(document.documentElement.dataset.intro), null, { timeout: 15000 });
+  let last = "";
+  for (let i = 0; i < 50; i++) {
+    const now = await page.evaluate((selector) => {
+      const el = document.querySelector(selector);
+      let opacity = 1;
+      for (let node = el; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+      const r = el.getBoundingClientRect();
+      return opacity > 0.99 ? `${r.x.toFixed(1)},${r.y.toFixed(1)}` : "";
+    }, HERO_CTA);
+    if (now && now === last) return;
+    last = now;
+    await page.waitForTimeout(100);
+  }
+  throw new Error("desktop: the hero CTA never came to rest (precondition)");
+}
+
+/** The cursor's state and label. */
+function cursorReads(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    return { state: root.dataset.state, label: root.querySelector(".fx-cursor-label").textContent };
+  });
+}
+
+desktop("the hero CTA is magnetic over the globe, keeps its name and focus ring, and the globe still reads Drag", async (page) => {
+  const cta = page.locator(HERO_CTA);
+  assert.equal(await cta.count(), 1, "desktop: one hero CTA (precondition)");
+  assert.equal(await cta.getAttribute("data-magnetic"), "", "desktop: the hero CTA is magnetic");
+  await heroCtaAtRest(page);
+  const box = await cta.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width - 3, box.y + box.height / 2, { steps: 5 });
+  await page.waitForTimeout(600);
+  const pulled = await matrixOf(cta);
+  assert.ok(pulled.m41 > 1 && pulled.m41 <= 10.5, `desktop: the hero CTA leans toward the pointer, at most 10 px (${pulled.m41}px)`);
+  // The CTA lies over the globe's wrapper but outside it: the ring grows for the link, it does not read Drag.
+  assert.equal((await cursorReads(page)).state, "hover","desktop: over the hero CTA the cursor shows the link ring, not the globe's label");
+
+  // The live globe beside it (Part 1 labels its wrapper once ready): leaving the CTA for the globe reads Drag
+  // and lets the CTA spring back.
+  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 });
+  const spot = await page.evaluate(() => {
+    for (let x = innerWidth - 120; x > innerWidth / 2; x -= 40) {
+      for (let y = 240; y < innerHeight - 160; y += 60) {
+        if (document.elementFromPoint(x, y)?.closest(".hero-scene")) return { x, y };
+      }
+    }
+    return null;
+  });
+  assert.ok(spot, "desktop: part of the live globe is open to the pointer (precondition)");
+  await page.mouse.move(spot.x, spot.y, { steps: 6 });
+  await page.waitForTimeout(900);
+  assert.deepEqual(await cursorReads(page), { state: "label", label: "Drag" }, "desktop: from the hero CTA onto the globe the cursor reads Drag");
+  assert.ok(Math.abs((await matrixOf(cta)).m41) < 0.5, "desktop: the hero CTA springs back when the pointer leaves for the globe");
+
+  // Still a plain link: its name is its visible text (content/home.json), and keyboard focus shows the ring.
+  assert.equal(await page.locator("#home").getByRole("link", { name: HOME_COPY.cta.label, exact: true }).count(), 1, `desktop: the magnetic hero CTA keeps its accessible name ("${HOME_COPY.cta.label}")`);
+  await page.keyboard.press("Shift");
+  await cta.focus();
+  const ring = await cta.evaluate((el) => ({ visible: el.matches(":focus-visible"), outline: getComputedStyle(el).outlineStyle !== "none" && parseFloat(getComputedStyle(el).outlineWidth) >= 2 }));
+  assert.deepEqual(ring, { visible: true, outline: true }, "desktop: keyboard focus on the magnetic hero CTA shows the focus ring");
+});
+
+desktop("Lenis glides through the hero's scroll beats", async (page) => {
+  await heroCtaAtRest(page);
+  await page.mouse.move(6, 500);
+  await page.waitForTimeout(400);
+  await page.mouse.wheel(0, 700);
+  await page.waitForTimeout(80);
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("lenis-smooth")), true, "desktop: the hero scroll glides");
+  await page.waitForTimeout(1600);
+  const hero = await page.evaluate((selector) => {
+    let opacity = 1;
+    for (let node = document.querySelector(selector); node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+    return { y: window.scrollY, copyOpacity: opacity, copyHidden: document.getElementById("home").hasAttribute("data-copy-hidden") };
+  }, HERO_CORNER);
+  assert.ok(hero.y > 600, `desktop: the glide moved through the hero (${hero.y}px)`);
+  assert.ok(hero.copyOpacity < 0.5, `desktop: the hero beat advanced with the glide (copy opacity ${hero.copyOpacity})`);
+  assert.equal(hero.copyHidden, true, "desktop: past the copy beat its links stop taking clicks (data-copy-hidden)");
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
