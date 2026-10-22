@@ -490,4 +490,21 @@ html[data-fx] [data-magnetic] [data-magnetic-glyph] { translate: calc(var(--mx, 
 .fx-spotlight { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(280px circle at var(--sx, 50%) var(--sy, 50%), rgba(250, 110, 67, 0.18), transparent 65%); transition: opacity 0.35s ease-out; }
 html[data-fx] [data-spotlight]:hover > .fx-spotlight { opacity: 1; }
 
+/* Split titles (SplitReveal.tsx, ScrollColorTitle.tsx): on fine-pointer desktops each word's characters rise
+   out of the word's mask, blur to sharp, staggered left to right. The mask is the hero's (.hero-word-mask):
+   0.36em on top for stacked accents (Vietnamese "Ấ"), 0.18em below for descenders, 0.1em at the sides, all
+   cancelled by negative margins, so the line boxes, line breaks and the section height stay those of the
+   plain title; nowrap keeps a word whole, as its text was. Only the characters take pointer events, not the
+   masks' padding. The hidden start applies only under data-fx-motion and before the title's data-in;
+   everything else (no-JS, reduced motion, touch: those never split anyway) is the end state. The
+   transitions apply only once the title is in view, so the hidden start never animates in. The stagger
+   is 30 ms per character, squeezed for long titles so the last one starts within 0.6 s (--n: count). */
+.fx-split-mask { display: inline-block; overflow: clip; white-space: nowrap; vertical-align: top; padding: 0.36em 0.1em 0.18em; margin: -0.36em -0.1em -0.18em; pointer-events: none; }
+.fx-split-char { display: inline-block; pointer-events: auto; }
+html[data-fx-motion] [data-split-title]:not([data-in]) .fx-split-char { translate: 0 115%; opacity: 0; filter: blur(10px); }
+[data-split-title][data-in] .fx-split-char { transition: translate 1s var(--fx-ease), opacity 0.7s ease-out, filter 0.9s ease-out; transition-delay: calc(var(--i, 0) * min(30ms, 600ms / var(--n, 20))); }
+@supports not (overflow: clip) {
+  .fx-split-mask { overflow: hidden; }
+}
+
 /* === /FX === */

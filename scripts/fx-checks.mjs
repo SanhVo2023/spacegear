@@ -436,6 +436,48 @@ desktop("What We Do tiles tilt toward the pointer under a spotlight", async (pag
   assert.equal(await layout(), restLayout, "desktop: tilting moves no layout box");
 });
 
+desktop("split titles keep their full accessible name and rise in as they enter", async (page) => {
+  await scrollPass(page);
+  const titles = await page.evaluate(() => [...document.querySelectorAll("h2[data-split-title]")].map((heading) => ({
+    label: heading.getAttribute("aria-label"),
+    chars: [...heading.querySelectorAll("[data-split-char]")].map((char) => char.textContent).join(""),
+    hidden: heading.children.length > 0 && [...heading.children].every((child) => child.getAttribute("aria-hidden") === "true"),
+    risen: heading.hasAttribute("data-in"),
+  })));
+  assert.ok(titles.length >= 7, `desktop: every home section title is split (${titles.length})`);
+  for (const [i, title] of titles.entries()) {
+    assert.equal(title.chars, title.label.replace(/\s+/g, ""), `desktop: "${title.label}" keeps every character`);
+    assert.ok(title.hidden, `desktop: "${title.label}" hides its split spans from assistive technology`);
+    assert.ok(title.risen, `desktop: "${title.label}" rose in when it entered the viewport`);
+    assert.ok(await page.getByRole("heading", { level: 2, name: title.label, exact: true }).count() >= 1, `desktop: "${title.label}" is the heading's accessible name`);
+    // The accessibility tree holds one heading named by the whole title, with no word or letter under it.
+    const tree = await page.locator("h2[data-split-title]").nth(i).ariaSnapshot();
+    assert.equal(tree, `- heading ${JSON.stringify(title.label)} [level=2]`, `desktop: "${title.label}" reads as one heading, no fragments`);
+  }
+});
+
+desktop("split titles break into the same lines as the plain title", async (page) => {
+  await page.waitForFunction(() => document.querySelector("h2[data-split-title] [data-split-char]"), null, { timeout: 10000 });
+  // A hidden copy of each title, built like the server markup (whole words), at the same width.
+  const lines = await page.evaluate(() => [...document.querySelectorAll("h2[data-split-title]")].map((heading) => {
+    const copy = heading.cloneNode(false);
+    copy.removeAttribute("data-split-title");
+    copy.setAttribute("aria-hidden", "true");
+    Object.assign(copy.style, { position: "absolute", visibility: "hidden", left: "0", top: "0", width: `${heading.getBoundingClientRect().width}px` });
+    for (const word of heading.getAttribute("aria-label").split(" ")) {
+      const outer = document.createElement("span");
+      outer.className = heading.firstElementChild.className;
+      outer.append(Object.assign(document.createElement("span"), { textContent: word }));
+      copy.append(outer);
+    }
+    heading.parentElement.append(copy);
+    const plain = copy.offsetHeight;
+    copy.remove();
+    return { label: heading.getAttribute("aria-label"), split: heading.offsetHeight, plain };
+  }));
+  for (const title of lines) assert.equal(title.split, title.plain, `desktop: "${title.label}" keeps its height and line breaks once split`);
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

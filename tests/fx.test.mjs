@@ -86,6 +86,17 @@ test("splitWords keeps every character, in order, per word", () => {
   assert.deepEqual(splitWords(""), []);
 });
 
+test("splitWords handles any CMS title: line breaks, stacked accents, emoji", () => {
+  assert.deepEqual(splitWords("Who You\nWork  With\t").map((word) => word.text), ["Who", "You", "Work", "With"]);
+  // Vietnamese stacked accents, precomposed and decomposed, stay one character with their letter.
+  assert.deepEqual(splitWords("Ấn Độ")[0].chars, ["Ấ", "n"]);
+  assert.deepEqual(splitWords("Ấn")[0].chars, ["Ấ", "n"]);
+  // An emoji ZWJ sequence and a flag are one character each.
+  assert.deepEqual(splitWords("AI 👩‍💻🇻🇳")[1].chars, ["👩‍💻", "🇻🇳"]);
+  const long = "Digital transformation that ships useful software, measured in weeks rather than quarters";
+  assert.equal(splitWords(long).flatMap((word) => word.chars).join(""), long.replace(/\s+/g, ""));
+});
+
 test("charOffsets numbers characters across the title for the stagger", () => {
   assert.deepEqual(charOffsets(splitWords("What We Do")), [0, 4, 6]);
   assert.deepEqual(charOffsets([]), []);
