@@ -3,6 +3,7 @@ import Reveal from "@/components/Reveal";
 import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
 import { ARTICLES, SECTIONS, type Article } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { SAMPLE_ARTICLES, SAMPLE_MARKER, SHOW_SAMPLES } from "@/lib/samples";
 
 const USING_SAMPLES = ARTICLES.length === 0 && SHOW_SAMPLES;
@@ -17,7 +18,7 @@ function ArticleCard({ a }: { a: Article }) {
     <>
       <div className="relative h-44 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={a.img} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        <img {...contentImage(a.img)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
         <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
       </div>
       <div className="flex flex-1 flex-col p-6">

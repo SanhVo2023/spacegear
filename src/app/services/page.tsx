@@ -3,6 +3,7 @@ import PageIntro from "@/components/PageIntro";
 import StructuredData from "@/components/StructuredData";
 import { ArrowIcon, Container, CtaBand } from "@/components/ui";
 import { PILLARS, serviceBySlug } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { buildMetadata, breadcrumbData } from "@/lib/seo";
 
 export const metadata = buildMetadata({ title: "Services", description: "Explore digital transformation strategy, AI consulting, applied AI and deep learning, automation, integration and digital product delivery.", path: "/services/" });
@@ -50,7 +51,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="relative h-44 overflow-hidden rounded-2xl border border-line">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pillar.img} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <img {...contentImage(pillar.img)} alt="" loading="lazy" className="h-full w-full object-cover" />
                   </div>
                 </article>
               );
