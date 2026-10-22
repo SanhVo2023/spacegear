@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { load } from "js-yaml";
+import { configProblems, loadSchema } from "../scripts/check-sveltia-config.mjs";
 
 const { contentSchemas, SINGLETON_FILES, COLLECTION_NAMES } = await import("../src/lib/content-model.ts");
 const { SERVICES } = await import("../src/lib/content.ts");
@@ -193,4 +194,16 @@ test("uploads are renamed to names the build accepts, and only still-image forma
   // uploads that carry location data, which those two formats could still contain.
   assert.deepEqual(Object.keys(library.transformations).sort(), ["avif", "heic", "jpeg", "png"]);
   for (const options of Object.values(library.transformations)) assert.deepEqual(options, { format: "webp", quality: 85, width: 2560, height: 2560 });
+});
+
+// The release's own JSON schema (scripts/sveltia-cms.schema.json, pinned in SVELTIA.schema) is the
+// reference for which options exist: scripts/check-sveltia-config.mjs validates against it offline.
+test("config.yml is valid for the vendored release's own schema, which refuses unknown options", () => {
+  const schema = loadSchema();
+  assert.deepEqual(configProblems(config, schema), []);
+  assert.deepEqual(configProblems({ ...config, bogus_option: true }, schema), ["/ should NOT have additional properties (bogus_option)"], "an option the release does not have, at the top level");
+  assert.ok(configProblems({ ...config, use_emoji_autocomplete: false }, schema).includes("/ should NOT have additional properties (use_emoji_autocomplete)"), "a field option set at the top level");
+  const order = structuredClone(config);
+  order.collections.find((collection) => collection.name === "faqs").fields.find((field) => field.name === "order").auto_increment = true;
+  assert.ok(configProblems(order, schema).some((problem) => problem.includes("auto_increment")), "an option 0.230.1's fields do not have (Task 9)");
 });

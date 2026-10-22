@@ -3,14 +3,16 @@
 // below, and extracts the browser bundle (dist/sveltia-cms.js), the lazy chunks it imports
 // relative to its own URL (dist/chunks/**) and the MIT licence. Source maps stay out (check-export
 // rejects *.map files), so the trailing sourceMappingURL comments are dropped as well.
-// Two trust roots: the tarball's integrity, and the sha256 of every vendored file, both pinned in
-// SVELTIA below. The lock (scripts/sveltia-cms.lock.json) must repeat the pinned hashes, so new
-// vendored bytes need a visible edit here as well as a new lock.
+// From the same tarball it also keeps the release's configuration schema (schema/sveltia-cms.json)
+// as scripts/sveltia-cms.schema.json, for scripts/check-sveltia-config.mjs; it never ships.
+// Two trust roots: the tarball's integrity, and the sha256 of every vendored file and of the
+// schema, all pinned in SVELTIA below. The lock (scripts/sveltia-cms.lock.json) must repeat the
+// pinned hashes, so new vendored bytes need a visible edit here as well as a new lock.
 //   node scripts/vendor-sveltia.mjs          download and rewrite the vendored files + lock
 //   node scripts/vendor-sveltia.mjs --check  verify the vendored files against the pin and lock (offline)
 // To upgrade: set version, tarball and integrity from `npm view @sveltia/cms@<v> dist.tarball dist.integrity`
-// (a release at least 14 days old), empty `files`, run the script, check what it extracted, then pin
-// the hashes it prints. Then follow README.md, "Editing content".
+// (a release at least 14 days old), empty `files` and `schema`, run the script, check what it
+// extracted, then pin the hashes it wrote to the lock. Then follow README.md, "Upgrading Sveltia".
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,9 +30,17 @@ export const SVELTIA = {
     "chunks/react-dom.js": "9b5ffe4f9241b1885d9da326f3401e9727d628bfbecb0cb32b027cda25d5bfeb",
     "sveltia-cms.js": "d3eff7b0ba761ee1d06e9f581304075a575757de4cbd7ec1179b95873f6f4fc7",
   },
+  /**
+   * sha256 of the release's own configuration schema (schema/sveltia-cms.json in the tarball).
+   * It is kept in scripts/ (SCHEMA_FILE) for scripts/check-sveltia-config.mjs and never ships:
+   * /admin/ serves SVELTIA.files only (scripts/lib/admin.mjs).
+   */
+  schema: "59a82ee742c6e6ecf862412272b8da30b81f505b8f2091cc71ce27681fb9c778",
 };
 export const TARGET = "public/admin/sveltia";
 export const LOCK = "scripts/sveltia-cms.lock.json";
+export const SCHEMA_FILE = "scripts/sveltia-cms.schema.json";
+const SCHEMA_ENTRY = "package/schema/sveltia-cms.json";
 /** The project folder (the parent of scripts/), wherever the command runs from. */
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));
 /** The unpacked tarball may not exceed this (0.230.1 unpacks to 41.8 MiB): a gzip bomb stops here. */
@@ -75,6 +85,30 @@ function withoutSourceMap(body) {
   return Buffer.from(body.toString("latin1").replace(/\n?\/\/# sourceMappingURL=\S+\s*$/, "\n"), "latin1");
 }
 
+/** The tar archive inside `tgz`, once its integrity is the pin's and it unpacks to at most MAX_UNPACKED. */
+function unpackVerified(tgz, pin) {
+  const integrity = `sha512-${crypto.createHash("sha512").update(tgz).digest("base64")}`;
+  if (integrity !== pin.integrity) throw new Error(`Integrity mismatch for ${pin.name}@${pin.version}: expected ${pin.integrity}, got ${integrity}`);
+  try {
+    return zlib.gunzipSync(tgz, { maxOutputLength: MAX_UNPACKED });
+  } catch (error) {
+    if (error?.code === "ERR_BUFFER_TOO_LARGE" || error instanceof RangeError) throw new Error(`${pin.name}@${pin.version} unpacks to more than ${MAX_UNPACKED >> 20} MiB; raise MAX_UNPACKED only after checking the release`, { cause: error });
+    throw error;
+  }
+}
+
+/**
+ * The release's configuration schema (schema/sveltia-cms.json) from the same verified tarball:
+ * exactly one regular file, with the pinned sha256 when the pin has one.
+ */
+export function extractSchema(tgz, pin = SVELTIA) {
+  const found = untarEntries(unpackVerified(tgz, pin)).filter(({ name }) => name === SCHEMA_ENTRY);
+  if (found.length !== 1 || found[0].type !== "0") throw new Error(`The tarball must hold ${SCHEMA_ENTRY} once, as a regular file (found ${found.length})`);
+  const hash = sha256(found[0].body);
+  if (pin.schema && hash !== pin.schema) throw new Error(`The extracted ${SCHEMA_ENTRY} differs from the hash pinned in scripts/vendor-sveltia.mjs (SVELTIA.schema): ${hash}`);
+  return found[0].body;
+}
+
 /**
  * Picks the vendored files out of the tarball and strips their sourceMappingURL comments. Refuses
  * a tarball whose integrity is not the pin's, that unpacks to more than MAX_UNPACKED, whose wanted
@@ -82,15 +116,7 @@ function withoutSourceMap(body) {
  * (when the pin lists any). `pin` is SVELTIA; tests pass their own.
  */
 export function extractVendored(tgz, pin = SVELTIA) {
-  const integrity = `sha512-${crypto.createHash("sha512").update(tgz).digest("base64")}`;
-  if (integrity !== pin.integrity) throw new Error(`Integrity mismatch for ${pin.name}@${pin.version}: expected ${pin.integrity}, got ${integrity}`);
-  let tar;
-  try {
-    tar = zlib.gunzipSync(tgz, { maxOutputLength: MAX_UNPACKED });
-  } catch (error) {
-    if (error?.code === "ERR_BUFFER_TOO_LARGE" || error instanceof RangeError) throw new Error(`${pin.name}@${pin.version} unpacks to more than ${MAX_UNPACKED >> 20} MiB; raise MAX_UNPACKED only after checking the release`, { cause: error });
-    throw error;
-  }
+  const tar = unpackVerified(tgz, pin);
   const out = new Map();
   for (const { name, type, body } of untarEntries(tar)) {
     if (!WANTED.test(name)) continue;
@@ -145,11 +171,20 @@ export function verifyVendored(root = ROOT, pin = SVELTIA) {
     else if (sha256(fs.readFileSync(file)) !== hash) problems.push(`${TARGET}/${relative} differs from the vendored release`);
   }
   for (const relative of listFiles(target)) if (!Object.hasOwn(pin.files, relative)) problems.push(`unexpected file ${TARGET}/${relative}`);
+  if (pin.schema) {
+    if (lock.schema !== pin.schema) problems.push(`${LOCK} lists another schema hash than SVELTIA.schema in scripts/vendor-sveltia.mjs; a new schema needs both pins changed`);
+    const schema = path.join(root, SCHEMA_FILE);
+    if (!fs.existsSync(schema)) problems.push(`missing ${SCHEMA_FILE}; run npm run cms:vendor`);
+    else if (sha256(fs.readFileSync(schema)) !== pin.schema) problems.push(`${SCHEMA_FILE} differs from the vendored release's schema`);
+  }
   return problems;
 }
 
-/** Replaces the vendored folder with `files` (from extractVendored) and writes the lock. */
-export function writeVendored(files, root = ROOT, pin = SVELTIA) {
+/**
+ * Replaces the vendored folder with `files` (from extractVendored), writes the schema (from
+ * extractSchema) when one is given, and writes the lock.
+ */
+export function writeVendored(files, root = ROOT, pin = SVELTIA, schema = null) {
   const target = path.join(root, TARGET);
   const paths = [...files.keys()].map((relative) => [relative, inside(target, relative)]);
   fs.rmSync(target, { recursive: true, force: true });
@@ -161,16 +196,23 @@ export function writeVendored(files, root = ROOT, pin = SVELTIA) {
     hashes[relative] = sha256(data);
   }
   fs.mkdirSync(path.dirname(path.join(root, LOCK)), { recursive: true });
-  fs.writeFileSync(path.join(root, LOCK), `${JSON.stringify({ name: pin.name, version: pin.version, tarball: pin.tarball, integrity: pin.integrity, files: hashes }, null, 2)}\n`);
+  const lock = { name: pin.name, version: pin.version, tarball: pin.tarball, integrity: pin.integrity, files: hashes };
+  if (schema) {
+    fs.writeFileSync(path.join(root, SCHEMA_FILE), schema);
+    lock.schema = sha256(schema);
+  }
+  fs.writeFileSync(path.join(root, LOCK), `${JSON.stringify(lock, null, 2)}\n`);
   return hashes;
 }
 
 async function vendor() {
   const response = await fetch(SVELTIA.tarball);
   if (!response.ok) throw new Error(`Download failed (${response.status}): ${SVELTIA.tarball}`);
-  const files = extractVendored(Buffer.from(await response.arrayBuffer()));
-  writeVendored(files);
-  console.log(`Vendored ${SVELTIA.name}@${SVELTIA.version}: ${files.size} files in ${TARGET}/.`);
+  const tgz = Buffer.from(await response.arrayBuffer());
+  const files = extractVendored(tgz);
+  const schema = extractSchema(tgz);
+  writeVendored(files, ROOT, SVELTIA, schema);
+  console.log(`Vendored ${SVELTIA.name}@${SVELTIA.version}: ${files.size} files in ${TARGET}/, and its configuration schema in ${SCHEMA_FILE} (sha256 ${sha256(schema)}).`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

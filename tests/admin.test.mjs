@@ -5,7 +5,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { LOCK, MAX_UNPACKED, SVELTIA, TARGET, extractVendored, untar, verifyVendored, writeVendored } from "../scripts/vendor-sveltia.mjs";
+import { LOCK, MAX_UNPACKED, SCHEMA_FILE, SVELTIA, TARGET, extractSchema, extractVendored, untar, verifyVendored, writeVendored } from "../scripts/vendor-sveltia.mjs";
+import { ADMIN_FILES } from "../scripts/lib/admin.mjs";
 import { ADMIN_CSP, ADMIN_FONTS } from "../scripts/lib/headers.mjs";
 
 test("the vendored Sveltia CMS is byte for byte the pinned release", () => {
@@ -20,6 +21,9 @@ test("the vendored Sveltia CMS is byte for byte the pinned release", () => {
   const bundle = fs.readFileSync("public/admin/sveltia/sveltia-cms.js", "utf8");
   assert.ok(bundle.includes(`name:\`@sveltia/cms\`,version:\`${SVELTIA.version}\``), "the bundle itself says it is the pinned version");
   assert.doesNotMatch(bundle, /sourceMappingURL/, "no pointer to a source map that is not shipped");
+  assert.equal(lock.schema, SVELTIA.schema, "the lock repeats the pinned schema hash");
+  assert.match(SVELTIA.schema, /^[0-9a-f]{64}$/);
+  assert.ok(!ADMIN_FILES.some((file) => file.includes("schema")), "the schema never ships in /admin/");
 });
 
 /** A gzipped ustar archive of `entries` ({ name, body, type = "0", pax }): enough to drive the vendor script's reader. */
@@ -99,7 +103,7 @@ test("writing and checking stay inside public/admin/sveltia", () => {
     assert.throws(() => writeVendored(new Map([["sveltia-cms.js", Buffer.from("x")], ["../escape.js", Buffer.from("x")]]), root), /Refusing \.\.\/escape\.js: it is not a path inside/);
     assert.deepEqual(fs.readdirSync(root), [], "nothing is written, not even the files before it");
     const hashes = writeVendored(new Map([["sveltia-cms.js", Buffer.from("x")], ["chunks/a.js", Buffer.from("y")]]), root);
-    assert.deepEqual(verifyVendored(root, { ...SVELTIA, files: hashes }), []);
+    assert.deepEqual(verifyVendored(root, { ...SVELTIA, files: hashes, schema: "" }), []);
     assert.ok(verifyVendored(root, { ...SVELTIA, files: { ...hashes, "../../package.json": "0".repeat(64) } }).some((problem) => /Refusing \.\.\/\.\.\/package\.json/.test(problem)), "a pinned path that leaves the folder is never read");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -109,6 +113,7 @@ test("new vendored bytes need a visible pin edit: a file and lock changed togeth
   try {
     fs.mkdirSync(path.join(root, "scripts"));
     fs.copyFileSync(LOCK, path.join(root, LOCK));
+    fs.copyFileSync(SCHEMA_FILE, path.join(root, SCHEMA_FILE));
     fs.cpSync(TARGET, path.join(root, TARGET), { recursive: true });
     assert.deepEqual(verifyVendored(root), []);
     const chunk = path.join(root, TARGET, "chunks", "react-dom.js");
@@ -123,12 +128,44 @@ test("new vendored bytes need a visible pin edit: a file and lock changed togeth
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test("the configuration schema comes from the same verified tarball, once, with the pinned hash", () => {
+  const schema = { name: "package/schema/sveltia-cms.json", body: Buffer.from('{"$schema":"http://json-schema.org/draft-07/schema#"}') };
+  const tgz = tarball([BUNDLE, schema]);
+  const hash = crypto.createHash("sha256").update(schema.body).digest("hex");
+  assert.equal(extractSchema(tgz, { ...pinFor(tgz), schema: hash }).toString(), schema.body.toString());
+  assert.throws(() => extractSchema(tgz, { ...pinFor(tgz), schema: "0".repeat(64) }), /differs from the hash pinned in scripts\/vendor-sveltia\.mjs \(SVELTIA\.schema\)/);
+  assert.throws(() => extractSchema(tgz), /^Error: Integrity mismatch/, "only from the pinned tarball");
+  const without = tarball([BUNDLE]);
+  assert.throws(() => extractSchema(without, pinFor(without)), /must hold package\/schema\/sveltia-cms\.json once/);
+  const twice = tarball([BUNDLE, schema, schema]);
+  assert.throws(() => extractSchema(twice, pinFor(twice)), /once, as a regular file \(found 2\)/);
+  assert.equal(extractVendored(tgz, pinFor(tgz)).size, 1, "the schema is not a vendored /admin/ file");
+});
+
+test("a changed schema file, or a lock without its hash, fails the vendor check", () => {
+  const root = tempDir();
+  try {
+    fs.mkdirSync(path.join(root, "scripts"));
+    fs.copyFileSync(LOCK, path.join(root, LOCK));
+    fs.cpSync(TARGET, path.join(root, TARGET), { recursive: true });
+    assert.deepEqual(verifyVendored(root), [`missing ${SCHEMA_FILE}; run npm run cms:vendor`]);
+    fs.writeFileSync(path.join(root, SCHEMA_FILE), "{}");
+    assert.deepEqual(verifyVendored(root), [`${SCHEMA_FILE} differs from the vendored release's schema`]);
+    fs.copyFileSync(SCHEMA_FILE, path.join(root, SCHEMA_FILE));
+    const lock = JSON.parse(fs.readFileSync(path.join(root, LOCK), "utf8"));
+    delete lock.schema;
+    fs.writeFileSync(path.join(root, LOCK), `${JSON.stringify(lock, null, 2)}\n`);
+    assert.deepEqual(verifyVendored(root), [`${LOCK} lists another schema hash than SVELTIA.schema in scripts/vendor-sveltia.mjs; a new schema needs both pins changed`]);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("the site stylesheet does not take class names from the vendored CMS or the editable copy", () => {
   // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle, or in a
   // CMS edit, to the site CSS.
   const css = fs.readFileSync("src/app/globals.css", "utf8");
   assert.match(css, /^@source not "\.\.\/\.\.\/public\/admin";\r?$/m);
   assert.match(css, /^@source not "\.\.\/\.\.\/content";\r?$/m);
+  assert.match(css, /^@source not "\.\.\/\.\.\/scripts\/sveltia-cms\.schema\.json";\r?$/m, "nor from the release's configuration schema (its option descriptions)");
 });
 
 test("the admin page loads only the vendored bundle and is never indexed", () => {

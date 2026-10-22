@@ -1,8 +1,9 @@
 @import "tailwindcss";
-/* >>> CMS (showcase Part 3): the vendored Sveltia CMS bundle and the editable copy are not site
-   source. Without this, Tailwind's source detection reads class-like words in them and adds
-   unused utilities here, so a CMS edit could change the site stylesheet. */
+/* >>> CMS (showcase Part 3): the vendored Sveltia CMS bundle, its configuration schema and the
+   editable copy are not site source. Without this, Tailwind's source detection reads class-like
+   words in them and adds unused utilities here, so a CMS edit could change the site stylesheet. */
 @source not "../../public/admin";
+@source not "../../scripts/sveltia-cms.schema.json";
 @source not "../../content";
 /* <<< CMS */
 

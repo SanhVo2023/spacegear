@@ -1,2 +1,4 @@
 # Vendored Sveltia CMS release: keep the published bytes (scripts/vendor-sveltia.mjs checks their hashes).
 public/admin/sveltia/** -text -diff
+# The vendored release's configuration schema: kept byte for byte (SVELTIA.schema pins its hash).
+scripts/sveltia-cms.schema.json -text -diff
