@@ -3,6 +3,7 @@ import ContactForm from "@/components/ContactForm";
 import { CircleBadge } from "@/components/sections/Faq";
 import { Container } from "@/components/ui";
 import { FAQ_CARD, SERVICES } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { SITE } from "@/lib/site";
 import { buildMetadata } from "@/lib/seo";
 
@@ -22,7 +23,7 @@ export default function Contact() {
             <aside className="overflow-hidden rounded-2xl border border-line bg-card/50">
               <div className="relative h-56 overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={FAQ_CARD.img} alt={FAQ_CARD.imgAlt} className="h-full w-full object-cover grayscale" />
+                <img {...contentImage(FAQ_CARD.img)} alt={FAQ_CARD.imgAlt} className="h-full w-full object-cover grayscale" />
                 <div className="absolute inset-0 bg-gradient-to-t from-card/90 to-transparent" />
                 <div className="absolute bottom-3 right-3"><CircleBadge /></div>
               </div>

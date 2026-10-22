@@ -428,3 +428,227 @@ html[data-intro="play"] #home [data-reveal] { animation: intro-failsafe-copy 0s 
 
 /* FAQ question focus ring stays inside its rounded, overflow-hidden card. */
 .faq-item > summary:focus-visible { outline-offset: -3px; border-radius: 0.75rem; }
+
+/* ================================================================== */
+/* === FX === Motion system (src/components/fx). Flags on <html>:      */
+/*   data-fx-motion  JavaScript on and motion allowed: CSS reveals and  */
+/*                   scroll draws, on every device.                     */
+/*   data-fx         hover + fine pointer, >= 1024 px, motion allowed:  */
+/*                   heavy effects.                                     */
+/* Without a flag, every rule below leaves content in its end state,   */
+/* so no-JS and reduced-motion visitors see everything. New rules go   */
+/* immediately above the closing marker.                               */
+/* ================================================================== */
+:root {
+  --fx-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fx-ease-io: cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+/* Grain: one static noise tile at 3.5%, click-through (Grain.tsx). It sits above the nav (z-index 50)
+   and under the intro overlay (90) and the skip link (100). */
+.fx-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Smooth anchors (smooth-anchors.ts): the html rule's smooth scrolling applies only after a press or a
+   key, so a reload, Back and a deep link land at once instead of gliding from the top of the page. */
+html:not([data-fx-smooth-anchors]) { scroll-behavior: auto; }
+
+/* Smooth scroll (SmoothScroll.tsx): Lenis's base rules. */
+html.lenis,
+html.lenis body { height: auto; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+
+/* Cursor (Cursor.tsx): dot + spring ring inverted against the page; the native caret over fields. It sits
+   above the skip link (100): it takes no pointer events. FxLayer does not mount it in forced colours. */
+html[data-fx-cursor],
+html[data-fx-cursor] * { cursor: none !important; }
+html[data-fx-cursor] :is(input, textarea, select, [contenteditable]) { cursor: auto !important; }
+.fx-cursor { position: fixed; left: 0; top: 0; z-index: 110; width: 0; height: 0; pointer-events: none; mix-blend-mode: difference; }
+.fx-cursor[data-state="label"] { mix-blend-mode: normal; }
+.fx-cursor-dot-pos,
+.fx-cursor-ring { position: absolute; left: 0; top: 0; }
+.fx-cursor-dot { display: block; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
+.fx-cursor-ring { display: grid; place-items: center; width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+.fx-cursor-disc { position: absolute; inset: 0; border: 1.5px solid #fff; border-radius: 9999px; transition: opacity 0.2s, scale 0.4s var(--fx-ease), background-color 0.25s, border-color 0.25s; }
+.fx-cursor-label { position: relative; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #161719; opacity: 0; transition: opacity 0.2s; }
+.fx-cursor:is([data-state="hover"], [data-state="label"]) .fx-cursor-dot { scale: 0; }
+.fx-cursor[data-state="hover"] .fx-cursor-disc { scale: 1.6; background: #fff; }
+.fx-cursor[data-state="label"] .fx-cursor-disc { scale: 2.2; border-color: #fa6e43; background: #fa6e43; }
+.fx-cursor[data-state="label"] .fx-cursor-label { opacity: 1; }
+.fx-cursor:is([data-state="hidden"], [data-state="text"]) :is(.fx-cursor-dot, .fx-cursor-disc) { opacity: 0; }
+
+/* Magnetic (Magnetic.tsx): the arrow glyph travels a little further than its button. */
+html[data-fx] [data-magnetic] [data-magnetic-glyph] { translate: calc(var(--mx, 0) * 3px) calc(var(--my, 0) * 3px); transition: translate 0.3s var(--fx-ease); }
+
+/* Spotlight (Spotlight.tsx, Tilt.tsx): a warm highlight under the pointer. Decorative and click-through. */
+.fx-spotlight { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(280px circle at var(--sx, 50%) var(--sy, 50%), rgba(250, 110, 67, 0.18), transparent 65%); transition: opacity 0.35s ease-out; }
+html[data-fx] [data-spotlight]:hover > .fx-spotlight { opacity: 1; }
+
+/* Split titles (SplitReveal.tsx, ScrollColorTitle.tsx): on fine-pointer desktops each word's characters rise
+   out of the word's mask, blur to sharp, staggered left to right. The mask is the hero's (.hero-word-mask):
+   0.36em on top for stacked accents (Vietnamese "Ấ"), 0.18em below for descenders, 0.1em at the sides, all
+   cancelled by negative margins, so the line boxes, line breaks and the section height stay those of the
+   plain title; nowrap keeps a word whole, as its text was. Only the characters take pointer events, not the
+   masks' padding. The hidden start applies only under data-fx-motion and before the title's data-in;
+   everything else (no-JS, reduced motion, touch: those never split anyway) is the end state. The
+   transitions apply only once the title is in view, so the hidden start never animates in. The stagger
+   is 30 ms per character, squeezed for long titles so the last one starts within 0.6 s (--n: count). */
+.fx-split-mask { display: inline-block; overflow: clip; white-space: nowrap; vertical-align: top; padding: 0.36em 0.1em 0.18em; margin: -0.36em -0.1em -0.18em; pointer-events: none; }
+.fx-split-char { display: inline-block; pointer-events: auto; }
+html[data-fx-motion] [data-split-title]:not([data-in]) .fx-split-char { translate: 0 115%; opacity: 0; filter: blur(10px); }
+[data-split-title][data-in] .fx-split-char { transition: translate 1s var(--fx-ease), opacity 0.7s ease-out, filter 0.9s ease-out; transition-delay: calc(var(--i, 0) * min(30ms, 600ms / var(--n, 20))); }
+@supports not (overflow: clip) {
+  .fx-split-mask { overflow: hidden; }
+}
+
+/* Progress rail (ScrollProgressRail.tsx). Faded but focusable over the hero and footer; focus shows it.
+   Below 1280 px the container's gutter is 32 px, so the rail moves closer to the edge to stay in it. */
+.fx-rail { position: fixed; right: 18px; top: 50%; z-index: 40; translate: 0 -50%; transition: opacity 0.4s ease-out; }
+@media (max-width: 1279px) {
+  .fx-rail { right: 6px; }
+}
+.fx-rail[data-idle]:not(:focus-within) { opacity: 0; pointer-events: none; }
+.fx-rail-track { position: absolute; top: 11px; bottom: 11px; right: 10.5px; width: 1px; overflow: hidden; background: #2a2b2e; }
+.fx-rail-fill { position: absolute; inset: 0; background: #fa6e43; transform-origin: top; }
+.fx-rail-list { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.fx-rail-link { position: relative; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 8px; }
+.fx-rail-dot { width: 6px; height: 6px; border-radius: 9999px; background: #5f5f66; transition: background-color 0.3s, scale 0.35s var(--fx-ease); }
+.fx-rail-link[aria-current] .fx-rail-dot { background: #fa6e43; scale: 1.6; }
+.fx-rail-label { position: absolute; right: calc(100% + 8px); top: 50%; translate: 6px -50%; white-space: nowrap; border: 1px solid #2a2b2e; border-radius: 8px; background: rgba(22, 23, 25, 0.92); padding: 5px 10px; font-size: 12px; line-height: 1.2; color: #e3dbd8; opacity: 0; pointer-events: none; transition: opacity 0.25s, translate 0.3s var(--fx-ease); }
+.fx-rail-link:is(:hover, :focus-visible) .fx-rail-label { opacity: 1; translate: 0 -50%; }
+
+/* Micro-interactions. Sweep fill and underline draw on hover devices (and the underline on keyboard focus);
+   focus glow on every device. Transforms only, except the glow's box-shadow (paint, no layout). */
+@media (hover: hover) {
+  .fx-sweep,
+  .contact-form .button { position: relative; isolation: isolate; overflow: hidden; }
+  .fx-sweep::before,
+  .contact-form .button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fx-sweep, #ff9573); pointer-events: none; transform: scaleX(0); transform-origin: right; transition: transform 0.5s var(--fx-ease-io); }
+  .fx-sweep:hover::before,
+  .contact-form .button:not(:disabled):hover::before { transform: scaleX(1); transform-origin: left; }
+  .fx-underline:hover::after { transform: scaleX(1); transform-origin: left; }
+}
+.fx-sweep-ghost { --fx-sweep: rgba(250, 110, 67, 0.16); }
+.fx-underline { position: relative; }
+.fx-underline::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; pointer-events: none; transform: scaleX(0); transform-origin: right; transition: transform 0.4s var(--fx-ease-io); }
+.fx-underline:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+.fx-field,
+.field :is(input, select, textarea) { transition: border-color 0.25s, box-shadow 0.35s; }
+.fx-field:focus,
+.field :is(input, select, textarea):focus { box-shadow: 0 0 0 3px rgba(250, 110, 67, 0.16), 0 0 28px -6px rgba(250, 110, 67, 0.55); }
+
+/* Page transition (PageTransition.tsx), 720 ms: an orange curtain rises over the held old page, the old page
+   drops out while covered, then the curtain lifts off the top as the new page settles. The nav and the cursor
+   are named only while a transition runs (a permanent name would make the header a backdrop root and drop
+   the nav's blur): they ride above the curtain as their live new state, so the pill moves once and the
+   cursor never vanishes. The footer sits outside the page too: its old state is held with the old page (a
+   footer link clicked at the end of a page would otherwise uncover the new page at once), and its new state
+   stays hidden, as the content covers it. The transition layer itself takes no pointer events; captured
+   elements take none until it ends. Stack, bottom to top: new page, old footer, old page, curtain, nav,
+   cursor. */
+::view-transition { pointer-events: none; }
+.fx-vt-curtain { position: fixed; inset: 0; pointer-events: none; }
+html:active-view-transition body > header { view-transition-name: fx-nav; }
+html:active-view-transition footer#contact { view-transition-name: fx-footer; }
+/* The cursor's root box is 0 × 0 (its parts are offset from it), which a snapshot cannot capture: while the
+   transition runs it spans the viewport instead, still click-through, and its difference blend carries over. */
+html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset: 0; width: auto; height: auto; }
+::view-transition-group(.fx-page-in) { z-index: 1; animation: none; }
+/* The footer group keeps the browser's own group animation, which starts from the old footer's box, and holds
+   that first keyframe for the whole curtain: a group's static box is the NEW footer's, which after the scroll to
+   the top sits far below the viewport whenever the footer is in the page flow (phones, short laptops). */
+::view-transition-group(fx-footer) { z-index: 2; animation-duration: 720ms; animation-timing-function: step-end; }
+::view-transition-group(.fx-page-out) { z-index: 3; animation: none; }
+::view-transition-group(.fx-curtain) { z-index: 4; animation: none; }
+::view-transition-group(fx-nav) { z-index: 5; animation: none; }
+::view-transition-group(fx-cursor) { z-index: 6; animation: none; }
+::view-transition-old(fx-nav),
+::view-transition-old(fx-cursor),
+::view-transition-new(fx-footer) { display: none; }
+::view-transition-new(fx-nav),
+::view-transition-new(fx-cursor) { animation: none; }
+::view-transition-new(.fx-curtain) { background: #fa6e43; animation: fx-curtain 720ms var(--fx-ease-io) both; }
+::view-transition-old(.fx-page-out),
+::view-transition-old(fx-footer) { animation: fx-page-hold 720ms linear both; }
+::view-transition-new(.fx-page-in) { animation: fx-page-settle 720ms var(--fx-ease) both; }
+@keyframes fx-curtain {
+  0% { clip-path: inset(100% 0 0 0); }
+  46%, 54% { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 0 100% 0); }
+}
+@keyframes fx-page-hold { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes fx-page-settle { 0%, 50% { translate: 0 40px; } 100% { translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation-duration: 0s !important; animation-delay: 0s !important; }
+}
+
+/* Services (Services.tsx). The desktop accordion's columns keep fixed layout boxes: the row sets each column's
+   opening amount (--fx-sv-<i>, 0 closed to 1 open; registered here, up to the CMS limit of 12 columns, so the
+   amounts transition together) and every column's width and translate follow from them, in units of the row
+   (a size container). Opening a column therefore moves no box. Without @property the amounts jump, and the
+   columns snap open. As a column opens, an orange panel wipes off its image while the image settles. */
+@property --fx-sv-0 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-1 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-2 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-3 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-4 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-5 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-6 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-7 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-8 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-9 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-10 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-11 { syntax: "<number>"; inherits: true; initial-value: 0; }
+.fx-svc {
+  container-type: inline-size;
+  transition-property: --fx-sv-0, --fx-sv-1, --fx-sv-2, --fx-sv-3, --fx-sv-4, --fx-sv-5, --fx-sv-6, --fx-sv-7, --fx-sv-8, --fx-sv-9, --fx-sv-10, --fx-sv-11;
+  transition-duration: 0.5s;
+  transition-timing-function: var(--fx-ease);
+}
+.fx-reveal-wipe { position: absolute; inset: 0; background: #fa6e43; pointer-events: none; transform: scaleX(0); transform-origin: right; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-wipe { transform: scaleX(1); }
+html[data-fx-motion] [data-active="true"] .fx-reveal-wipe { transition: transform 0.8s var(--fx-ease-io) 0.12s; }
+html[data-fx-motion] .fx-reveal-img { transition: scale 1.2s var(--fx-ease) 0.12s; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-img { scale: 1.12; }
+
+/* What We Measure (Analytics.tsx): dial hands sweep into place, donut segments draw in turn. */
+.fx-hand { transform-box: view-box; transform-origin: 50px 50px; transform: rotate(var(--a)); }
+html[data-fx-motion] .fx-dial .fx-hand { transition: transform 1.3s var(--fx-ease) calc(var(--d, 0) * 1s); }
+html[data-fx-motion] .fx-dial:not([data-in]) .fx-hand { transform: rotate(calc(var(--a) - 140deg)); }
+html[data-fx-motion] .fx-donut circle { transition: stroke-dasharray 1.1s var(--fx-ease) calc(var(--i, 0) * 0.16s); }
+html[data-fx-motion] .fx-donut:not([data-in]) circle { stroke-dasharray: 0 100; }
+/* The ticker pauses when its box (or anything in it) is hovered or focused, through the skew wrapper (WCAG 2.2.2). */
+[role="marquee"]:is(:hover, :focus, :focus-within) .marquee-track { animation-play-state: paused; }
+
+/* Engagements (Pricing.tsx): the desktop rows slide in from the right in turn as the list enters (translate and
+   opacity only). The hidden start applies only under data-fx-motion and before the list's data-in, and the
+   transition only once it is in view, so the start never animates in. A selected row pulses a glow ring
+   once: decorative, click-through, and at rest (invisible) without motion. */
+html[data-fx-motion] .fx-rows:not([data-in]) > * { opacity: 0; translate: 80px 0; }
+.fx-rows[data-in] > * { transition: opacity 0.7s ease-out, translate 1s var(--fx-ease); transition-delay: calc(var(--i, 0) * 120ms); }
+.fx-pulse { position: absolute; inset: 0; z-index: 2; border: 2px solid #fa6e43; border-radius: 1rem; box-shadow: 0 0 44px 2px rgba(250, 110, 67, 0.45); pointer-events: none; opacity: 0; }
+html[data-fx-motion] .fx-pulse { animation: fx-pulse 1s var(--fx-ease) 1; }
+@keyframes fx-pulse { 0% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.03; } }
+
+/* Footer wordmark (FooterWordmark.tsx, the drawn <Wordmark>): the nine glyphs rise in sequence from just below
+   their line as the curtain uncovers them (translate and opacity, staggered by --i) and lean away from the
+   pointer (transform, from --rx/--ry, easing back). Only under data-fx: touch, phones, reduced motion and no-JS
+   keep the glyphs at rest (docs/brand/guidelines.md §9). The rise transitions only once risen (data-in): the
+   letters drop out of sight at once, which happens only while the content covers them. The ™ is not a letter
+   and never moves; it fades in after the last letter, so it never waits alone on an empty line. */
+html[data-fx] .fx-wordmark .fx-letter { transform: translate(var(--rx, 0px), var(--ry, 0px)); transition: transform 0.45s var(--fx-ease); }
+html[data-fx] .fx-wordmark[data-in] .fx-letter { transition: transform 0.45s var(--fx-ease), translate 1s var(--fx-ease) calc(var(--i, 0) * 55ms), opacity 0.7s ease-out calc(var(--i, 0) * 55ms); }
+html[data-fx] .fx-wordmark:not([data-in]) .fx-letter { translate: 0 0.55em; opacity: 0; }
+html[data-fx] .fx-wordmark[data-in] .brand-tm { transition: opacity 0.6s ease-out 0.5s; }
+html[data-fx] .fx-wordmark:not([data-in]) .brand-tm { opacity: 0; }
+
+/* === /FX === */

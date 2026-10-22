@@ -61,7 +61,7 @@ async function capture(browser, { width, height }) {
     // Freeze the page's clock (every frame now has a zero delta), restore the opening pose with the
     // cursor's tilt and parallax at rest, hide everything but the canvas and let a few frames render.
     await freezeOpeningPose(page);
-    await page.addStyleTag({ content: "* { transition: none !important; } header, .intro-overlay { display: none !important; } #home .sticky > :not(.hero-scene) { visibility: hidden !important; }" });
+    await page.addStyleTag({ content: "* { transition: none !important; } header, .intro-overlay, [data-fx-grain] { display: none !important; } #home .sticky > :not(.hero-scene) { visibility: hidden !important; }" });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
     const check = { ...(await readPose(page)), ...(await page.evaluate(() => {
       const scene = document.querySelector("#home .hero-scene");

@@ -38,7 +38,7 @@ export default function QuickStart() {
     router.push("/contact/");
   }
 
-  const input = "w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame";
+  const input = "fx-field w-full rounded-xl border border-line bg-card-2/60 px-4 py-3.5 text-[14px] text-ink placeholder:text-mut-2 focus:border-flame";
   return (
     <form action="/contact/" method="get" onSubmit={submit} className="mt-6 space-y-3">
       <input ref={name} type="text" autoComplete="name" maxLength={100} aria-label="Your name" placeholder="Your Name" className={input} />

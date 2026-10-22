@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import type { Testimonial } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /** Stable React key for an entry (index keys would reuse nodes across entries). */
@@ -34,7 +35,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.img
                 key={keyOf(r)}
-                src={r.img}
+                {...contentImage(r.img)}
                 alt={r.name}
                 loading="lazy"
                 decoding="async"
@@ -102,7 +103,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
               className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border transition-all duration-300 ${k === i ? "border-flame ring-1 ring-flame" : "border-line opacity-60 hover:opacity-100"}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={rv.img} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover ${k === i ? "" : "grayscale"}`} />
+              <img {...contentImage(rv.img)} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover ${k === i ? "" : "grayscale"}`} />
             </button>
           ))}
         </div>

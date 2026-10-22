@@ -6,7 +6,11 @@ import { Container, ArrowButton } from "@/components/ui";
 import ScrollColorTitle from "@/components/ScrollColorTitle";
 import StackCards from "@/components/StackCards";
 import DotField from "@/components/DotField";
+import Parallax from "@/components/fx/Parallax";
+import ScrollDepth from "@/components/fx/ScrollDepth";
+import Tilt from "@/components/fx/Tilt";
 import { SECTIONS, WORK, type WorkTile } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 /** small animated drag-handle dots, top-right of each tile */
 function GridDots() {
@@ -23,18 +27,23 @@ function ArrowBtn() {
   return <ArrowButton />;
 }
 
-/** Service tile with hover-revealed description + image zoom. Reused on service pages. */
-export function Tile({ name, img, desc, href }: WorkTile) {
+/** Service tile with hover-revealed description + image zoom. Reused on service pages. On fine-pointer
+ *  desktops the image also drifts inside its frame as the tile crosses the viewport (`still` leaves that out:
+ *  the mobile card stack never shows at those widths). */
+export function Tile({ name, img, desc, href, still = false }: WorkTile & { still?: boolean }) {
+  const image = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      {...contentImage(img)}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      className="absolute inset-0 h-full w-full object-cover transition-transform duration-[800ms] ease-out group-hover:scale-110"
+    />
+  );
   return (
-    <Link prefetch={false} href={href} className="group relative block h-full overflow-hidden rounded-2xl border border-line">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={img}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-[800ms] ease-out group-hover:scale-110"
-      />
+    <Link prefetch={false} href={href} data-cursor="View" className="group relative block h-full overflow-hidden rounded-2xl border border-line">
+      {still ? image : <Parallax className="absolute inset-0">{image}</Parallax>}
       {/* base gradient (legibility); a touch stronger on mobile where the desc is always shown */}
       <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f] via-[#0c0d0f]/30 to-transparent lg:via-transparent" />
       <div className="absolute inset-0 bg-[#0b0c0e]/0 transition-colors duration-500 group-hover:bg-[#0b0c0e]/65" />
@@ -168,52 +177,69 @@ export default function Work() {
           </div>
         </Appear>
 
-        {/* bento (desktop) */}
+        {/* bento (desktop): on fine-pointer desktops each item lags and shrinks as it leaves through the top,
+            so the row below slides over it (ScrollDepth, transforms only) */}
         <AppearGroup className="mt-10 hidden auto-rows-[200px] gap-4 lg:grid lg:grid-cols-3 lg:[grid-auto-rows:200px]" stagger={0.07}>
           {/* featured service — spans 2 cols, 2 rows */}
           <AppearItem className="sm:col-span-2 sm:row-span-2">
-            <Link prefetch={false} href={f.href} className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
-              <div className="relative flex h-full flex-col justify-between p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">{f.label}</span>
-                    <h3 className="display mt-1 text-2xl text-ink-strong">{f.name}</h3>
+            <ScrollDepth className="h-full">
+              <Tilt spotlight className="h-full rounded-2xl">
+                <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
+                  <Parallax className="absolute inset-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+                  </Parallax>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
+                  <div className="relative flex h-full flex-col justify-between p-6">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">{f.label}</span>
+                        <h3 className="display mt-1 text-2xl text-ink-strong">{f.name}</h3>
+                      </div>
+                      <GridDots />
+                    </div>
+                    <ArrowBtn />
                   </div>
-                  <GridDots />
-                </div>
-                <ArrowBtn />
-              </div>
-            </Link>
+                </Link>
+              </Tilt>
+            </ScrollDepth>
           </AppearItem>
 
           {/* service lineup orange panel — spans 2 rows */}
           <AppearItem className="sm:row-span-2">
-            <LineupPanel variant="desktop" />
+            <ScrollDepth className="h-full">
+              <LineupPanel variant="desktop" />
+            </ScrollDepth>
           </AppearItem>
 
           {WORK.tiles.map((tile) => (
             <AppearItem key={tile.slug} className="h-full">
-              <Tile {...tile} />
+              <ScrollDepth className="h-full">
+                <Tilt spotlight className="h-full rounded-2xl">
+                  <Tile {...tile} />
+                </Tilt>
+              </ScrollDepth>
             </AppearItem>
           ))}
 
           {/* animated neural placeholder */}
           <AppearItem className="hidden h-full sm:block">
-            <div aria-hidden className="relative grid h-full place-items-center overflow-hidden rounded-2xl border border-line bg-card/40">
-              <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_50%,rgba(250,110,67,0.08),transparent_70%)]" />
-              <div className="spin-26 grid grid-cols-3 gap-2.5">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <span key={i} className="tile-pulse h-2 w-2 rounded-[3px] bg-flame/70" style={{ animationDelay: `${i * 0.12}s` }} />
-                ))}
+            <ScrollDepth className="h-full">
+              <div aria-hidden className="relative grid h-full place-items-center overflow-hidden rounded-2xl border border-line bg-card/40">
+                <div className="absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_50%,rgba(250,110,67,0.08),transparent_70%)]" />
+                <div className="spin-26 grid grid-cols-3 gap-2.5">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <span key={i} className="tile-pulse h-2 w-2 rounded-[3px] bg-flame/70" style={{ animationDelay: `${i * 0.12}s` }} />
+                  ))}
+                </div>
               </div>
-            </div>
+            </ScrollDepth>
           </AppearItem>
 
           <AppearItem className="h-full">
-            <AssessmentCard variant="desktop" />
+            <ScrollDepth className="h-full">
+              <AssessmentCard variant="desktop" />
+            </ScrollDepth>
           </AppearItem>
         </AppearGroup>
 
@@ -222,7 +248,7 @@ export default function Work() {
           <StackCards top={88} step={14} gap={64}>
             <Link prefetch={false} href={f.href} className="group relative block h-[46vh] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+              <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/85 via-transparent to-[#0c0d0f]/30" />
               <div className="relative flex h-full flex-col justify-between p-6">
                 <div className="flex items-start justify-between">
@@ -238,7 +264,7 @@ export default function Work() {
 
             {WORK.tiles.map((tile) => (
               <div key={tile.slug} className="h-[46vh]">
-                <Tile {...tile} />
+                <Tile {...tile} still />
               </div>
             ))}
 

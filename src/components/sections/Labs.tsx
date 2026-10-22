@@ -3,10 +3,13 @@ import Reveal from "@/components/Reveal";
 import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
 import { ARTICLES, SECTIONS, type Article } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { SAMPLE_ARTICLES, SAMPLE_MARKER, SHOW_SAMPLES } from "@/lib/samples";
 
 const USING_SAMPLES = ARTICLES.length === 0 && SHOW_SAMPLES;
 const ITEMS = ARTICLES.length ? ARTICLES : USING_SAMPLES ? SAMPLE_ARTICLES : [];
+/** Whether the section renders (the home progress rail lists it only then). */
+export const HAS_LABS = ITEMS.length > 0;
 
 function ArticleCard({ a }: { a: Article }) {
   const external = /^https?:\/\//.test(a.href);
@@ -15,7 +18,7 @@ function ArticleCard({ a }: { a: Article }) {
     <>
       <div className="relative h-44 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={a.img} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        <img {...contentImage(a.img)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
         <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
       </div>
       <div className="flex flex-1 flex-col p-6">
@@ -41,7 +44,7 @@ function ArticleCard({ a }: { a: Article }) {
 
 export default function Labs() {
   // Renders only real published articles (or dev samples).
-  if (ITEMS.length === 0) return null;
+  if (!HAS_LABS) return null;
   return (
     <section id="labs" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
       <Container>

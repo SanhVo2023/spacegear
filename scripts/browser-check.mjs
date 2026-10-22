@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { build } from "esbuild";
 import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
+// === FX === motion-system checks (scripts/fx-checks.mjs)
+import { assertFxAbsent, checkFxDesktop, checkFxTouch } from "./fx-checks.mjs";
 import { NAV_HOME_NAME, WORDMARK_LETTERS, identityOnPage, identityServed } from "./identity-check.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
@@ -252,6 +254,8 @@ async function watchCsp(context) {
   return problems;
 }
 
+// === FX === desktop results the touch check compares against
+let fxDesktop = null;
 try {
   for (const profile of [
     { name: "mobile-320", width: 320, height: 740 },
@@ -311,6 +315,8 @@ try {
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
+    // === FX === heavy effects only on the fine-pointer desktop profile
+    if (profile.name !== "desktop") await assertFxAbsent(page, profile.name, { motionOff: Boolean(profile.reducedMotion || profile.javaScriptEnabled === false) });
     // The intro plays once per session on a first desktop visit and is skipped everywhere else
     // (phones and tablets, reduced motion, no JavaScript).
     const heroLog = async () => (await page.evaluate(() => window.__heroLog)) ?? [];
@@ -794,6 +800,9 @@ try {
       assert.ok(await deep.evaluate(() => Math.abs(document.getElementById("pricing").getBoundingClientRect().top) < 200), "desktop: deep link to #pricing must land on the section");
       await deep.close();
       report.interactions.push("desktop deep link to #pricing lands on the section after hydration");
+      // === FX === park this page at the bottom (globe offscreen), then run the effect checks in a second tab
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+      fxDesktop = await checkFxDesktop({ context, base, report });
 
       // Crossing the 1024 px breakpoint unmounts the scene (R3F force-loses its context 500 ms later)
       // and a return remounts it: the globe must come back rather than stay "failed". Below 1024 px the
@@ -941,6 +950,8 @@ try {
   const detached = await detachedTouchCheck(browser, base, { quietMs: INPUT_QUIET_MS });
   report.interactions.push(`touch phone: a release on a node removed mid-touch is heard; the globe's chunk is requested ${detached.afterRelease} ms after it`);
 
+  // === FX === coarse pointer at desktop width; kept after the globe's timing checks, so its touch globe never runs just before them
+  await checkFxTouch({ browser, base, report, watchCsp, desktop: fxDesktop });
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });
   await page.goto(`${base}/contact/?service=applied-ai`, { waitUntil: "networkidle" });
   assert.equal(await page.locator("select[name=service]").inputValue(), "applied-ai");

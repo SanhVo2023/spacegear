@@ -181,7 +181,8 @@ export const STATIC_DESKTOP = (height) => ({ top: 0, height, fills: true, fit: "
 /** The hero stage with one layer showing: "live" (the WebGL canvas) or "poster" (the poster image). */
 export async function stageShot(page, layer) {
   // No transitions: hidden copy with `transition-all` (the CTA) would otherwise stay visible for its duration.
-  const still = await page.addStyleTag({ content: "#home .sticky, #home .sticky * { transition: none !important; }" });
+  // The film grain (src/components/fx/Grain.tsx) is not part of either layer: the poster is captured without it.
+  const still = await page.addStyleTag({ content: "#home .sticky, #home .sticky * { transition: none !important; } [data-fx-grain] { display: none !important; }" });
   await page.evaluate((layer) => {
     document.querySelector("header")?.style.setProperty("display", "none");
     for (const el of document.querySelectorAll("#home .sticky > *")) {

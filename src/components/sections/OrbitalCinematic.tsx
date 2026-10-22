@@ -15,6 +15,7 @@ import Link from "next/link";
 import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
+import { MagneticLink } from "@/components/fx/Magnetic";
 import { hasWebGL2, readDeviceEnv } from "@/components/globe/device";
 // The device table from its leaf module: the first-load chunk gets neither the globe's constants nor
 // its texture manifest (tiers.ts imports both).
@@ -156,8 +157,11 @@ function whenIdle(callback: () => void): () => void {
  * The globe mounts only once the page has been still this long: no touch held or ended, no scroll, and
  * not since the load event. So its script evaluation (about 360 ms on a phone-class CPU) never lands on
  * a tap or a swipe, and a scroll the browser makes just after load (restoring the position on a reload,
- * following a #hash, both smooth under `scroll-behavior: smooth`) is over before the hero is judged on
- * screen.
+ * following a #hash) has landed before the hero is judged on screen. Those scrolls are instant: the page's
+ * `scroll-behavior: smooth` applies only after a press or a key (smooth-anchors.ts), and Lenis
+ * (fx/SmoothScroll.tsx) runs only on fine-pointer desktops at 1024 px and up, never where this globe
+ * mounts. A scroll the visitor makes (a swipe's momentum, an anchor tapped after the first press, which
+ * glides) fires scroll events throughout, so it holds the mount until it has ended.
  */
 const INPUT_QUIET_MS = 500;
 /**
@@ -516,17 +520,19 @@ function HeroCopy() {
           <h2 className="text-xl font-medium text-ink">{HOME.pitch.title}</h2>
           <p className="mx-auto mt-1 max-w-xs text-[13px] text-mut-2">{HOME.pitch.text}</p>
         </div>
-        <Link
-          prefetch={false}
+        {/* Magnetic and sweeping on fine-pointer desktops, like the site's other flame buttons (ui.tsx
+            FlameButton); everywhere else a plain link. transition-[filter,box-shadow], not transition-all:
+            the magnetic pull writes transform every frame. */}
+        <MagneticLink
           href={HOME.cta.href}
-          className="pointer-events-auto inline-flex w-fit items-center gap-2 rounded-xl bg-flame px-5 py-3 text-[13px] font-medium text-[#161719] transition-all hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)]"
+          className="fx-sweep pointer-events-auto inline-flex w-fit items-center gap-2 rounded-xl bg-flame px-5 py-3 text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)]"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
             <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
             <path d="M2 6.5h12M5.5 2v2M10.5 2v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
           {HOME.cta.label}
-        </Link>
+        </MagneticLink>
       </motion.div>
 
       <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="hero-backing mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 min-[1024px]:justify-start">

@@ -6,6 +6,7 @@ import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import { Container, SectionHeader } from "@/components/ui";
 import { FOUNDER, SECTIONS, TEAM, TEAM_ROLES } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 
 const MEMBERS = FOUNDER ? [FOUNDER, ...TEAM_ROLES] : TEAM_ROLES;
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -68,6 +69,7 @@ export default function Team() {
               {/* CENTER: image — swipe to change; fixed 3:4 cell */}
               <motion.div
                 drag="x"
+                data-cursor="Drag"
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.18}
                 onDragEnd={(_, info) => {
@@ -79,7 +81,7 @@ export default function Team() {
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.img
                     key={i}
-                    src={m.img}
+                    {...contentImage(m.img)}
                     alt={m.imgAlt}
                     loading="lazy"
                     decoding="async"

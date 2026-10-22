@@ -1,15 +1,17 @@
 "use client";
 
-import { animate, motion, useInView, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { animate, motion, useInView, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Reveal from "@/components/Reveal";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
+import { useMotionOK } from "@/components/fx/env";
+import { TrackScroll } from "@/components/fx/ScrollDepth";
 import { PROCESS_CTA, PROCESS_STEPS, SECTIONS, type ProcessStep } from "@/lib/content";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/** Counts up from 0 to `to` the first time it scrolls into view. The server
- *  renders the final value, so the number is right without JavaScript. */
+/** Counts up from 0 to `to` the first time it scrolls into view, in tabular figures so the count moves no box.
+ *  The server renders the final value, so the number is right without JavaScript. */
 function CountUp({ to }: { to: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const reduce = useReducedMotion();
@@ -20,7 +22,7 @@ function CountUp({ to }: { to: number }) {
     const controls = animate(0, to, { duration: 1.1, ease: EASE, onUpdate: (v) => setVal(v) });
     return () => controls.stop();
   }, [inView, reduce, to]);
-  return <span ref={ref}>{Math.round(val)}</span>;
+  return <span ref={ref} className="tabular-nums">{Math.round(val)}</span>;
 }
 
 export function StepCard({ s, i }: { s: ProcessStep; i: number }) {
@@ -67,41 +69,81 @@ export function StepCard({ s, i }: { s: ProcessStep; i: number }) {
   );
 }
 
-/** Animated connecting line + step cards. Used on the home page, Approach and service pages. */
+/**
+ * Timeline line scrubbed by scroll, dots that ignite as the line reaches them and step cards that lift in
+ * turn. It is a scroll draw, so it also runs on touch; the scroll is tracked only where motion is allowed
+ * (TrackScroll), and no-JS and reduced motion get the drawn line and lit dots, with the cards at rest, through
+ * the data-reveal hook (globals.css, NoScriptStyles.tsx). Transforms and opacity only. The scroll range starts
+ * where the line is (the wrapper's top; on phones, where the line is hidden, the first card). Used on the home
+ * page, Approach and service pages.
+ */
 export function ProcessSteps({ steps, gridClassName = "md:grid-cols-2 xl:grid-cols-4" }: { steps: ProcessStep[]; gridClassName?: string }) {
-  const lineRef = useRef<HTMLDivElement>(null);
-  const shown = useInView(lineRef, { once: true, margin: "-20%" });
-  const dots = steps.map((_, i) => (steps.length === 1 ? 0 : (i / (steps.length - 1)) * 100));
+  const ref = useRef<HTMLDivElement>(null);
+  const motionOK = useMotionOK();
+  const progress = useMotionValue(0);
+  const stops = steps.map((_, i) => (steps.length === 1 ? 0 : i / (steps.length - 1)));
   return (
-    <>
-      <div ref={lineRef} className="relative mt-12 hidden h-px md:block">
+    <div ref={ref} className="mt-6 md:mt-12">
+      {motionOK && <TrackScroll target={ref} progress={progress} offset={["start 0.8", "end 0.7"]} />}
+      <div className="relative hidden h-px md:block">
         <div className="absolute inset-0 bg-line-soft" />
         <motion.div
-          data-line=""
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-flame to-flame/40"
-          initial={{ width: "0%" }}
-          animate={shown ? { width: "100%" } : {}}
-          transition={{ duration: 1.4, ease: EASE }}
+          data-reveal=""
+          data-timeline=""
+          className="absolute inset-0 origin-left bg-gradient-to-r from-flame to-flame/40"
+          style={{ scaleX: progress }}
         />
-        {dots.map((pos, i) => (
-          <motion.span
-            key={i}
-            data-dot=""
-            className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-flame"
-            style={{ left: `${pos}%` }}
-            initial={{ scale: 0 }}
-            animate={shown ? { scale: 1 } : {}}
-            transition={{ duration: 0.4, ease: EASE, delay: 0.3 + i * 0.28 }}
-          />
+        {stops.map((at, i) => (
+          <TimelineDot key={i} at={at} progress={progress} />
         ))}
       </div>
 
-      <div className={`mt-6 grid gap-4 ${gridClassName}`}>
+      <div className={`grid gap-4 md:mt-6 ${gridClassName}`}>
         {steps.map((s, i) => (
-          <StepCard key={s.step} s={s} i={i} />
+          <LiftOnPass key={s.step} at={stops[i]} progress={progress}>
+            <StepCard s={s} i={i} />
+          </LiftOnPass>
         ))}
       </div>
-    </>
+    </div>
+  );
+}
+
+/** The progress window in which a stop at `at` (0–1) switches on: just before the line reaches it, or, for the
+ *  first stop, just after the line starts (so nothing is lit before the line moves). */
+function passWindow(at: number, width: number): [number, number] {
+  const from = Math.max(0, at - width);
+  return [from, from + width];
+}
+
+/** A grey dot with a flame core that ignites (fades and swells in, with a glow) as the line reaches it. */
+function TimelineDot({ at, progress }: { at: number; progress: MotionValue<number> }) {
+  const range = passWindow(at, 0.04);
+  const lit = useTransform(progress, range, [0, 1]);
+  const scale = useTransform(progress, range, [0.4, 1]);
+  return (
+    <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
+      <span className="absolute inset-0 rounded-full bg-mut-3" />
+      <motion.span
+        data-reveal=""
+        data-timeline-dot=""
+        className="absolute inset-0 rounded-full bg-flame shadow-[0_0_14px_3px_rgba(250,110,67,0.6)]"
+        style={{ opacity: lit, scale }}
+      />
+    </span>
+  );
+}
+
+/** Lifts a step card, and lights a soft glow under it, once the timeline passes its dot. */
+function LiftOnPass({ at, progress, children }: { at: number; progress: MotionValue<number>; children: ReactNode }) {
+  const range = passWindow(at, 0.06);
+  const y = useTransform(progress, range, [0, -10]);
+  const glow = useTransform(progress, range, [0, 1]);
+  return (
+    <motion.div data-reveal="" className="relative h-full" style={{ y }}>
+      <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl shadow-[0_26px_60px_-30px_rgba(250,110,67,0.7)]" style={{ opacity: glow }} />
+      {children}
+    </motion.div>
   );
 }
 

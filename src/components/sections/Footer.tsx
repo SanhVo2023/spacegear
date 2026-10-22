@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { BrandSymbol } from "@/components/Brand";
 import QuickStart from "@/components/QuickStart";
-import Wordmark from "@/components/Wordmark";
+import { MagneticLink } from "@/components/fx/Magnetic";
+import { ringText } from "@/components/ring-text";
 import { Container } from "@/components/ui";
 import { FOOTER } from "@/lib/content";
 import { SITE } from "@/lib/site";
+import FooterWordmark from "./FooterWordmark";
 
-/** Rotating circular wordmark badge around the brand symbol, which stays still (docs/brand/guidelines.md, "Motion"). */
+/** The badge's ring: its copy runs exactly once round the circle (ring-text.ts). */
+const BADGE_RING = ringText(FOOTER.badge, 37, { size: 8.5 });
+
+/** Rotating circular wordmark badge around the brand symbol, which stays still (docs/brand/guidelines.md, "Motion").
+ *  The copy is sized to close the circle exactly, its closing "·" one gap before the first letter. */
 function CircleBadge() {
   return (
     <div aria-hidden className="relative h-24 w-24">
@@ -14,8 +20,8 @@ function CircleBadge() {
         <defs>
           <path id="circlePath" d="M50,50 m-37,0 a37,37 0 1,1 74,0 a37,37 0 1,1 -74,0" />
         </defs>
-        <text className="fill-mut-2 font-mono text-[8.5px] uppercase tracking-[0.18em]">
-          <textPath href="#circlePath" startOffset="0%">{FOOTER.badge}</textPath>
+        <text className="fill-mut-2 font-mono uppercase" style={{ fontSize: BADGE_RING.fontSize, letterSpacing: BADGE_RING.letterSpacing }}>
+          <textPath href="#circlePath" startOffset="0%" textLength={BADGE_RING.textLength} lengthAdjust="spacing">{FOOTER.badge}</textPath>
         </text>
       </svg>
       <BrandSymbol className="absolute left-1/2 top-1/2 block h-7 w-auto -translate-x-1/2 -translate-y-1/2 text-flame" />
@@ -48,18 +54,19 @@ export default function Footer() {
           <div className="relative overflow-hidden p-6 text-center sm:p-8 lg:text-left">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_120%_at_70%_40%,rgba(250,110,67,0.08),transparent_60%)]" />
             {SITE.contactEmail ? (
-              <a href={`mailto:${SITE.contactEmail}`} className="relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
+              <a href={`mailto:${SITE.contactEmail}`} className="fx-underline relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
                 {SITE.contactEmail}
               </a>
             ) : (
-              <Link prefetch={false} href="/contact/" className="relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
+              <Link prefetch={false} href="/contact/" className="fx-underline relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
                 Discuss a project ↗
               </Link>
             )}
             <div className="relative mt-4 lg:mt-8">
               {/* drawn wordmark (docs/brand/); 1em is the type size, so the clamps keep the cell's size. The ™ shows here only.
-                  Its letters sit in a flex row, so flex centring stands in for text-center on phones. */}
-              <Wordmark className="flex justify-center text-[clamp(36px,10vw,104px)] lg:justify-start lg:text-[clamp(40px,8vw,104px)] text-flame" />
+                  Its letters sit in a flex row, so flex centring stands in for text-center on phones. On fine-pointer
+                  desktops the letters rise as the curtain opens and lean away from the pointer (FooterWordmark.tsx). */}
+              <FooterWordmark />
               <div className="mt-5 text-[13px] leading-relaxed text-mut-2 lg:mt-6">
                 <p>{FOOTER.identity[0]}</p>
                 <p>{FOOTER.identity[1]}</p>
@@ -82,7 +89,7 @@ export default function Footer() {
                 <ul className="space-y-3">
                   {col.map((it) => (
                     <li key={it.href}>
-                      <Link prefetch={false} href={it.href} className="text-[14px] text-mut-2 transition-colors hover:text-ink">{it.label}</Link>
+                      <Link prefetch={false} href={it.href} className="fx-underline text-[14px] text-mut-2 transition-colors hover:text-ink">{it.label}</Link>
                     </li>
                   ))}
                 </ul>
@@ -98,7 +105,7 @@ export default function Footer() {
             <QuickStart />
             <p className="mt-4 text-[12px] text-mut-2">
               Read how we handle your details in our{" "}
-              <Link prefetch={false} href="/privacy/" className="text-flame hover:underline">Privacy policy.</Link>
+              <Link prefetch={false} href="/privacy/" className="fx-underline text-flame">Privacy policy.</Link>
             </p>
             <p className="mt-2 text-[12px] text-flame">* {FOOTER.quickStart.note}</p>
           </div>
@@ -122,8 +129,9 @@ export default function Footer() {
               ))
             ) : (
               <>
-                <Link prefetch={false} href="/privacy/" className={pill}>Privacy</Link>
-                <Link prefetch={false} href="/terms/" className={pill}>Terms</Link>
+                {/* magnetic on fine-pointer desktops only (Magnetic.tsx) */}
+                <MagneticLink href="/privacy/" className={pill} max={6}>Privacy</MagneticLink>
+                <MagneticLink href="/terms/" className={pill} max={6}>Terms</MagneticLink>
               </>
             )}
           </div>
