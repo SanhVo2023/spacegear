@@ -939,7 +939,8 @@ async function recordShifts(page, selector) {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         const moved = (entry.sources ?? []).map((source) => element(source.node)).filter((el) => el?.closest?.(scope));
-        if (moved.length) log[scope].push({ value: +entry.value.toFixed(5), moved: moved.map((el) => `${el.nodeName}.${String(el.className).slice(0, 48)}`) });
+        // `input`: within 500 ms of a press, so the shift is expected and stays out of CLS.
+        if (moved.length) log[scope].push({ value: +entry.value.toFixed(5), input: entry.hadRecentInput, moved: moved.map((el) => `${el.nodeName}.${String(el.className).slice(0, 48)}`) });
       }
     }).observe({ type: "layout-shift" });
   }, selector);
@@ -1149,6 +1150,84 @@ touch("a route change from outside the open phone menu shuts the menu before the
   } finally {
     await page.setViewportSize(restore);
   }
+});
+
+// --- Engagements and FAQ (Pricing.tsx, Faq.tsx) ---
+
+desktop("Engagements: rows slide in, the toggle springs and Select pulses once", async (page) => {
+  const rows = page.locator("#pricing .fx-rows");
+  assert.equal(await rows.count(), 1, "desktop: the engagement rows use the slide-in list");
+  const rowState = () => rows.evaluate((el) => ({
+    in: el.hasAttribute("data-in"),
+    opacity: [...el.children].map((row) => +parseFloat(getComputedStyle(row).opacity).toFixed(3)),
+    // Each row's left edge against the list's: the slide is a translate, so a row at rest sits flush.
+    offset: [...el.children].map((row) => Math.round(row.getBoundingClientRect().left - el.getBoundingClientRect().left)),
+  }));
+  const waiting = await rowState();
+  assert.ok(!waiting.in && waiting.opacity.every((opacity) => opacity < 0.01), `desktop: the rows wait below the fold, hidden (${JSON.stringify(waiting)})`);
+  const shifts = await recordShifts(page, "#pricing");
+  await jumpTo(page, (await sectionTop(page, "pricing")) + 200);
+  await page.waitForTimeout(1700);
+  const shown = await rowState();
+  assert.ok(shown.in && shown.opacity.every((opacity) => opacity > 0.99) && shown.offset.every((x) => x === 0), `desktop: every row slid in (${JSON.stringify(shown)})`);
+  const toggle = rows.getByRole("switch").first();
+  await settle(toggle);
+  await toggle.click();
+  await page.waitForTimeout(700);
+  const knob = await toggle.evaluate((el) => {
+    const style = getComputedStyle(el.firstElementChild);
+    return { checked: el.getAttribute("aria-checked"), x: new DOMMatrixReadOnly(style.transform === "none" ? undefined : style.transform).m41, left: style.left };
+  });
+  assert.ok(knob.checked === "true" && Math.abs(knob.x - 16) < 1 && knob.left === "2px", `desktop: the toggle knob springs across on a transform (${JSON.stringify(knob)})`);
+  const pulse = rows.locator(".fx-pulse");
+  const pulsing = () => pulse.evaluate((el) => el.getAnimations().filter((a) => a.animationName === "fx-pulse").length);
+  await rows.getByRole("button", { name: /^Select/ }).first().click();
+  await page.waitForTimeout(100);
+  assert.equal(await pulse.count(), 1, "desktop: the selected row pulses");
+  assert.equal(await pulsing(), 1, "desktop: the pulse is animating");
+  await page.waitForTimeout(1100);
+  assert.equal(await pulsing(), 0, "desktop: the pulse plays once");
+  await rows.getByRole("button", { name: /^Select / }).first().click(); // the next row (the first is now "Selected")
+  await page.waitForTimeout(100);
+  assert.equal(await pulse.count(), 1, "desktop: only the newly selected row pulses");
+  assert.equal(await pulsing(), 1, "desktop: another row's Select pulses once too");
+  await page.waitForTimeout(1100);
+  assert.deepEqual((await shifts()).filter((shift) => !shift.input), [], "desktop: the slide-in, the toggle and the pulse shift no layout (CLS 0)");
+});
+
+desktop("FAQ: the icon spins as it morphs and the photo drifts in its frame", async (page) => {
+  const shifts = await recordShifts(page, "#faq");
+  const faq = await sectionTop(page, "faq");
+  await jumpTo(page, faq);
+  const item = page.locator("#faq .faq-accordion details").nth(1);
+  const summary = item.locator("summary");
+  await settle(summary);
+  const turn = () => item.locator("summary > span[aria-hidden]").evaluate((el) => {
+    const transform = getComputedStyle(el).transform;
+    return new DOMMatrixReadOnly(transform === "none" ? undefined : transform).a;
+  });
+  await summary.click();
+  await page.waitForTimeout(800);
+  const open = await turn();
+  assert.ok(open < -0.99, `desktop: the open icon has turned half a turn (${open})`);
+  await summary.click();
+  await page.waitForTimeout(800);
+  const shut = await turn();
+  assert.ok(shut > 0.99, `desktop: closing turns the icon back (${shut})`);
+  const photo = page.locator("#faq [data-parallax] > *");
+  await jumpTo(page, faq - 400);
+  await page.waitForTimeout(400);
+  const a = (await matrixOf(photo)).m42;
+  await jumpTo(page, faq + 150);
+  await page.waitForTimeout(400);
+  const b = (await matrixOf(photo)).m42;
+  assert.ok(Math.abs(b - a) > 3, `desktop: the photo drifts in its frame (${a} → ${b})`);
+  const frame = await photo.evaluate((el) => {
+    const outer = el.parentElement.getBoundingClientRect(), inner = el.getBoundingClientRect();
+    return { covered: inner.top <= outer.top + 0.5 && inner.bottom >= outer.bottom - 0.5, height: Math.round(outer.height) };
+  });
+  assert.deepEqual(frame, { covered: true, height: 224 }, "desktop: the drifting photo always covers its frame, which keeps its height");
+  assert.deepEqual((await shifts()).filter((shift) => !shift.input), [], "desktop: opening and closing a question and the photo drift shift no layout (CLS 0)");
 });
 
 // --- Run alone ---

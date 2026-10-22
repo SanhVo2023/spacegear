@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { motion } from "motion/react";
 import Reveal from "@/components/Reveal";
 import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
 import Tilt from "@/components/fx/Tilt";
+import { useInViewFlag } from "@/components/fx/useInViewFlag";
 import { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS, type Engagement } from "@/lib/content";
 
-/** Original billing toggle, repurposed: switch the list between deliverables and outcomes. */
+/** Original billing toggle, repurposed: switch the list between deliverables and outcomes. The knob moves
+ *  on a springy transform (it used to animate `left`), with a small overshoot. */
 function Toggle({ outcomes, onToggle, label }: { outcomes: boolean; onToggle: (v: boolean) => void; label: string }) {
   return (
     <div className="mt-3 flex items-center gap-2 text-[12px]">
@@ -24,9 +26,9 @@ function Toggle({ outcomes, onToggle, label }: { outcomes: boolean; onToggle: (v
       >
         <motion.span
           initial={false}
-          className="absolute top-0.5 h-4 w-4 rounded-full bg-flame"
-          animate={{ left: outcomes ? 18 : 2 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-flame"
+          animate={{ x: outcomes ? 16 : 0 }}
+          transition={{ type: "spring", stiffness: 520, damping: 22, mass: 0.7 }}
         />
       </button>
       <span className={outcomes ? "text-ink" : "text-mut-2"}>Outcomes</span>
@@ -43,117 +45,130 @@ function Cell({ label, children, className = "" }: { label?: string; children: R
   );
 }
 
-function EngagementRow({ item, selected, onSelect }: { item: Engagement; selected: boolean; onSelect: () => void }) {
+/** One engagement. When selected, a glow ring pulses out once (globals.css, FX block); `pulseKey` changes on
+ *  every Select press, so the ring replays even when the same row is chosen again. */
+function EngagementRow({ item, selected, pulseKey, onSelect }: { item: Engagement; selected: boolean; pulseKey: number; onSelect: () => void }) {
   const [outcomes, setOutcomes] = useState(false);
   const list = outcomes ? item.outcomes : item.deliverables;
   return (
-    <motion.div
-      initial={false}
-      animate={{
-        borderColor: selected ? "#fa6e43" : "#2a2b2e",
-        boxShadow: selected ? "0 18px 50px -20px rgba(250,110,67,0.45)" : "0 0 0 0 rgba(0,0,0,0)",
-        scale: selected ? 1.01 : 1,
-      }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      className="grid grid-cols-1 overflow-hidden rounded-2xl border bg-card/40 md:grid-cols-2 lg:grid-cols-[220px_1fr_1fr_1.5fr_auto] lg:divide-x lg:divide-line-soft"
-    >
-      {/* image tile */}
-      <div className="relative h-44 overflow-hidden lg:h-auto">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e]/70 to-transparent" />
-        <span className="absolute left-5 top-5 text-[15px] font-medium text-ink">{item.short}</span>
-        {item.featured && (
-          <span className="absolute right-4 top-4 rounded-full bg-flame/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-flame">
-            Start here
-          </span>
-        )}
-      </div>
+    <div className="relative">
+      {selected && <span key={pulseKey} aria-hidden className="fx-pulse" />}
+      <motion.div
+        initial={false}
+        animate={{
+          borderColor: selected ? "#fa6e43" : "#2a2b2e",
+          boxShadow: selected ? "0 18px 50px -20px rgba(250,110,67,0.45)" : "0 0 0 0 rgba(0,0,0,0)",
+          scale: selected ? 1.01 : 1,
+        }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="grid grid-cols-1 overflow-hidden rounded-2xl border bg-card/40 md:grid-cols-2 lg:grid-cols-[220px_1fr_1fr_1.5fr_auto] lg:divide-x lg:divide-line-soft"
+      >
+        {/* image tile */}
+        <div className="relative h-44 overflow-hidden lg:h-auto">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c0e]/70 to-transparent" />
+          <span className="absolute left-5 top-5 text-[15px] font-medium text-ink">{item.short}</span>
+          {item.featured && (
+            <span className="absolute right-4 top-4 rounded-full bg-flame/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-flame">
+              Start here
+            </span>
+          )}
+        </div>
 
-      {/* stage + toggle (the original price cell) */}
-      <Cell label="Stage">
-        <span className="display text-4xl text-ink">{item.stageNo}</span>
-        <Toggle outcomes={outcomes} onToggle={setOutcomes} label={item.short} />
-      </Cell>
-
-      {/* engagement + focus stacked (the original plan + seats cells) */}
-      <div className="grid grid-rows-2 lg:divide-y lg:divide-line-soft">
-        <Cell label="Engagement">
-          <span className="text-lg text-ink">{item.name}</span>
+        {/* stage + toggle (the original price cell) */}
+        <Cell label="Stage">
+          <span className="display text-4xl text-ink">{item.stageNo}</span>
+          <Toggle outcomes={outcomes} onToggle={setOutcomes} label={item.short} />
         </Cell>
-        <Cell label="Focus">
-          <span className="display text-2xl text-mut">{item.stage}</span>
+
+        {/* engagement + focus stacked (the original plan + seats cells) */}
+        <div className="grid grid-rows-2 lg:divide-y lg:divide-line-soft">
+          <Cell label="Engagement">
+            <span className="text-lg text-ink">{item.name}</span>
+          </Cell>
+          <Cell label="Focus">
+            <span className="display text-2xl text-mut">{item.stage}</span>
+          </Cell>
+        </div>
+
+        {/* deliverables / outcomes */}
+        <Cell label={outcomes ? "Outcomes" : "Deliverables"}>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-live="polite">
+            {list.map((entry) => (
+              <li key={entry} className="flex items-center gap-2 text-[12.5px] text-mut">
+                <span aria-hidden className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full bg-flame/15 text-[8px] text-flame">✓</span>
+                {entry}
+              </li>
+            ))}
+          </ul>
         </Cell>
-      </div>
 
-      {/* deliverables / outcomes */}
-      <Cell label={outcomes ? "Outcomes" : "Deliverables"}>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-live="polite">
-          {list.map((entry) => (
-            <li key={entry} className="flex items-center gap-2 text-[12.5px] text-mut">
-              <span aria-hidden className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full bg-flame/15 text-[8px] text-flame">✓</span>
-              {entry}
-            </li>
-          ))}
-        </ul>
-      </Cell>
-
-      {/* select */}
-      <Cell>
-        <motion.button
-          type="button"
-          onClick={onSelect}
-          aria-pressed={selected}
-          whileTap={{ scale: 0.96 }}
-          className={`relative inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-medium transition-colors duration-300 ${
-            selected
-              ? "bg-flame text-[#161719]"
-              : item.featured
-                ? "bg-flame/90 text-[#161719] hover:bg-flame"
-                : "border border-line text-ink hover:border-flame hover:text-flame"
-          }`}
-        >
-          <motion.span
-            key={selected ? "on" : "off"}
-            aria-hidden
-            initial={selected ? { scale: 0.6, opacity: 0 } : false}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 18 }}
+        {/* select */}
+        <Cell>
+          <motion.button
+            type="button"
+            onClick={onSelect}
+            aria-pressed={selected}
+            whileTap={{ scale: 0.96 }}
+            className={`relative inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-[13px] font-medium transition-colors duration-300 ${
+              selected
+                ? "bg-flame text-[#161719]"
+                : item.featured
+                  ? "bg-flame/90 text-[#161719] hover:bg-flame"
+                  : "border border-line text-ink hover:border-flame hover:text-flame"
+            }`}
           >
-            {selected ? "✓" : "→"}
-          </motion.span>
-          {selected ? "Selected" : "Select"}
-          {/* the name follows the visible text; `relative` keeps this span inside the mobile scroller */}
-          <span className="sr-only"> {item.short}</span>
-        </motion.button>
-      </Cell>
-    </motion.div>
+            <motion.span
+              key={selected ? "on" : "off"}
+              aria-hidden
+              initial={selected ? { scale: 0.6, opacity: 0 } : false}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 18 }}
+            >
+              {selected ? "✓" : "→"}
+            </motion.span>
+            {selected ? "Selected" : "Select"}
+            {/* the name follows the visible text; `relative` keeps this span inside the mobile scroller */}
+            <span className="sr-only"> {item.short}</span>
+          </motion.button>
+        </Cell>
+      </motion.div>
+    </div>
   );
 }
 
 export default function Pricing() {
   const [selected, setSelected] = useState<string | null>(null);
+  const [pulse, setPulse] = useState(0);
+  const rows = useRef<HTMLDivElement>(null);
+  useInViewFlag(rows, { amount: 0.15 });
   const chosen = ENGAGEMENTS.find((item) => item.name === selected);
+  const select = (name: string) => {
+    setSelected(name);
+    setPulse((count) => count + 1);
+  };
   return (
     <section id="pricing" className="relative scroll-mt-2 py-24">
       <Container>
         <SectionHeader {...SECTIONS.pricing} />
 
-        {/* desktop: stacked rows */}
-        <div className="mt-12 hidden space-y-4 lg:block">
+        {/* desktop: stacked rows that slide in from the right one after another (globals.css, FX block; without
+            motion they are simply there) */}
+        <div ref={rows} className="fx-rows mt-12 hidden space-y-4 lg:block">
           {ENGAGEMENTS.map((item, i) => (
-            <Reveal as="div" key={item.name} delay={80 + i * 80}>
+            <div key={item.name} style={{ "--i": i } as CSSProperties}>
               <Tilt spotlight max={1.5} className="rounded-2xl">
-                <EngagementRow item={item} selected={selected === item.name} onSelect={() => setSelected(item.name)} />
+                <EngagementRow item={item} selected={selected === item.name} pulseKey={pulse} onSelect={() => select(item.name)} />
               </Tilt>
-            </Reveal>
+            </div>
           ))}
         </div>
 
         {/* mobile: swipeable cards */}
         <SnapRow className="mt-10 lg:hidden" itemClassName="w-[85%]">
           {ENGAGEMENTS.map((item) => (
-            <EngagementRow key={item.name} item={item} selected={selected === item.name} onSelect={() => setSelected(item.name)} />
+            <EngagementRow key={item.name} item={item} selected={selected === item.name} pulseKey={pulse} onSelect={() => select(item.name)} />
           ))}
         </SnapRow>
 

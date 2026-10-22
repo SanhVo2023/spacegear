@@ -3,26 +3,39 @@
 import { motion } from "motion/react";
 import { useState } from "react";
 import Reveal from "@/components/Reveal";
+import Parallax from "@/components/fx/Parallax";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
 import { FAQ_CARD, FAQS, SECTIONS } from "@/lib/content";
 
 type QA = { question: string; answer: string };
 
-/** Two short lines that cross into an X when open. */
+const ICON_SPRING = { type: "spring", stiffness: 380, damping: 22 } as const;
+
+/** Two short lines that cross into an X when open, while the whole icon spins half a turn (springs; at once
+ *  under reduced motion, MotionProvider). `initial={false}`: an item that starts open renders its X at rest
+ *  instead of spinning into it on hydration. */
 function ToggleIcon({ open }: { open: boolean }) {
   return (
-    <span aria-hidden className="relative grid h-5 w-5 shrink-0 place-items-center">
+    <motion.span
+      aria-hidden
+      initial={false}
+      className="relative grid h-5 w-5 shrink-0 place-items-center"
+      animate={{ rotate: open ? 180 : 0 }}
+      transition={ICON_SPRING}
+    >
       <motion.span
+        initial={false}
         className="absolute h-[2px] w-4 rounded-full bg-flame"
         animate={{ rotate: open ? 45 : 0, y: open ? 0 : -3 }}
-        transition={{ duration: 0.25 }}
+        transition={ICON_SPRING}
       />
       <motion.span
+        initial={false}
         className="absolute h-[2px] w-4 rounded-full bg-flame"
         animate={{ rotate: open ? -45 : 0, y: open ? 0 : 3 }}
-        transition={{ duration: 0.25 }}
+        transition={ICON_SPRING}
       />
-    </span>
+    </motion.span>
   );
 }
 
@@ -80,8 +93,11 @@ export function StillQuestionsCard() {
     <div className="lg:sticky lg:top-28">
       <div className="overflow-hidden rounded-2xl border border-line bg-card/50">
         <div className="relative h-56 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={FAQ_CARD.img} alt={FAQ_CARD.imgAlt} loading="lazy" className="h-full w-full object-cover grayscale" />
+          {/* the photo drifts gently in its frame on fine-pointer desktops; the frame keeps its h-56 box */}
+          <Parallax className="absolute inset-0" amount={0.08}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={FAQ_CARD.img} alt={FAQ_CARD.imgAlt} loading="lazy" className="absolute inset-0 h-full w-full object-cover grayscale" />
+          </Parallax>
           <div className="absolute inset-0 bg-gradient-to-t from-card/90 to-transparent" />
           <div className="absolute bottom-3 right-3">
             <CircleBadge />
