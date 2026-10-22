@@ -89,7 +89,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `tests/helpers/content.mjs` | Reads `content/` into `buildContent()` input | 3 |
 | `tests/content-loader.test.mjs`, `tests/content-index.test.mjs` | Loader and index tests | 3 |
 | `src/lib/content-contract.ts` | Compile-time proof that every export kept its type | 4 |
-| `tests/content-roundtrip.test.mjs` | Every export equals the fixture | 4 |
+| `tests/content-roundtrip.test.mjs` | Every export equals the fixture (Task 11: renamed `tests/content-exports.test.mjs`, names and routes only; the values moved to `scripts/check-migration.mjs`) | 4, 11 |
 | `content/legal/privacy.md`, `content/legal/terms.md` | Legal page text | 5 |
 | `src/lib/legal-markdown.ts`, `src/lib/legal.ts`, `src/components/legal-sections.ts` | Parse, read and render the legal Markdown | 5 |
 | `tests/legal.test.mjs` | Parser tests | 5 |
@@ -105,6 +105,7 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 | `public/admin/sveltia/**` (3 files) | Vendored Sveltia CMS 0.230.1 | 9 |
 | `public/admin/index.html`, `public/admin/config.yml` | Admin page and CMS configuration | 9 |
 | `tests/admin.test.mjs`, `tests/cms-config.test.mjs` | Vendoring, page, headers and config-mirror tests | 9–10 |
+| `scripts/check-migration.mjs`, `tests/fixtures/legal-v1.json` | One-off check against the pre-CMS copy, outside `npm test` (added in execution) | 11 |
 
 **Modify**
 | Path | Change | Task |
@@ -3403,23 +3404,33 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
 ## Merge notes (for the controller, merging `feat/showcase-cms` after Part 1)
 
-- **`src/lib/content.ts` is rewritten.** If Part 1 changed or added copy there (for example intro text), port the change into the matching `content/*.json` file, extend `content-model.ts` and `config.yml` if a field was added, then update `tests/fixtures/content-v1.json` (and `content-v1.d.ts` for a new export) for that deliberate change only, and record it under "Amendments". `npm test` (round-trip and mirror tests) shows exactly what is missing.
-- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment) and `scripts/build-production.mjs` (before `const checks=`). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
-- **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module. `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms` (Task 10) shows no conflict.
-- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
+- **`src/lib/content.ts` is rewritten.** As of `d6e8e4e`, Part 1 has not changed `content.ts`, `site.ts`, the legal pages or `tests/content.test.mjs`. If it changes or adds copy in `content.ts` later (for example intro text), the merge conflicts there:
+  1. Keep the loader, and port the change into the matching `content/*.json` file. Extend `content-model.ts` and `config.yml` if a field was added; `npm test` (the config mirror tests) shows what is missing.
+  2. `node scripts/check-migration.mjs` must then list exactly that change and nothing else.
+  3. Run `node scripts/check-migration.mjs --refresh`, check `git diff tests/fixtures`, and commit the fixture with the reason. For a new or changed export type, edit `tests/fixtures/content-v1.d.ts` by hand and extend `src/lib/content-contract.ts` (`npm run typecheck` fails until then).
+  4. Record it under "Amendments".
+- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment), `scripts/build-production.mjs` (before `const checks=`) and `src/app/globals.css` (the two `@source not` lines after `@import "tailwindcss";`, Task 9). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module.
+- **`git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`** shows no conflict (Task 10, and again in Task 11 with `feat/spacegear-showcase` at `d6e8e4e`). Five files are changed on both sides, and all five merge cleanly:
+  - `package.json`: Part 1 adds `build:textures`; Part 3 changes the `build` line and adds three scripts and `js-yaml` (see the `package.json` bullet below);
+  - `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs`: Part 3's fenced blocks;
+  - `src/app/globals.css`: Part 3's fenced `@source not` lines.
+
+  `README.md` and the tests are changed on this branch only. Re-run the command right before merging, because Part 1 may have moved on.
+- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. Both are pinned exactly in `package.json`, and Part 1 keeps the same two versions (checked at `d6e8e4e`). If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
 - **The CMS browser check caches the three admin fonts** in `artifacts/cms-fonts/` (gitignored). In a checkout without that folder, the first `test:browser` fetches them once from jsDelivr. With no network and no cache, the check fails and says so.
 - **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
-  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. If Part 1 rewords that message, update the prefix.
+  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. Part 1 still writes ``errors.push(`Excluded source/template asset: ${relative}`)`` at `d6e8e4e`. If Part 1 rewords that message, update the prefix: otherwise the first real upload fails check-export with that message.
   - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
 - **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` is a new devDependency. Re-run `npm install --package-lock-only` after resolving a lockfile conflict.
-- **Task 8's ten one-line edits** sit in section components that Part 2 will animate. When Part 2 rewrites one of those `<img>` elements, keep `{...contentImage(x)}` in place of `src={x}` (the Step 1 grep finds any missed site).
+- **Task 8 is deferred** (controller amendment). Nothing on this branch imports `contentImage()` yet, so an upload renders as its original until Task 8 runs. It runs after Part 2, in the main worktree, against the section components as Part 2 leaves them: its Step 1 grep finds the image render sites then, and each `src={x}` becomes `{...contentImage(x)}`.
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
 - **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
   1. In the main worktree, before merging, save the baseline from Part 1's final build: `git show feat/showcase-cms:scripts/html-snapshot.mjs > artifacts/html-snapshot.mjs && node artifacts/html-snapshot.mjs save artifacts/html-baseline`. The script is not on `feat/spacegear-showcase` yet, and its `save` guard only accepts folders under the `artifacts/` next to the script, so run a copy from `artifacts/`. That folder is gitignored, so the copy cannot block the merge. Also keep that build's chunks for step 2, removing any older copy first: `rm -rf artifacts/dist-pre-merge && mkdir -p artifacts/dist-pre-merge/_next/static && cp -r dist/_next/static/chunks artifacts/dist-pre-merge/_next/static/`.
-  2. Merge `feat/showcase-cms`, rebuild, run the heavy gates once, and run `node scripts/html-snapshot.mjs compare artifacts/html-baseline`. **Expect identical, or only `"$module"` changes**:
+  2. Merge `feat/showcase-cms` and rebuild. Then run `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-pre-merge`. **Expect `New pages (not in the snapshot): admin/index.html` and identical pages, or only explained `"$module"` changes**:
      - Part 3 is output-neutral and Task 8 is deferred.
      - Turbopack's client module ids are not stable across branches; they shift whenever the module set changes. The Task 6b re-review found that 2 of 28 ids differed between this branch and the main worktree (`Pricing.tsx` 44815 / 89176, `ContactForm.tsx` 26675 / 65254), with byte-identical source and factory code.
-     - A page that differs only in ids is listed with each change (export, old id → new id, line). Re-run `node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-pre-merge`.
+     - Without `--explain-client-ids`, a page that differs only in ids is listed with each change (export, old id → new id, line); with it, each change is checked.
      - The ids are **explained** when all of these hold:
        - the pages are identical apart from the ids;
        - each changed id has the same `$client` export name at the same place;
@@ -3432,7 +3443,9 @@ The only task that edits section components. Each edit replaces `src={X}` with `
        2. Confirm that every differing token is a module id and that each maps to a module that is itself the same code.
        3. Record the pairs under "Amendments", or escalate. Any other difference is a real change.
      - `--loose-client-ids` only drops the ids (with a warning), for a first look.
+     - **The stylesheet.** Chunk names are masked, so also compare the CSS chunk with the one in `artifacts/dist-pre-merge` (for example `cmp`). Tailwind scans `docs/` and `README.md`, and the merged tree holds both branches' docs, so a class-like word in either can add a rule. Part 3's docs add none to Part 3's own build (Task 11: all 19 chunks byte-identical). If the merged stylesheet differs, find the added rules and reword the prose that produced them.
   3. Once the compare passes (identical, or every id change explained), save the baseline again from the merged build and keep it for the remaining work.
+  4. **The other gates on the merged HEAD:** `npm run lint && npm run typecheck && npm test`; `node --experimental-strip-types scripts/check-content.mjs`; `npm run cms:vendor -- --check`; `node scripts/build-content-index.mjs --check`; `node scripts/check-migration.mjs` (green while no copy has been edited; see the first bullet); `check:seo`; `test:browser` twice; and the manual Chrome check of `/admin/` (Task 11 report).
 - **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
   - The copy that step 1 runs from `artifacts/` is therefore format 3. It compares the markup plus the resolved RSC tree, keeps client module ids, and writes a `.format` marker.
   - `compare` refuses format-1 folders (no marker) and format-2 folders, so save the pre-merge baseline with that copy, not with an older one.
@@ -4019,6 +4032,57 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `check:seo` passes.
      - `test:browser` passes twice: once with the font cache removed (the fonts came from the network) and once with it in place (from the cache).
      - `git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`: no conflict.
+- **Task 11** (`fe4ba85`, `bedd17e`, `1be9396`, `ee6aa3d` and the docs commit that records this entry). The committed files supersede Task 11's text. Throwaway scripts and logs are in `artifacts/t11/`.
+  1. **The frozen fixture is now a one-off migration check** (controller amendment "Frozen-fixture value tests must not block CMS editing", and the Task 5 follow-up for `tests/legal.test.mjs`).
+     - **`scripts/check-migration.mjs`** is not part of `npm test`. It compares:
+       - every `content.ts` export with `tests/fixtures/content-v1.json` (`values`, key order included);
+       - `buildContent()` on the files read from `content/` with those exports, so a stale index shows too;
+       - `serviceBySlug` for every fixture service;
+       - the site name, description and social profiles (`site`);
+       - for each legal page, the headings, the paragraphs per section (one each in the pre-CMS copy) and the full text, against the new `tests/fixtures/legal-v1.json`.
+     - **`legal-v1.json`** holds the plain section text of the pre-CMS JSX at `f1224a3^` (5 privacy and 4 terms sections; the notice and the contact section stay in the pages). It was extracted once with `artifacts/t11/extract-legal.mjs` and equals today's parse.
+     - The script loads TypeScript through tsx's `register()`: `src/lib/site.ts` imports `./content` without an extension, which `--experimental-strip-types` cannot resolve. So the command is plain `node scripts/check-migration.mjs`.
+     - **Messages:** each check lists at most five differences. A text shows from its first differing character (counted in code points), list positions start at 0, and the last line points to the README.
+     - **`--refresh`** rewrites both fixtures from the current content, in the original form. At HEAD it leaves `content-v1.json` byte-identical and the legal sections unchanged; only `legal-v1.json`'s `about` line changes, to say it was refreshed.
+     - **`npm test` keeps:**
+       - the export names and the routes (`tests/content-exports.test.mjs`, renamed from `content-roundtrip.test.mjs`). The routes stay, a deviation, because no CMS edit can change them: services cannot be added or removed, and a service file must be named after its slug;
+       - `serviceBySlug`'s behaviour, now against `SERVICES`;
+       - the names `buildContent` returns;
+       - one structural legal test in place of the three literal ones;
+       - the exact type contract (`npm run typecheck`), and the schema, uniqueness, honesty, index and canonical-form tests.
+     - **Found on the way (deviation):** `tests/content.test.mjs` ("hero copy keeps the original four-line headline rhythm") asserted the exact hero verbs and the call-to-action label. An edit of either in the CMS failed `npm test`. It now checks the shape only (three verbs of at most six characters, a non-empty label), and the migration check compares the words.
+     - **Left as it is (shared file):** `scripts/browser-check.mjs` finds the hero link by the literal name "Discuss a project" (`.hero-copy` link in the failed-WebGL check). An edit of `HOME.cta.label` would fail `test:browser`. Part 1 owns that line; reading the label from `content/home.json` would fix it after the merge.
+     - **Test counts:** 220 before (218 pass, 2 skipped), 196 after (194 pass, 2 skipped): −22 per-export value tests and the site test, +1 routes test; −3 literal legal tests, +1 structural one.
+     - **Proof** in `artifacts/test-projects/migration-proof/`: a copy of the worktree with a `node_modules` junction (one html-snapshot test reads `node_modules/next/…` from the cwd). The worktree was not touched.
+       - Unedited: `npm test` 196 tests, 194 pass, 2 skipped; the migration check passes.
+       - One FAQ answer edited as the CMS writes it (`content/faqs/what-we-do.json`, `JSON.stringify(_, null, 2)` plus a newline, one line changed): `npm test` still passes (194). The migration check exits 1 with exactly one difference, `FAQS[0].answer, from character 23: …`.
+       - More edits of the same kind: the hero verbs and call-to-action label, the site description, a service summary, a team discipline name, a privacy paragraph and a new privacy section. check-content passes and `npm test` passes; the migration check lists every change. The `0a2d6b2` versions of the four test files fail 11 tests on the same edits.
+       - `--refresh` after the edits makes the check pass again, and `npm test` stays green.
+  2. **The uploads check waits for `<main>`'s own fiber key** (Task 10 re-review). React sets an element's fiber key in `prepareToHydrateHostInstance`, right after `popHydrationState` has checked that element's children (`completeWork` in `react-dom-client`), so the wait is deterministic. The "last element under `<main>` has a key" condition is gone. Probe (`artifacts/t11/hydration-probe.mjs`): with an unmanaged `<span>` appended to `<main>` after hydration, the old condition is false, so the wait would time out, and the new one stays true; no page errors.
+  3. **README** (deviations from Step 1's draft):
+     - It has two parts: "Editing content" for editors and "Maintaining the CMS" for maintainers (the admin CSP, the uploads sandbox, upgrades, the migration check, the HTML snapshot, costs and Tailwind).
+     - Uploads: AVIF and GIF are listed, and the 10 MiB limit; HEIC is refused at upload; GIF and WebP keep animations and metadata, so location data in them is refused by the build.
+     - Variants are named `photo.jpg.w640.webp`. The draft's `<name>.w640.webp` predates the Task 7 cache. `contentImage()` has no importer until Task 8, so pages show the original upload for now.
+     - The `font-src` row gives the three full URLs, and the hardening row includes `default-src`.
+     - New sections: reading the content check (positions start at 0), the honesty scan (what it reads, two exceptions, known gaps, message format), upgrading wrangler or miniflare, the config schema and bundle-anchor steps of a Sveltia upgrade, the migration check and its refresh, the HTML snapshot (format 3, `--explain-client-ids`, `--loose-client-ids`), costs.
+     - **Costs** (no budget is set): the client chunk with the copy and its validation is 35,838 B (12,021 B gzipped). The Worker bundled with esbuild, unminified, is 61,954 B (17,035 B gzipped), against 18,892 B (6,491 B) at `dc4b6af`. The Task 4 and Task 7 measurements are quoted.
+     - The release runbook's sentence points to "The admin Content-Security-Policy", where the font policy is now explained, rather than "Editing content".
+  4. **Merge notes** updated:
+     - the `content.ts` procedure now goes through `check-migration` and `--refresh`;
+     - the `globals.css` fence and the five files changed on both sides;
+     - Part 1's excluded-asset wording, checked at `d6e8e4e`;
+     - Task 8 deferred;
+     - the pinned wrangler and miniflare versions, which Part 1 keeps;
+     - step 2 runs `--explain-client-ids artifacts/dist-pre-merge` directly and expects `admin/index.html` as a new page;
+     - the stylesheet comparison, and the list of the other gates.
+  5. **`npm run build:production`** needs production facts, not secrets: `NEXT_PUBLIC_SITE_URL` (the confirmed HTTPS origin), a verified `NEXT_PUBLIC_CONTACT_EMAIL`, `POLICIES_APPROVED=true`, a real `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, and a fresh checkout without `dist/`. Without them it stops at `check-content --production` (`confirmed HTTPS origin required`, `verified contact email required`, `policies must be approved before publication`) before `next build`, so `dist/` is untouched. They were not faked.
+  6. **Results** before this entry, on `ee6aa3d`:
+     - The rebuild gave `Export valid: 12 core pages, 161 files, 13.92 MiB total.`
+     - All 19 chunks, the stylesheet included, are byte-identical to the `0a2d6b2` build, so the README added no Tailwind rule.
+     - `compare --explain-client-ids`: `New pages (not in the snapshot): admin/index.html` and `Rendered HTML identical to artifacts/html-baseline: 15 pages.`
+     - `check:seo` and `test:browser` pass.
+
+     The gates on the final HEAD are in the Task 11 report.
 
 ## Risks and open questions
 
