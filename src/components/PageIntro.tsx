@@ -15,7 +15,7 @@ export default function PageIntro({
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-        <Link prefetch={false} href={back.href} className="font-mono text-[12px] text-mut-2 transition-colors hover:text-flame">
+        <Link prefetch={false} href={back.href} className="fx-underline font-mono text-[12px] text-mut-2 transition-colors hover:text-flame">
           ← {back.label}
         </Link>
         <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-mut-2">

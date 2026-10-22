@@ -628,6 +628,56 @@ desktop("the progress rail is keyboard-reachable and tracks the section in view"
   assert.ok(!shown.idle && shown.opacity >= 0.99 && shown.fill > 0, `desktop: past the hero the rail shows and its fill tracks the page (${JSON.stringify(shown)})`);
 });
 
+desktop("the nav pill slides, buttons sweep, links underline and fields glow", async (page, ctx) => {
+  // Every layout shift from here on, input or not, with the elements it moved: hovering the nav and the
+  // buttons must move no box.
+  await page.evaluate(() => {
+    window.__fxShifts = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) window.__fxShifts.push({ value: entry.value, moved: (entry.sources ?? []).map((source) => `${source.node?.nodeName ?? "?"}.${source.node?.className ?? ""}`) });
+    }).observe({ type: "layout-shift" });
+  });
+  const shifts = () => page.evaluate(() => window.__fxShifts.slice());
+  const pill = () => page.evaluate(() => document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null);
+  assert.equal(await pill(), "/", "desktop: the pill sits on the current page link");
+  assert.equal(await page.evaluate(() => document.querySelector('header a[aria-current="page"]')?.getAttribute("href")), "/", "desktop: the current page link is marked");
+  await page.locator("header").getByRole("link", { name: "About", exact: true }).hover();
+  await page.waitForTimeout(500);
+  assert.equal(await pill(), "/about/", "desktop: the pill follows the hovered link");
+  await page.locator("header").getByRole("link", { name: "Discuss a project" }).hover();
+  await page.waitForTimeout(500);
+  await page.mouse.move(700, 600, { steps: 4 });
+  await page.waitForTimeout(500);
+  assert.equal(await pill(), "/", "desktop: the pill returns to the current page link");
+  assert.deepEqual(await shifts(), [], "desktop: hovering the nav links and the header CTA shifts no layout");
+  const button = page.locator("#process a.fx-sweep").first();
+  await button.scrollIntoViewIfNeeded();
+  // Let the section's entrance settle first: its step cards count up their outputs (1.1 s), which can nudge a line.
+  await page.waitForTimeout(1400);
+  await settle(button);
+  const beforeButton = (await shifts()).length;
+  await button.hover();
+  await page.waitForTimeout(650);
+  assert.equal(await button.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el, "::before").transform).a), 1, "desktop: the button fill sweeps in on hover");
+  assert.deepEqual((await shifts()).slice(beforeButton), [], "desktop: a hovered button shifts no layout");
+  await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.waitForTimeout(500);
+  const link = page.locator("#contact nav li a").first();
+  await link.hover();
+  await page.waitForTimeout(550);
+  assert.equal(await link.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el, "::after").transform).a), 1, "desktop: the link underline draws in on hover");
+  const field = page.getByLabel("Your name");
+  await field.focus();
+  await page.waitForTimeout(450);
+  assert.match(await field.evaluate((el) => getComputedStyle(el).boxShadow), /rgba\(250, 110, 67/, "desktop: a focused field glows");
+  // Inner pages: the pill and aria-current sit on the page's own link; under /services/ on the Services trigger.
+  await fresh(page, ctx.base, "/about/");
+  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: document.querySelector('header a[aria-current="page"]')?.getAttribute("href") ?? null })), { pill: "/about/", current: "/about/" }, "desktop: on /about/ the pill and aria-current sit on About");
+  const service = await page.evaluate(() => document.querySelector('header li.group ul a[href^="/services/"]')?.getAttribute("href"));
+  await fresh(page, ctx.base, service);
+  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: "/services/", current: ["/services/=true"] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

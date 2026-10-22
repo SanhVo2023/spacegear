@@ -103,7 +103,7 @@ export function FlameButton({
   return (
     <MagneticLink
       href={href}
-      className={`group inline-flex items-center justify-center gap-2 rounded-xl bg-flame px-5 py-[14px] text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] duration-300 hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)] ${className}`}
+      className={`fx-sweep group inline-flex items-center justify-center gap-2 rounded-xl bg-flame px-5 py-[14px] text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] duration-300 hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)] ${className}`}
     >
       {children}
       <ArrowIcon />
@@ -123,7 +123,7 @@ export function GhostButton({
   return (
     <MagneticLink
       href={href}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card-2/60 px-5 py-[14px] text-[13px] font-medium text-ink transition-colors duration-300 hover:border-mut-3 hover:bg-card-3/60 ${className}`}
+      className={`fx-sweep fx-sweep-ghost inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card-2/60 px-5 py-[14px] text-[13px] font-medium text-ink transition-colors duration-300 hover:border-mut-3 hover:bg-card-3/60 ${className}`}
     >
       {children}
     </MagneticLink>

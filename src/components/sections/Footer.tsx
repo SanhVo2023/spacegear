@@ -48,11 +48,11 @@ export default function Footer() {
           <div className="relative overflow-hidden p-6 text-center sm:p-8 lg:text-left">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_120%_at_70%_40%,rgba(250,110,67,0.08),transparent_60%)]" />
             {SITE.contactEmail ? (
-              <a href={`mailto:${SITE.contactEmail}`} className="relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
+              <a href={`mailto:${SITE.contactEmail}`} className="fx-underline relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
                 {SITE.contactEmail}
               </a>
             ) : (
-              <Link prefetch={false} href="/contact/" className="relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
+              <Link prefetch={false} href="/contact/" className="fx-underline relative inline-block text-[13px] text-mut-2 transition-colors hover:text-flame lg:float-right">
                 Discuss a project ↗
               </Link>
             )}
@@ -82,7 +82,7 @@ export default function Footer() {
                 <ul className="space-y-3">
                   {col.map((it) => (
                     <li key={it.href}>
-                      <Link prefetch={false} href={it.href} className="text-[14px] text-mut-2 transition-colors hover:text-ink">{it.label}</Link>
+                      <Link prefetch={false} href={it.href} className="fx-underline text-[14px] text-mut-2 transition-colors hover:text-ink">{it.label}</Link>
                     </li>
                   ))}
                 </ul>
@@ -98,7 +98,7 @@ export default function Footer() {
             <QuickStart />
             <p className="mt-4 text-[12px] text-mut-2">
               Read how we handle your details in our{" "}
-              <Link prefetch={false} href="/privacy/" className="text-flame hover:underline">Privacy policy.</Link>
+              <Link prefetch={false} href="/privacy/" className="fx-underline text-flame">Privacy policy.</Link>
             </p>
             <p className="mt-2 text-[12px] text-flame">* {FOOTER.quickStart.note}</p>
           </div>
