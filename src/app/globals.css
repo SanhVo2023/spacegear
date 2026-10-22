@@ -453,4 +453,13 @@ html[data-intro="play"] #home [data-reveal] { animation: intro-failsafe-copy 0s 
   background-size: 180px 180px;
 }
 
+/* Smooth anchors (smooth-anchors.ts): the html rule's smooth scrolling applies only after a press or a
+   key, so a reload, Back and a deep link land at once instead of gliding from the top of the page. */
+html:not([data-fx-smooth-anchors]) { scroll-behavior: auto; }
+
+/* Smooth scroll (SmoothScroll.tsx): Lenis's base rules. */
+html.lenis,
+html.lenis body { height: auto; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+
 /* === /FX === */
