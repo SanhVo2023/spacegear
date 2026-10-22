@@ -449,7 +449,8 @@ desktop("What We Do tiles tilt toward the pointer under a spotlight", async (pag
   const card = page.locator("#work [data-tilt]").first();
   await settle(card);
   // Layout boxes (offsets ignore transforms) of the tile and the whole bento.
-  const layout = () => card.evaluate((el) => [el, el.parentElement.parentElement].map((node) => [node.offsetLeft, node.offsetTop, node.offsetWidth, node.offsetHeight].join()).join("|"));
+  // (Tilt sits in the item's ScrollDepth layer, inside its AppearItem, inside the bento.)
+  const layout = () => card.evaluate((el) => [el, (el.closest("[data-depth]") ?? el).parentElement.parentElement].map((node) => [node.offsetLeft, node.offsetTop, node.offsetWidth, node.offsetHeight].join()).join("|"));
   const rest = await card.evaluate((el) => getComputedStyle(el).transform);
   const restLayout = await layout();
   const box = await card.boundingBox();
@@ -845,6 +846,63 @@ desktop("under reduced motion the route change is instant", async (page) => {
   } finally {
     await page.emulateMedia({ reducedMotion: null });
   }
+});
+
+desktop("What We Do images drift inside their frames and leaving cards stack and shrink", async (page) => {
+  const read = () => page.evaluate(() => {
+    const layer = document.querySelector("#work [data-parallax] > *");
+    const depth = document.querySelector("#work [data-depth]");
+    if (!layer || !depth) return null;
+    const m = (el) => new DOMMatrixReadOnly(getComputedStyle(el).transform === "none" ? undefined : getComputedStyle(el).transform);
+    const frame = layer.parentElement.getBoundingClientRect();
+    const image = layer.getBoundingClientRect();
+    return {
+      parallaxY: m(layer).m42,
+      depthScale: m(depth).a,
+      // The drifting layer always covers its frame: no gap at the top or the bottom edge.
+      covered: image.top <= frame.top + 0.5 && image.bottom >= frame.bottom - 0.5,
+    };
+  });
+  // Layout boxes of the section, its bento items and the next section: transforms only, so none may change.
+  const layout = () => page.evaluate(() => [document.getElementById("work"), ...document.querySelectorAll("#work [data-depth]"), document.getElementById("services")].map((el) => [el.offsetTop, el.offsetHeight].join()).join("|"));
+  await page.evaluate(() => {
+    window.__workShifts = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if ((entry.sources ?? []).some((source) => source.node?.closest?.("#work"))) window.__workShifts.push(entry.value);
+      }
+    }).observe({ type: "layout-shift" });
+  });
+  const work = await sectionTop(page, "work");
+  const rest = await layout();
+  await jumpTo(page, work + 200);
+  await page.waitForTimeout(500);
+  const entering = await read();
+  assert.ok(entering, "desktop: the bento has parallax and depth layers");
+  await jumpTo(page, work + 900);
+  await page.waitForTimeout(500);
+  const leaving = await read();
+  assert.ok(Math.abs(leaving.parallaxY - entering.parallaxY) > 4, `desktop: the image drifts in its frame (${entering.parallaxY} → ${leaving.parallaxY})`);
+  assert.ok(entering.covered && leaving.covered, "desktop: the drifting image always covers its frame");
+  assert.ok(leaving.depthScale < 0.99 && leaving.depthScale < entering.depthScale, `desktop: the leaving card shrinks (${entering.depthScale} → ${leaving.depthScale})`);
+  // While the last bento row leaves, drifting into the gap above Our Services, it never touches that title.
+  const clearance = await page.evaluate(async () => {
+    const items = [...document.querySelectorAll("#work [data-depth]")].filter((el) => el.offsetParent);
+    const title = document.querySelector("#services h2");
+    let worst = Infinity;
+    // Step through the range where the last row leaves (its bottom from 80% to 0% of the viewport).
+    const lastBottom = () => Math.max(...items.map((el) => el.getBoundingClientRect().bottom));
+    window.scrollTo({ top: window.scrollY + lastBottom() - innerHeight * 0.8, behavior: "instant" });
+    for (let i = 0; i < 24; i++) {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      worst = Math.min(worst, title.getBoundingClientRect().top - lastBottom());
+      window.scrollBy({ top: innerHeight * 0.035, behavior: "instant" });
+    }
+    return Math.round(worst);
+  });
+  assert.ok(clearance > 16, `desktop: the drifting last row stays clear of the Our Services title (${clearance}px at the closest)`);
+  assert.equal(await layout(), rest, "desktop: the depth stack and the parallax move no layout box (the section keeps its height)");
+  assert.deepEqual(await page.evaluate(() => window.__workShifts), [], "desktop: scrolling through What We Do shifts no layout");
 });
 
 // --- Run alone ---
