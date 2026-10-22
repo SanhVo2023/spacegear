@@ -5095,3 +5095,115 @@ The data hooks are also consistent across components, CSS and checks: `data-fx`,
 - **Logo (2026-10-22, on `feat/spacegear-showcase`):** the drawn spacegear logo (concept B "Shift", `docs/brand/guidelines.md`) replaced the "space—gear" dash wordmark. Merge `feat/spacegear-showcase` into the motion branch again before Tasks 8 and 14. "space—gear" is now an old-identity string: `scripts/check-export.mjs` and `scripts/lib/honesty.mjs` reject it in any exported file or content, so no code, check or copy may bring it back.
   - **Task 8:** the nav pill wraps the new `<Brand />` (`src/components/Brand.tsx`), an `aria-hidden` inline-SVG lockup (24 px tall, 28 px from `lg`). Keep the home link as `<Link prefetch={false} href="/" aria-label="spacegear home" …><Brand /></Link>` wherever the plan's Nav markup still shows `aria-label="space—gear home"`; `scripts/identity-check.mjs` (run by `test:browser`) asserts that name on every route.
   - **Task 14:** the footer wordmark is now `<Wordmark>` (`src/components/Wordmark.tsx`) with 9 letters ("spacegear"), not 10 letters of "space—gear". Each glyph is already a `<span data-letter class="fx-letter inline-block glyph-…" style="--i:n">` holding its own SVG, followed by a `.sr-only` "spacegear" and the drawn ™ (`.brand-tm`, not a `data-letter`). `FooterWordmark.tsx` must not split text (drop `NAME`): it renders `<Wordmark ref={ref} className="fx-wordmark flex justify-center text-[clamp(36px,10vw,104px)] lg:justify-start lg:text-[clamp(40px,8vw,104px)] text-flame" />` (the classes `Footer.tsx` passes today: the flex centring keeps it centred on phones) and runs the letter-rise and the cursor lean on those `[data-letter]` / `.fx-letter` elements and their `--i`. The `fx-checks` expectation becomes `{ letters: 9, risen: false, name: "spacegear" }`. Under reduced motion the glyphs stay at rest (guidelines §9).
+
+## Execution record
+
+- Lenis: 1.3.26 (pinned; 1.3.27 was six days old at planning time).
+- **Where it ran.** Tasks 1–14 ran in the `spacegear-motion` worktree (`feat/showcase-motion`, preview 8791), in parallel with Part 1's last tasks and the CMS merge. Task 15 ran in `spacegear-hero` (`feat/showcase-hero`, 8792), together with Part 3 Task 8. Both branches merged into `feat/spacegear-showcase` at `20c49a2` (`--no-ff`, tree = `ee6abab`). Task 16 ran on the main worktree (preview 8790; 8787 is kept free for the owner).
+- **Desktop lab metrics after Part 2** (`artifacts/browser-report.json`, unthrottled local, build `ad194e2`): CLS 0, long tasks 0, JS bytes 492,059. With the intro: CLS 0, one long task of 56 ms. Phones and the tablet load 484,925 bytes of JS, reduced motion 241,634.
+- **Gates at `ad194e2`:**
+  - lint and typecheck clean;
+  - 289 unit tests (287 pass, 2 skipped);
+  - `fx-checks` 51 checks;
+  - `check:seo` passed (12 pages);
+  - `test:browser` passed, 6 profiles, first run.
+- **check:fidelity** at `ad194e2`, against the original's `next start` on 3101: passed. Every section is within the 0.15 tolerance; mobile services stays within its existing 0.3 override, and no tolerance was added.
+  - Desktop ratios: home 1, work 0.977, services 1, process 1.001, analytics 1, pricing 1, FAQ 1, team 0.969, contact 0.968.
+  - Mobile ratios: home 1.032, work 1.017, services 1.097, process 0.989, analytics 1.008, pricing 0.939, FAQ 1, team 0.996, contact 0.992.
+  - **Motion adds no section height.** On the candidate, every home section measures the same with the motion system on, under reduced motion and without JavaScript, at 1440×900 and 390×844. The one exception is the desktop hero: Part 1's pinned scroll sequence is 2700 px (as in the original), against 1392 px for the static poster. So the differences from the original predate Part 2.
+  - The desktop sheets show the progress rail at the right edge, a faint grain and, on the second What We Do screen, the depth stack in motion; all are intended. The work and analytics sheets were checked by eye; the rest are for the owner's review.
+
+### Task outcomes
+
+| Task | Commits | Outcome |
+|---|---|---|
+| 1 Pure helpers | `3d77ed6` | Unit-tested maths, split and idle loop. |
+| 2 Flags, grain, harness | `365b157` | 113 unit tests; `fx-checks` green. The full `test:browser` could not pass in the motion worktree then: Part 1's timing checks failed under memory pressure (0.5–1.2 GB free). It passed after merging main (`b7f4e5a`). |
+| 3 Lenis | `e8f67f1`, `db6c8be` | Smooth anchors start only after a press or a key (`smooth-anchors.ts` plus Next's `data-scroll-behavior`), so reloads, Back and route changes land at once. The grain stays out of the poster capture. |
+| 4 Cursor | `3e9beef`, review fixes `4035e6e` | 285 tests; `fx-checks` 18; `test:browser` passed on the first run. Review I1 (the dot streaked toward the corner because CSS `scale` applies outside `transform`) and M1, M3–M6 and M8 were fixed in `4035e6e`. |
+| 5 Magnetic, Tilt, Spotlight | `edc4203` | The header CTA and the footer pills were left to Tasks 8 and 14. |
+| 6 Split titles | `1c28996` | 287 tests; `fx-checks` 25; `test:browser` passed on the first run. The hero `h1` is untouched. |
+| 7 Progress rail | `44a6603` | `fx-checks` 27. |
+| 8 Micro-interactions | `a53c6ae` | `test:browser` and `check:seo` passed on the first run; hover CLS 0. |
+| 9 Page curtain | `0a78624`, `5197039` | Review I1: the old-footer hold broke outside curtain mode (phones, tablets, short laptops). Fixed in `e3982e7` with two new footer-hold checks, together with M2 (the phone menu shuts in the route commit) and M4 (`FX_ONLY` can no longer narrow `test:browser`). M3, Safari's swipe-back double animation, is listed under the fallbacks below. |
+| 10 Parallax and depth | `7897cb0` | `fx-checks` 34; `test:browser` passed twice; CLS 0. Promoted layers (`will-change`) removed the depth-stack jank. |
+| 11 Services and Process | `227a94d` | Services hover CLS went from 0.02–0.04 to 0, with a wheel-pass p95 frame of 14 ms. |
+| 12 What We Measure | `a00ce3f` | `fx-checks` 42; `check:seo` passed. The memory reaper killed the agent's `test:browser` mid-run; the controller's rerun passed on the first try. |
+| 13 Engagements and FAQ | `335f04b` | 288 tests; `fx-checks` 47; `test:browser` and `check:seo` passed on the first run; CLS 0 in every profile. |
+| 14 Footer wordmark | `cf24fc3` | The drawn `<Wordmark>`'s nine glyphs rise and lean. The footer and FAQ badge rings now close exactly. |
+| 15 Hero | `acbf66b`, merged at `ee6abab` | The hero CTA is a `MagneticLink` with the sweep. The globe already reads Drag and the intro never locks scrolling, so neither changed. Merged build: `fx-checks` 49; `check:seo` and `test:browser` passed on the first run. |
+| Final cross-cutting review | `2021c0c..b12d80e` | No Critical or Important findings; seven Minor findings, folded into Task 16. |
+| 16 Polish, gates, docs | `f0a46f1`, `ad194e2`, this record | See the next section. |
+
+### Task 16 polish round (from the final review)
+
+- **Spotlight contrast.** The peak dropped from 18% to 6%. The worst small text under the pointer, 12 px `#888891` on a What We Measure card, went from 3.81:1 to 4.57:1 (it is 4.93:1 at rest). 8% would have left it at 4.45:1. The 10 px `#5f5f66` labels (the engagement rows' cell labels and one What We Measure caption) were already below 4.5:1 at rest (2.74:1, as in the original) and are unchanged.
+- **Magnetic stale centre.** `useMagnetic` forgets its measured centre on `scroll`. A new fx-check rests the pointer on a CTA and glides 14 px. Before the fix the pull was 0 px; after it, the pull is about 4.9 px toward the pointer.
+- **Rail in forced colours.** Forced-colours rules draw the dots, track and fill in system colours, with the current dot and the fill in Highlight. The extended forced-colours check failed before the fix and passes after.
+- **Contact select.** The finding did not reproduce. The service was already set 6 ms after the curtain's animations started, while the curtain covered the page. `useSearchParams` would make the form client-only under a Suspense boundary in the static export, which changes the server markup, so it was not used. The selection now runs in a layout effect inside the route commit, before `ready`, so it no longer depends on when React flushes passive effects. The server markup is unchanged.
+- **Promoted layers.** ScrollDepth and Parallax promote their layer the first time it comes within half a viewport (IntersectionObserver, once). Over the hero no layer is promoted, against 14 before. Promotion is kept after that: dropping it again re-rastered the images in a 98–113 ms GPU frame on a first pass. Wheel pass through What We Do at 1440×1000:
+  - warm: p95 7.5–14.1 ms, worst 15–21 ms before; p95 7.7–14 ms, worst 14–15 ms after;
+  - cold: worst 14–35 ms before; 21 ms after;
+  - with no promotion at all: worst 84 ms cold, 42 ms warm.
+- **Lenis and the cursor.** They load with `next/dynamic` (`ssr: false`) inside the `fx` branch. Home first-load JS (encoded) per profile:
+  - phones, tablet and touch: 491,198 → 484,925 bytes;
+  - reduced motion: 247,907 → 241,634 bytes;
+  - desktop: 491,198 → 492,059 bytes (two more requests).
+
+  No hydration error, CSP violation or `fx-checks` failure.
+- **Dead code.** Removed `curtainReveal` and its test, the unused `Magnetic` wrapper and `useInViewFlag`'s unused `once: false` branch. Kept `setScrollLock` and the scroll-lock observer (documented contract), and the `[data-line]` / `[data-dot]` rules.
+- **Contact mailto.** It uses the drawn underline, like the footer and page-intro links. It renders only when a contact email is configured (the preview has none).
+- **Footer wordmark after a route change.** Not changed: the finding does not apply. Every route's `<main>` is at least one viewport tall, so a route change always lands with the footer covered. Measured at 1440×2200, `/contact/` and `/privacy/` put the content's edge exactly at the viewport's bottom. Any other landing moves the scroll position, and that scroll event re-runs the check once the curtain has gone.
+
+### Deviations from this plan and why
+
+- **Task 3:** in-page anchors glide only after a press or a key (`smooth-anchors.ts`), so restorations and deep links land at once.
+- **Tasks 7 and 8** (9 accepted), among them:
+  - the rail sits 6 px from the edge below 1280 px, to stay inside the container's gutter;
+  - `HAS_TESTIMONIALS` / `HAS_LABS` are the single source for both the rail and the sections;
+  - the nav pill sits on the links, not on the Brand;
+  - `aria-current="true"` marks the Services trigger under `/services/<slug>/`;
+  - only a mouse moves the pill.
+- **Task 10:** the depth stack works without pinning, so no section changes height. Task 16 changed the permanent `will-change` to promotion near the viewport (see above).
+- **Task 11:** the Services accordion uses fixed boxes, driven by registered `--fx-sv-<i>` properties and container units. They apply unconditionally, so no-JS keeps the same boxes.
+- **Task 12:** chart columns grow from their final height (`data-reveal` gives no-JS and reduced motion the full bar).
+- **Tasks 13 and 14** (11 accepted), among them:
+  - the rise starts once half the wordmark is uncovered;
+  - the FAQ's closed icon renders the same on the server and the client;
+  - the badge rings close exactly;
+  - the Privacy and Terms pills are magnetic;
+  - no SVG sprite for the wordmark (it would save 0.5 KB gzip, not worth another file).
+- **Task 16:**
+  - the README section sits beside "Hero globe", before "Content and release", since the README has grown since this plan was written;
+  - the polish round above.
+
+### Known browser fallbacks
+
+- **Chromium 111–124** has View Transitions but neither `view-transition-class` nor `:active-view-transition`. It shows a plain crossfade, with the nav hidden for about 250 ms. In every browser the nav takes no clicks during the 720 ms curtain (captured elements take no pointer events).
+- **Safari before 16.4 and Firefox before 128** lack `@property`, so the Services columns snap open instead of sliding.
+- **Safari's swipe-back** plays its own animation and then the curtain (a double animation; deferred).
+- Pre-existing, not motion:
+  - at 1024 px the narrow Services columns clip "02" and their tags;
+  - the Deliverables/Outcomes toggle can change a row's height (after input, so it is not CLS).
+
+### Real-GPU sign-off (Step 6)
+
+Pending: the controller runs it in the owner's Chrome. Owner look-check list:
+
+- **Home:**
+  - hero: the CTA magnet over the globe, the Drag cursor, and a wheel through the 300vh beats;
+  - a reload's glide, by eye;
+  - split-title kerning;
+  - the rail at 1024–1279 px;
+  - What We Do: parallax crop (scale 1.16) and depth softness, and whether the 6% spotlight still reads;
+  - Services: accordion feel;
+  - Process: the glow smudge;
+  - What We Measure: ticker lean and stop;
+  - Engagements: is the pulse clipped in the phone carousel?
+  - FAQ: legibility of the badge text (about 7 px and 5.7 px);
+  - footer: rise timing as a finale.
+- **Site-wide:**
+  - nav pill spring overshoot (about 3 px), sweep colours, field glow;
+  - curtain: 720 ms in #fa6e43, entrances starting after it, the footer-link flash, and the phone footer-link curtain;
+  - Frame Rendering Stats holding about 60 fps through the Step 6 pass, with reduced motion, and at 390 and 320 px.
+- **Contact:** the mailto's drawn underline, once a contact email is configured.

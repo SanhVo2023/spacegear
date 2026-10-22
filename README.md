@@ -300,6 +300,18 @@ The home hero renders the Earth with a custom three.js shader from texture tiers
 
 No model, decoder or WebAssembly ships: the export check refuses any `.glb` file and anything under `draco/`, in any letter case, and the site CSP has no `'wasm-unsafe-eval'` and allows workers from the site only.
 
+## Motion system
+
+Effects live in `src/components/fx/`: Motion plus Lenis 1.3.26 (no GSAP).
+
+- **Who gets what.** Heavy effects (smooth scroll, cursor, magnetic buttons, tilt and spotlight, split titles, the home progress rail, grain, the footer letters) run only after hydration on `(hover: hover) and (pointer: fine)` at ≥1024 px with motion allowed (`useFx()`, `html[data-fx]`). Lenis and the cursor load on demand there, so phones, tablets, touch screens and reduced motion never download them. Reveals and scroll draws run wherever motion is allowed (`html[data-fx-motion]`). Without JavaScript or under reduced motion, everything shows its end state.
+- **Rules.** Markup branches only on `useFx()` / `useMotionOK()` (false on the server and during hydration), never on `useReducedMotion()`. Effects animate transform and opacity (SVG draws animate stroke dashes). An idle page requests no animation frames. Scroll-linked layers are promoted the first time they come near the viewport, not at page load.
+- **Cursor labels.** Add `data-cursor="View"` (or `Drag`, `Open`) to an element to show that label in the custom cursor.
+- **Scroll locks.** Set `data-scroll-lock` on `<html>` (`setScrollLock()` in `src/components/fx/scroll-lock.ts`) to pause smooth scrolling.
+- **Page transitions.** `experimental.viewTransition` plus React `<ViewTransition>` (`src/app/template.tsx`, `src/components/fx/PageTransition.tsx`): an orange curtain, instant where unsupported or under reduced motion.
+- **Browser fallbacks.** Chromium 111–124 (View Transitions without transition classes) shows a plain crossfade, with the nav hidden for about 250 ms. Safari before 16.4 and Firefox before 128 (no registered custom properties) snap the Services columns open instead of sliding them. Safari's swipe-back gesture can play its own animation and then the curtain.
+- **Checks.** `scripts/fx-checks.mjs` runs inside `npm run test:browser`, or alone with `node scripts/fx-checks.mjs http://127.0.0.1:8787` (use your preview's port). `FX_ONLY=<pattern>` narrows a lone run to the matching desktop checks.
+
 ## Content and release
 
 - [Content](content/): most of the copy, as JSON and Markdown, edited through the CMS at /admin/ (see "Editing content", which also lists the copy that is still in the code). [src/lib/content.ts](src/lib/content.ts) loads and validates it.
