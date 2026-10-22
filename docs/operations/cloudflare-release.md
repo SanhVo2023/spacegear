@@ -2,7 +2,7 @@
 
 ## Architecture and current state
 
-Confirmed public name and canonical origin: **spacegear.tech**, **https://spacegear.tech**. Hosting/runtime are Cloudflare Workers Static Assets, Workers, D1, Turnstile and optional Cloudflare Email Service. Fonts and art are self hosted. Turnstile is the only external browser dependency, loaded on configured contact pages.
+Confirmed public name and canonical origin: **spacegear.tech**, **https://spacegear.tech**. Hosting/runtime are Cloudflare Workers Static Assets, Workers, D1, Turnstile and optional Cloudflare Email Service. Fonts and art are self hosted. Turnstile is the only external browser dependency, loaded on configured contact pages. The editor-only /admin/ page (Sveltia CMS, vendored) also loads its interface fonts from jsDelivr under its own CSP; see README.md, "The admin Content-Security-Policy".
 
 Checked-in configuration is inert: no custom-domain route, public workers.dev URL, live inquiry capture or email sending. Local D1/Workers are testable without remote access. No Cloudflare account, zone, production D1 ID, Turnstile credentials or sender has been verified here.
 
