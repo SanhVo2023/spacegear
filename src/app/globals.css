@@ -465,15 +465,16 @@ html.lenis,
 html.lenis body { height: auto; }
 .lenis.lenis-smooth iframe { pointer-events: none; }
 
-/* Cursor (Cursor.tsx): dot + spring ring inverted against the page; the native caret over fields. */
+/* Cursor (Cursor.tsx): dot + spring ring inverted against the page; the native caret over fields. It sits
+   above the skip link (100): it takes no pointer events. FxLayer does not mount it in forced colours. */
 html[data-fx-cursor],
 html[data-fx-cursor] * { cursor: none !important; }
 html[data-fx-cursor] :is(input, textarea, select, [contenteditable]) { cursor: auto !important; }
-.fx-cursor { position: fixed; left: 0; top: 0; z-index: 90; width: 0; height: 0; pointer-events: none; mix-blend-mode: difference; }
+.fx-cursor { position: fixed; left: 0; top: 0; z-index: 110; width: 0; height: 0; pointer-events: none; mix-blend-mode: difference; }
 .fx-cursor[data-state="label"] { mix-blend-mode: normal; }
-.fx-cursor-dot,
+.fx-cursor-dot-pos,
 .fx-cursor-ring { position: absolute; left: 0; top: 0; }
-.fx-cursor-dot { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
+.fx-cursor-dot { display: block; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
 .fx-cursor-ring { display: grid; place-items: center; width: 40px; height: 40px; margin: -20px 0 0 -20px; }
 .fx-cursor-disc { position: absolute; inset: 0; border: 1.5px solid #fff; border-radius: 9999px; transition: opacity 0.2s, scale 0.4s var(--fx-ease), background-color 0.25s, border-color 0.25s; }
 .fx-cursor-label { position: relative; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #161719; opacity: 0; transition: opacity 0.2s; }

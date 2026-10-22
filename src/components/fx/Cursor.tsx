@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, useMotionValue, useSpring } from "motion/react";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 type CursorState = "hidden" | "idle" | "hover" | "label" | "text";
 
@@ -25,6 +26,8 @@ export default function Cursor() {
   const ringY = useSpring(y, RING);
   const [state, setState] = useState<CursorState>("hidden");
   const [label, setLabel] = useState("");
+  const pathname = usePathname();
+  const recheck = useRef(() => {});
 
   useEffect(() => {
     const root = document.documentElement;
@@ -76,6 +79,10 @@ export default function Cursor() {
     const onKey = (event: KeyboardEvent) => {
       if (visible && !MODIFIERS.has(event.key)) hide();
     };
+    // A click navigation swaps the page under a still pointer, and not every browser sends pointerover then.
+    recheck.current = () => {
+      if (visible) classify(document.elementFromPoint(x.get(), y.get()));
+    };
     window.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerover", onOver, { passive: true });
     document.addEventListener("pointerout", onOut, { passive: true });
@@ -88,12 +95,22 @@ export default function Cursor() {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("blur", hide);
       root.removeAttribute("data-fx-cursor");
+      recheck.current = () => {};
     };
   }, [x, y, ringX, ringY]);
 
+  // After a route change, read again what is under the pointer (a stale "View" would otherwise stay).
+  useEffect(() => {
+    recheck.current();
+  }, [pathname]);
+
   return (
     <div aria-hidden data-fx-cursor-root="" data-state={state} className="fx-cursor">
-      <motion.span className="fx-cursor-dot" style={{ x, y }} />
+      {/* The outer span carries the position, the inner one scales: CSS `scale` applies outside `transform`,
+          so scaling the positioned span itself would pull the dot toward the viewport origin. */}
+      <motion.span className="fx-cursor-dot-pos" style={{ x, y }}>
+        <span className="fx-cursor-dot" />
+      </motion.span>
       <motion.span className="fx-cursor-ring" style={{ x: ringX, y: ringY }}>
         <span className="fx-cursor-disc" />
         <span className="fx-cursor-label">{label}</span>

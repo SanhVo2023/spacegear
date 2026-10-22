@@ -38,6 +38,10 @@ export default function SmoothScroll() {
       stopInertiaOnNavigate: true,
       prevent: (node) => node.matches(NESTED),
     });
+    // Lenis 1.3.26 (pinned) stops a native `scrollend` in the capture phase unless it is tracking a native scroll
+    // (so during a glide, while stopped, or after its 400 ms reset), hiding it from every listener on the page.
+    // Detach that private handler; destroy() removes it again harmlessly.
+    window.removeEventListener("scrollend", (lenis as unknown as { onScrollEnd: EventListener }).onScrollEnd, { capture: true });
     lenisRef.current = lenis;
     const loop = createIdleLoop((time) => {
       lenis.raf(time);
@@ -71,6 +75,9 @@ export default function SmoothScroll() {
       window.removeEventListener("popstate", end);
       offWheel();
       loop.stop();
+      // stop() first: otherwise the 400 ms velocity-reset timer Lenis leaves pending after a native scroll
+      // puts the `lenis` class back on <html> after destroy().
+      lenis.stop();
       lenis.destroy();
       lenisRef.current = null;
     };

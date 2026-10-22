@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Grain from "./Grain";
 import Cursor from "./Cursor";
 import SmoothScroll from "./SmoothScroll";
-import { useFx, useMotionOK } from "./env";
+import { useForcedColors, useFx, useMotionOK } from "./env";
 import { useSmoothAnchors } from "./smooth-anchors";
 
 /**
@@ -19,6 +19,7 @@ import { useSmoothAnchors } from "./smooth-anchors";
 export default function FxLayer() {
   const fx = useFx();
   const motionOK = useMotionOK();
+  const forcedColors = useForcedColors();
   useSmoothAnchors(motionOK);
 
   useEffect(() => {
@@ -38,7 +39,8 @@ export default function FxLayer() {
     <>
       <SmoothScroll />
       <Grain />
-      <Cursor />
+      {/* In forced colours the system cursor stays: it follows the visitor's high-contrast settings. */}
+      {!forcedColors && <Cursor />}
     </>
   );
 }

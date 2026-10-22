@@ -87,6 +87,17 @@ function assertRestorations(label, { reload, away, back }) {
   assert.ok(Math.abs(back.landed - back.held) <= 8 && back.between <= 2, `${label}: Back restores the position at once, not gliding from the top (${facts})`);
 }
 
+/** Waits (up to 3 s) until no CSS transition or animation runs on the element or an ancestor: a Reveal that
+ *  is still rising moves the element's box under a pointer placed from an earlier boundingBox(). */
+export function settle(locator) {
+  return locator.evaluate((el) => new Promise((resolve) => {
+    const start = performance.now();
+    const busy = () => document.getAnimations().some((a) => a.playState === "running" && a.effect?.target instanceof Element && a.effect.target.contains(el));
+    const tick = () => (!busy() || performance.now() - start > 3000 ? resolve() : setTimeout(tick, 50));
+    tick();
+  }));
+}
+
 /** Translation (m41, m42) and scale (a) of an element's computed transform. */
 export function matrixOf(locator) {
   return locator.evaluate((el) => {
@@ -255,6 +266,8 @@ desktop("the skip link still moves focus into main", async (page) => {
 
 desktop("a wheel during the intro ends it, then glides", async (page, ctx) => {
   const intro = await page.context().newPage(); // a new tab is a new session: the intro plays
+  const introErrors = [];
+  intro.on("pageerror", (error) => introErrors.push(error.message));
   try {
     // Hold the textures so the intro is still loading when the wheel turns.
     await intro.route("**/textures/earth/**", async (route) => {
@@ -270,6 +283,7 @@ desktop("a wheel during the intro ends it, then glides", async (page, ctx) => {
     const after = await intro.evaluate(() => ({ intro: document.documentElement.dataset.intro, y: window.scrollY }));
     assert.equal(after.intro, "done", "desktop: a wheel ends the intro");
     assert.ok(after.y > 600, `desktop: the wheel that ended the intro still scrolls the page (${after.y}px)`);
+    assert.deepEqual(introErrors, [], "desktop intro tab: no page errors");
   } finally {
     await intro.close();
   }
@@ -346,6 +360,8 @@ desktop("the cursor shows the data-cursor label", async (page) => {
   await page.waitForTimeout(900);
   await page.locator('#work [data-cursor="View"]').first().hover();
   await page.waitForTimeout(300);
+  // The label fades in over 0.2 s; give a frame held up by the tiles' first image decode time to land.
+  await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector("[data-fx-cursor-root] .fx-cursor-label")).opacity) > 0.99, null, { timeout: 2000 }).catch(() => {});
   const labelled = await page.evaluate(() => {
     const root = document.querySelector("[data-fx-cursor-root]");
     const label = root.querySelector(".fx-cursor-label");
@@ -389,6 +405,7 @@ desktop("magnetic CTAs lean toward the pointer and nudge their arrow", async (pa
   const cta = page.locator("#process a[data-magnetic]").first();
   await cta.scrollIntoViewIfNeeded();
   await page.waitForTimeout(400);
+  await settle(cta);
   const box = await cta.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.move(box.x + box.width - 3, box.y + box.height / 2, { steps: 5 });
@@ -415,6 +432,7 @@ desktop("What We Do tiles tilt toward the pointer under a spotlight", async (pag
   await jumpTo(page, await sectionTop(page, "work"));
   await page.waitForTimeout(900);
   const card = page.locator("#work [data-tilt]").first();
+  await settle(card);
   // Layout boxes (offsets ignore transforms) of the tile and the whole bento.
   const layout = () => card.evaluate((el) => [el, el.parentElement.parentElement].map((node) => [node.offsetLeft, node.offsetTop, node.offsetWidth, node.offsetHeight].join()).join("|"));
   const rest = await card.evaluate((el) => getComputedStyle(el).transform);
@@ -434,6 +452,82 @@ desktop("What We Do tiles tilt toward the pointer under a spotlight", async (pag
   assert.ok(tilted.spot > 0.99, "desktop: the spotlight shows under the pointer");
   assert.equal(tilted.hitsLink, true, "desktop: the spotlight never takes the pointer from the tile's link");
   assert.equal(await layout(), restLayout, "desktop: tilting moves no layout box");
+});
+
+desktop("the cursor dot stays under the pointer while it morphs, and a click navigation re-reads its target", async (page) => {
+  /** Centre of the dot's rendered box, and the cursor's state. */
+  const dot = () => page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const r = root.querySelector(".fx-cursor-dot").getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, state: root.dataset.state };
+  });
+  const link = page.locator('header a[href="/about/"]').first();
+  const box = await link.boundingBox();
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y + 160, { steps: 3 }); // below the nav: an idle cursor at full size
+  await page.waitForTimeout(400);
+  await page.mouse.move(at.x, at.y, { steps: 2 });
+  await page.waitForTimeout(40); // mid-morph: the dot is shrinking
+  const shrinking = await dot();
+  assert.equal(shrinking.state, "hover", "desktop: over a link the cursor morphs (precondition)");
+  assert.ok(Math.hypot(shrinking.x - at.x, shrinking.y - at.y) <= 6, `desktop: the shrinking dot stays under the pointer (${Math.round(shrinking.x)},${Math.round(shrinking.y)} vs ${Math.round(at.x)},${Math.round(at.y)})`);
+  // Clicking a labelled tile swaps the page under a still pointer: the cursor re-reads what is under it
+  // instead of keeping the tile's "View".
+  await jumpTo(page, await sectionTop(page, "work"));
+  const tile = page.locator('#work [data-cursor="View"]').first();
+  await settle(tile);
+  const tileBox = await tile.boundingBox();
+  const spot = { x: tileBox.x + tileBox.width * 0.3, y: tileBox.y + tileBox.height * 0.3 };
+  await page.mouse.move(spot.x, spot.y, { steps: 3 });
+  await page.waitForTimeout(300);
+  assert.equal((await dot()).state, "label", "desktop: over the tile the cursor reads View (precondition)");
+  const href = await tile.getAttribute("href");
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForURL((url) => url.pathname === href);
+  await page.waitForTimeout(800);
+  const under = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    if (el?.closest("[data-cursor]")) return `label:${el.closest("[data-cursor]").dataset.cursor}`;
+    return el?.closest('a[href], button, summary, label, [role="button"], [role="switch"], [role="marquee"]') ? "hover" : "idle";
+  }, spot);
+  const after = await page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    return root.dataset.state === "label" ? `label:${root.querySelector(".fx-cursor-label").textContent}` : root.dataset.state;
+  });
+  assert.equal(after, under, "desktop: after a click navigation the cursor matches what is now under the pointer");
+});
+
+desktop("forced colours keep the system cursor", async (page) => {
+  try {
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.waitForTimeout(200);
+    await page.mouse.move(700, 400);
+    await page.mouse.move(720, 420, { steps: 3 });
+    await page.waitForTimeout(200);
+    const state = await page.evaluate(() => ({ cursor: Boolean(document.querySelector("[data-fx-cursor-root]")), flag: document.documentElement.hasAttribute("data-fx-cursor"), native: getComputedStyle(document.body).cursor }));
+    assert.deepEqual(state, { cursor: false, flag: false, native: "auto" }, "desktop: in forced colours the custom cursor unmounts and the native cursor shows");
+  } finally {
+    await page.emulateMedia({ forcedColors: "none" });
+  }
+});
+
+desktop("native scrollend still reaches the page with Lenis on", async (page) => {
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains("lenis")), true, "desktop: Lenis is active (precondition)");
+  // With Lenis stopped (a scroll lock), a native scroll leaves it idle: the case its own handler swallowed.
+  const heard = await page.evaluate(() => new Promise((resolve) => {
+    let count = 0;
+    document.addEventListener("scrollend", () => count++);
+    document.documentElement.setAttribute("data-scroll-lock", "");
+    setTimeout(() => {
+      window.scrollBy({ top: 400, behavior: "instant" });
+      setTimeout(() => {
+        document.documentElement.removeAttribute("data-scroll-lock");
+        resolve(count);
+      }, 800);
+    }, 100);
+  }));
+  assert.ok(heard >= 1, `desktop: a native scroll's scrollend reaches document listeners (${heard})`);
 });
 
 desktop("split titles keep their full accessible name and rise in as they enter", async (page) => {
