@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { QUICKSTART_KEY } from "../lib/quickstart";
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 const subscribeHydration = () => () => {};
 type Turnstile = {
   render: (element: HTMLElement, options: { sitekey: string; action: string; theme: string; callback: (token:string)=>void; "expired-callback": ()=>void; "error-callback": ()=>void }) => string;
@@ -21,7 +21,9 @@ export default function ContactForm({ services, siteKey }: { services: {slug:str
   const [busy,setBusy] = useState(false);
   const [errors,setErrors] = useState<Record<string,string>>({});
   useEffect(() => { if (status) feedback.current?.focus(); }, [status]);
-  useEffect(() => {
+  // The requested service (/contact/?service=…) is picked in the commit itself, so the page curtain
+  // (PageTransition.tsx) never uncovers the default first. The server markup stays the same for everyone.
+  useLayoutEffect(() => {
     const select = form.current?.elements.namedItem("service") as HTMLSelectElement | null;
     const requested = new URLSearchParams(window.location.search).get("service");
     if (select && requested && services.some(s=>s.slug===requested)) select.value=requested;

@@ -444,6 +444,28 @@ desktop("magnetic CTAs lean toward the pointer and nudge their arrow", async (pa
   assert.deepEqual(ring, { visible: true, outline: true }, "desktop: keyboard focus on the magnetic CTA shows the focus ring");
 });
 
+desktop("a magnetic CTA measures itself again after a glide under a resting pointer", async (page) => {
+  const cta = page.locator("#process a[data-magnetic]").first();
+  await jumpTo(page, await cta.evaluate((el) => el.getBoundingClientRect().top + window.scrollY - 450));
+  await page.waitForTimeout(600);
+  await settle(cta);
+  const box = await cta.boundingBox();
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x - 80, at.y - 80);
+  await page.mouse.move(at.x, at.y, { steps: 6 });
+  await page.waitForTimeout(800);
+  // A short wheel glide moves the button 14 px up under the still pointer; the next move must pull toward
+  // the pointer from where the button is now (0.35 × 14 ≈ 4.9 px down), not from where it was (no pull).
+  await page.mouse.wheel(0, 14);
+  await page.waitForTimeout(1500);
+  await page.mouse.move(at.x + 1, at.y);
+  await page.waitForTimeout(900);
+  const pull = await matrixOf(cta);
+  assert.ok(pull.m42 > 2.5 && pull.m42 <= 10.5, `desktop: after the glide the CTA leans toward the pointer from its new place (${pull.m42}px down)`);
+  await page.mouse.move(6, 500, { steps: 4 });
+  await page.waitForTimeout(900);
+});
+
 desktop("What We Do tiles tilt toward the pointer under a spotlight", async (page) => {
   await jumpTo(page, await sectionTop(page, "work"));
   await page.waitForTimeout(900);
@@ -516,7 +538,7 @@ desktop("the cursor dot stays under the pointer while it morphs, and a click nav
   assert.equal(after, under, "desktop: after a click navigation the cursor matches what is now under the pointer");
 });
 
-desktop("forced colours keep the system cursor", async (page) => {
+desktop("forced colours keep the system cursor and draw the rail in system colours", async (page) => {
   try {
     await page.emulateMedia({ forcedColors: "active" });
     await page.waitForTimeout(200);
@@ -525,6 +547,17 @@ desktop("forced colours keep the system cursor", async (page) => {
     await page.waitForTimeout(200);
     const state = await page.evaluate(() => ({ cursor: Boolean(document.querySelector("[data-fx-cursor-root]")), flag: document.documentElement.hasAttribute("data-fx-cursor"), native: getComputedStyle(document.body).cursor }));
     assert.deepEqual(state, { cursor: false, flag: false, native: "auto" }, "desktop: in forced colours the custom cursor unmounts and the native cursor shows");
+    // Forced colours turn backgrounds into Canvas: the rail's dots, track and fill keep system colours instead.
+    const rail = await page.evaluate(() => {
+      const canvas = getComputedStyle(document.body).backgroundColor;
+      const drawn = (el) => Boolean(el) && getComputedStyle(el).backgroundColor !== canvas;
+      return {
+        dots: [...document.querySelectorAll("[data-fx-rail] .fx-rail-dot")].every(drawn),
+        track: drawn(document.querySelector("[data-fx-rail] .fx-rail-track")),
+        fill: drawn(document.querySelector("[data-fx-rail] .fx-rail-fill")),
+      };
+    });
+    assert.deepEqual(rail, { dots: true, track: true, fill: true }, "desktop: in forced colours the rail's dots, track and fill stay visible");
   } finally {
     await page.emulateMedia({ forcedColors: "none" });
   }

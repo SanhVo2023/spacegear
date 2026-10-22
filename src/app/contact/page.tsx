@@ -32,7 +32,7 @@ export default function Contact() {
                 <p className="mt-3 text-[13.5px] leading-relaxed text-mut-2">You don’t need a finished brief or ready-to-use data. Share what you know, and we can work through the next questions together.</p>
                 <p className="mt-3 text-[13.5px] leading-relaxed text-mut-2">We review your brief and respond about a suitable next step.</p>
                 {SITE.contactEmail && (
-                  <p className="mt-5"><a className="text-[13px] text-flame hover:underline" href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a></p>
+                  <p className="mt-5"><a className="fx-underline text-[13px] text-flame" href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a></p>
                 )}
               </div>
             </aside>

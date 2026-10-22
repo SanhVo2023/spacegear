@@ -50,13 +50,6 @@ export function tickerFromVelocity(velocity: number) {
   };
 }
 
-/** Share of the footer (0–1) the curtain has uncovered. Works for the pinned curtain and for a footer in flow,
- *  because both end the document with the footer's height. */
-export function curtainReveal(scrollY: number, viewportH: number, scrollHeight: number, footerH: number) {
-  if (footerH <= 0) return 1;
-  return clamp((scrollY + viewportH - (scrollHeight - footerH)) / footerH, 0, 1);
-}
-
 /** Share (0–1) of a box spanning `top` to `bottom` (viewport px) that shows: inside the viewport and below
  *  `edge`, the bottom of the page content, under which the footer shows (pinned behind the content, or
  *  following it in the flow). The footer wordmark rises on its own share: the curtain uncovers the pinned footer

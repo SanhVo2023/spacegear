@@ -56,13 +56,20 @@ export function useMagnetic<T extends HTMLElement>(max = 10) {
       el.style.removeProperty("--mx");
       el.style.removeProperty("--my");
     };
+    // A scroll (a wheel glide with the pointer resting on the button) moves the button under the pointer:
+    // the next move measures it again instead of pulling toward where it used to be.
+    const stale = () => {
+      measured = false;
+    };
     el.addEventListener("pointerenter", enter);
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerleave", leave);
+    window.addEventListener("scroll", stale, { passive: true });
     return () => {
       el.removeEventListener("pointerenter", enter);
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerleave", leave);
+      window.removeEventListener("scroll", stale);
       leave();
       // Settle at once: no spring keeps requesting frames after the effect is gone.
       x.jump(0);
@@ -71,16 +78,6 @@ export function useMagnetic<T extends HTMLElement>(max = 10) {
   }, [fx, max, targetX, targetY, x, y]);
 
   return { ref, x, y };
-}
-
-/** Makes any children magnetic inside an inline-flex span. */
-export function Magnetic({ children, className = "", max = 10 }: { children: ReactNode; className?: string; max?: number }) {
-  const { ref, x, y } = useMagnetic<HTMLSpanElement>(max);
-  return (
-    <motion.span ref={ref} data-magnetic="" className={`inline-flex ${className}`} style={{ x, y }}>
-      {children}
-    </motion.span>
-  );
 }
 
 /** A next/link that is itself magnetic (no wrapper, so classes such as w-full keep working). */

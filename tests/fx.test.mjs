@@ -55,15 +55,6 @@ test("tickerFromVelocity speeds up and skews with scroll, within limits", () => 
   assert.deepEqual(math.tickerFromVelocity(-1e6), { rate: 5, skew: 8 });
 });
 
-test("curtainReveal measures how much of the footer is uncovered", () => {
-  // A 5000 px page that ends with an 800 px footer, in a 1000 px viewport.
-  assert.equal(math.curtainReveal(0, 1000, 5000, 800), 0);
-  assert.equal(math.curtainReveal(3200, 1000, 5000, 800), 0);
-  assert.equal(math.curtainReveal(3600, 1000, 5000, 800), 0.5);
-  assert.equal(math.curtainReveal(4000, 1000, 5000, 800), 1);
-  assert.equal(math.curtainReveal(10, 1000, 5000, 0), 1);
-});
-
 test("shownBelow measures how much of a box shows below the content and inside the viewport", () => {
   // An 80 px tall wordmark at 200–280 px in a 1000 px viewport.
   assert.equal(math.shownBelow(200, 280, 1000, 1000), 0, "covered: the content reaches the viewport bottom");
