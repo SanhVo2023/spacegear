@@ -1,5 +1,7 @@
 # Spacegear website revival: design and delivery brief
 
+> Implementation update, 2026-10-20: the owner confirmed **spacegear.tech** as the public name and domain and authorized continuation into implementation. This supersedes the working-name/domain and plan-only statements below. The open audience, private company scale, Cloudflare-only stack and Cockpit bypass remain in force. See [implementation status](../../operations/implementation-status.md) for actual completion and launch dependencies.
+
 Status: revision 3, based on the local source audit, live site inspection and owner feedback. The audience is open across industries, company sizes and regions; public company-scale signals are omitted; work proceeds directly without Cockpit. The offer, homepage hierarchy, visual direction and measurement from revision 2 remain. No product implementation or deployment has occurred.
 
 Evidence: [site audit](../../audits/2026-10-20-spacegear-site-audit.md). Execution: [implementation plan](../plans/2026-10-20-spacegear-revival.md).

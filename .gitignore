@@ -36,6 +36,24 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local originals and execution evidence
+/assets/source/
+/public/models/earth.glb
+/.wrangler/
+/artifacts/
+/.dev.vars*
+/playwright-report/
+/test-results/
+/dist/
+!.env.example
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+
+# CMS: the upload variant cache is build output (scripts/build-upload-variants.mjs); Sveltia's
+# temporary save files
+/.cache/
+.sveltia-tmp-*

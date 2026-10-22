@@ -1,0 +1,21 @@
+{
+  "order": 2,
+  "name": "Validate & build",
+  "short": "Build",
+  "img": "/images/suite/shield-core.webp",
+  "stage": "Delivery",
+  "stageNo": "02",
+  "deliverables": [
+    "Prototype and evaluation criteria",
+    "Integrated, tested implementation",
+    "Rollout plan",
+    "Handover documentation"
+  ],
+  "outcomes": [
+    "Evidence before larger investment",
+    "A solution that fits the workflow",
+    "Fewer manual handoffs",
+    "A team ready to use it"
+  ],
+  "featured": false
+}

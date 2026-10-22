@@ -1,0 +1,32 @@
+{
+  "order": 4,
+  "slug": "automation-integration",
+  "name": "Automation & Systems Integration",
+  "shortName": "Automation & integration",
+  "category": "Connection",
+  "image": "/images/suite/scale-matrix.webp",
+  "summary": "Connect the tools you use and reduce repeated manual work, while keeping exceptions and control visible.",
+  "buyerProblem": "Copying information between disconnected tools consumes attention and introduces avoidable errors. We redesign the workflow, connect systems and make the handoffs easier to understand and manage.",
+  "deliverables": [
+    "A redesigned workflow and integration map",
+    "API connections and automated handoffs",
+    "Exception handling and human approval steps",
+    "Operational visibility and maintenance documentation"
+  ],
+  "process": [
+    "Map the repeated work and its exceptions.",
+    "Connect systems with explicit rules and ownership.",
+    "Test the full workflow and prepare the handover."
+  ],
+  "faqs": [
+    {
+      "question": "Can you work with our existing tools?",
+      "answer": "We assess their APIs, access controls and integration options first. Existing systems are part of the starting point, not an automatic reason to replace them."
+    },
+    {
+      "question": "What happens when an automated step fails?",
+      "answer": "The design includes error handling, safe retry behavior and a way for someone to review exceptions. These paths are tested alongside successful runs."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

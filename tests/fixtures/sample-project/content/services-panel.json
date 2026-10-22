@@ -1,0 +1,48 @@
+{
+  "panel": {
+    "label": "Core Services",
+    "count": "5/5",
+    "title": "Modular, flexible services for modern digital operations",
+    "text": "We help you modernize how work gets done and put AI to practical use. spacegear.tech’s core capabilities include:",
+    "line": "Plan, build, connect and improve.",
+    "cta": "Explore Services in Depth",
+    "href": "/services/"
+  },
+  "pillars": [
+    {
+      "no": "01",
+      "slug": "digital-transformation",
+      "name": "Digital Transformation",
+      "tag": "direction",
+      "glyph": "≈"
+    },
+    {
+      "no": "02",
+      "slug": "ai-strategy",
+      "name": "AI Strategy",
+      "tag": "readiness",
+      "glyph": "◇"
+    },
+    {
+      "no": "03",
+      "slug": "applied-ai",
+      "name": "Applied AI",
+      "tag": "intelligence",
+      "glyph": "◈"
+    },
+    {
+      "no": "04",
+      "slug": "automation-integration",
+      "name": "Automation",
+      "tag": "connection",
+      "glyph": "△"
+    },
+    {
+      "no": "05",
+      "slug": "product-delivery",
+      "name": "Product Delivery",
+      "tag": "delivery",
+      "glyph": "⬡"
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+"use client";
+
+import { animate, motion, useInView, useMotionValue, useReducedMotion, useTransform, type MotionValue } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Reveal from "@/components/Reveal";
+import { Container, SectionHeader, FlameButton } from "@/components/ui";
+import { useMotionOK } from "@/components/fx/env";
+import { TrackScroll } from "@/components/fx/ScrollDepth";
+import { PROCESS_CTA, PROCESS_STEPS, SECTIONS, type ProcessStep } from "@/lib/content";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+/** Counts up from 0 to `to` the first time it scrolls into view, in tabular figures so the count moves no box.
+ *  The server renders the final value, so the number is right without JavaScript. */
+function CountUp({ to }: { to: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const reduce = useReducedMotion();
+  const inView = useInView(ref, { once: true, margin: "-12%" });
+  const [val, setVal] = useState(to);
+  useEffect(() => {
+    if (reduce || !inView) return;
+    const controls = animate(0, to, { duration: 1.1, ease: EASE, onUpdate: (v) => setVal(v) });
+    return () => controls.stop();
+  }, [inView, reduce, to]);
+  return <span ref={ref} className="tabular-nums">{Math.round(val)}</span>;
+}
+
+export function StepCard({ s, i }: { s: ProcessStep; i: number }) {
+  return (
+    <motion.div
+      data-reveal=""
+      initial={{ opacity: 0, y: 40, filter: "blur(6px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, amount: 0.4 }}
+      transition={{ duration: 0.7, ease: EASE, delay: i * 0.08 }}
+      whileHover={{ y: -6 }}
+      className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-line bg-card/60 p-7 transition-colors hover:border-flame/50"
+    >
+      {/* hover glow */}
+      <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-flame/0 blur-2xl transition-colors duration-500 group-hover:bg-flame/20" />
+
+      <div className="relative flex items-start justify-between">
+        <div>
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-flame">{s.step}</span>
+          {s.name && <h3 className="display mt-2 text-2xl text-ink">{s.name}</h3>}
+        </div>
+        <motion.span
+          aria-hidden
+          className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-bg text-mut-2"
+          whileHover={{ rotate: -12, scale: 1.08 }}
+          transition={{ type: "spring", stiffness: 300, damping: 18 }}
+        >
+          →
+        </motion.span>
+      </div>
+
+      <p className="relative mt-5 max-w-md text-[14px] leading-relaxed text-mut-2">{s.desc}</p>
+
+      {s.outputs.length > 0 && (
+        <div className="relative mt-7 flex items-end justify-between gap-4 border-t border-line-soft pt-5">
+          <span className="text-[12px] text-mut-2">{s.outputs.join(" · ")}</span>
+          <span className="display shrink-0 text-3xl text-ink-strong">
+            <CountUp to={s.outputs.length} />
+            <span className="ml-1 text-base text-mut-2">{s.outputs.length === 1 ? "output" : "outputs"}</span>
+          </span>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/**
+ * Timeline line scrubbed by scroll, dots that ignite as the line reaches them and step cards that lift in
+ * turn. It is a scroll draw, so it also runs on touch; the scroll is tracked only where motion is allowed
+ * (TrackScroll), and no-JS and reduced motion get the drawn line and lit dots, with the cards at rest, through
+ * the data-reveal hook (globals.css, NoScriptStyles.tsx). Transforms and opacity only. The scroll range starts
+ * where the line is (the wrapper's top; on phones, where the line is hidden, the first card). Used on the home
+ * page, Approach and service pages.
+ */
+export function ProcessSteps({ steps, gridClassName = "md:grid-cols-2 xl:grid-cols-4" }: { steps: ProcessStep[]; gridClassName?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const motionOK = useMotionOK();
+  const progress = useMotionValue(0);
+  const stops = steps.map((_, i) => (steps.length === 1 ? 0 : i / (steps.length - 1)));
+  return (
+    <div ref={ref} className="mt-6 md:mt-12">
+      {motionOK && <TrackScroll target={ref} progress={progress} offset={["start 0.8", "end 0.7"]} />}
+      <div className="relative hidden h-px md:block">
+        <div className="absolute inset-0 bg-line-soft" />
+        <motion.div
+          data-reveal=""
+          data-timeline=""
+          className="absolute inset-0 origin-left bg-gradient-to-r from-flame to-flame/40"
+          style={{ scaleX: progress }}
+        />
+        {stops.map((at, i) => (
+          <TimelineDot key={i} at={at} progress={progress} />
+        ))}
+      </div>
+
+      <div className={`grid gap-4 md:mt-6 ${gridClassName}`}>
+        {steps.map((s, i) => (
+          <LiftOnPass key={s.step} at={stops[i]} progress={progress}>
+            <StepCard s={s} i={i} />
+          </LiftOnPass>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The progress window in which a stop at `at` (0–1) switches on: just before the line reaches it, or, for the
+ *  first stop, just after the line starts (so nothing is lit before the line moves). */
+function passWindow(at: number, width: number): [number, number] {
+  const from = Math.max(0, at - width);
+  return [from, from + width];
+}
+
+/** A grey dot with a flame core that ignites (fades and swells in, with a glow) as the line reaches it. */
+function TimelineDot({ at, progress }: { at: number; progress: MotionValue<number> }) {
+  const range = passWindow(at, 0.04);
+  const lit = useTransform(progress, range, [0, 1]);
+  const scale = useTransform(progress, range, [0.4, 1]);
+  return (
+    <span className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
+      <span className="absolute inset-0 rounded-full bg-mut-3" />
+      <motion.span
+        data-reveal=""
+        data-timeline-dot=""
+        className="absolute inset-0 rounded-full bg-flame shadow-[0_0_14px_3px_rgba(250,110,67,0.6)]"
+        style={{ opacity: lit, scale }}
+      />
+    </span>
+  );
+}
+
+/** Lifts a step card, and lights a soft glow under it, once the timeline passes its dot. */
+function LiftOnPass({ at, progress, children }: { at: number; progress: MotionValue<number>; children: ReactNode }) {
+  const range = passWindow(at, 0.06);
+  const y = useTransform(progress, range, [0, -10]);
+  const glow = useTransform(progress, range, [0, 1]);
+  return (
+    <motion.div data-reveal="" className="relative h-full" style={{ y }}>
+      <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl shadow-[0_26px_60px_-30px_rgba(250,110,67,0.7)]" style={{ opacity: glow }} />
+      {children}
+    </motion.div>
+  );
+}
+
+export default function Process() {
+  return (
+    <section id="process" className="relative scroll-mt-2 py-24">
+      <Container>
+        <SectionHeader {...SECTIONS.process} />
+        <ProcessSteps steps={PROCESS_STEPS} />
+
+        <Reveal delay={120}>
+          <div className="mt-8 flex flex-col gap-5 rounded-3xl border border-line bg-card/40 p-7 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-ink">{PROCESS_CTA.title}</h3>
+              <p className="mt-1 text-[14px] text-mut-2">{PROCESS_CTA.text}</p>
+            </div>
+            <FlameButton href={PROCESS_CTA.href}>{PROCESS_CTA.cta}</FlameButton>
+          </div>
+        </Reveal>
+      </Container>
+    </section>
+  );
+}

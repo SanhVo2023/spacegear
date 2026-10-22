@@ -1,0 +1,85 @@
+{
+  "badge": "we build the systems · you lead the change ·",
+  "tagline": "The smarter way to plan, build and scale your business.",
+  "identity": [
+    "Digital transformation",
+    "& AI consulting"
+  ],
+  "identityStrong": "spacegear.tech",
+  "columns": [
+    [
+      {
+        "label": "Home",
+        "href": "/"
+      },
+      {
+        "label": "What We Do",
+        "href": "/#work"
+      },
+      {
+        "label": "Services",
+        "href": "/services/"
+      },
+      {
+        "label": "Process",
+        "href": "/#process"
+      },
+      {
+        "label": "What We Measure",
+        "href": "/#analytics"
+      },
+      {
+        "label": "Engagements",
+        "href": "/#pricing"
+      },
+      {
+        "label": "FAQ",
+        "href": "/#faq"
+      },
+      {
+        "label": "Who You Work With",
+        "href": "/#team"
+      }
+    ],
+    [
+      {
+        "label": "Approach",
+        "href": "/approach/"
+      },
+      {
+        "label": "About",
+        "href": "/about/"
+      },
+      {
+        "label": "Contact",
+        "href": "/contact/"
+      },
+      {
+        "label": "Applied AI",
+        "href": "/services/applied-ai/"
+      },
+      {
+        "label": "Automation",
+        "href": "/services/automation-integration/"
+      },
+      {
+        "label": "Product Delivery",
+        "href": "/services/product-delivery/"
+      },
+      {
+        "label": "Privacy",
+        "href": "/privacy/"
+      },
+      {
+        "label": "Terms",
+        "href": "/terms/"
+      }
+    ]
+  ],
+  "quickStart": {
+    "title": "Start with one challenge",
+    "text": "Leave your name and email and we’ll take you to a short brief.",
+    "note": "We only use these details to respond to you."
+  },
+  "about": "helps organizations turn business challenges into working digital systems."
+}

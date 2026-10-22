@@ -1,5 +1,7 @@
 # Spacegear Website Revival Implementation Plan
 
+> Implementation update, 2026-10-20: the owner confirmed **spacegear.tech** as the public name and domain and authorized continuation into implementation. This supersedes the working-name/domain and plan-only statements below. The open audience, private company scale, Cloudflare-only stack and Cockpit bypass remain in force. See [implementation status](../../operations/implementation-status.md) for actual completion and launch dependencies.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Use superpowers:subagent-driven-development only if that execution approach is explicitly selected. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Reposition the existing Platform website as Spacegear's digital transformation and AI strategy/delivery consultancy, preserving its aesthetic and motion while delivering a fast, searchable Cloudflare-only website.
@@ -24,11 +26,11 @@
 - Use direct tools and commands; bypass Cockpit, including its registration and owner-command workflow.
 - Supplied repository: `https://github.com/SanhVo2023/platform-design-contest.git`, currently empty. Clone/import remains operational work; do not claim it contains the current application or planning commit.
 - Never overwrite or discard the current uncommitted implementation. No remote is currently configured; HEAD contains the starter application and planning documents, while the audited application relies on uncommitted files.
-- Spacegear is the working spelling. Final domain and company facts must be confirmed before publication; local previews may use explicitly marked configuration placeholders.
+- The confirmed public name/domain is spacegear.tech. Contact and policy facts must be confirmed before publication; local preview is explicitly non-indexable and does not send inquiries.
 - Initial HTML contains visible headline, service descriptions, links and CTA. No opacity-zero dependency for essential copy; JavaScript and WebGL are enhancements.
 - Narrow screens use the existing static cosmic direction with lightweight optional motion; no GLB request. Reduced motion means no continuous particle, marquee, rotating badge or scroll-scrub animation.
 - No fictional testimonials, staff, company addresses, product claims, partnerships, performance statistics or subscription prices.
-- The current scope is a plan. Implementation and public launch are later steps; do not treat this document as evidence that either has occurred.
+- The owner authorized implementation after this plan was written. Actual implementation and validation are recorded in docs/operations/implementation-status.md; public launch remains gated by explicit dependencies.
 
 ## Review focus
 
@@ -205,4 +207,4 @@ Revision 3 incorporates the owner's explicit decisions: open customer audience, 
 
 Documentation verification for revision 3: all 11 relative document/image links resolve and `git diff --check` passes. Self-review confirms the audience decision reaches content, form validation, SEO and measurement, and no active Cockpit workflow remains. The application was unchanged during this refinement, so its earlier build/type-check/lint baseline was not rerun.
 
-No implementation task above is marked complete. Planning produced the audit, refined discussion brief, design, plan and baseline screenshots. The repository URL is known; it was empty at inspection and direct cloning is blocked by network connectivity. Cockpit is bypassed and is not a blocker. Production still needs final domain/contact facts and actual Cloudflare bindings. The open audience is confirmed; the assessment offer remains the recommendation and unprovided proof remains omitted.
+Original planning checkpoint (superseded by the implementation status linked above): no implementation task was then marked complete. Planning produced the audit, refined discussion brief, design, plan and baseline screenshots. The repository URL is known; it was empty at inspection and direct cloning is blocked by network connectivity. Cockpit is bypassed and is not a blocker. Production still needs final domain/contact facts and actual Cloudflare bindings. The open audience is confirmed; the assessment offer remains the recommendation and unprovided proof remains omitted.

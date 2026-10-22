@@ -1,26 +1,667 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* >>> CMS (showcase Part 3): the vendored Sveltia CMS bundle, its configuration schema and the
+   editable copy are not site source. Without this, Tailwind's source detection reads class-like
+   words in them and adds unused utilities here, so a CMS edit could change the site stylesheet. */
+@source not "../../public/admin";
+@source not "../../scripts/sveltia-cms.schema.json";
+@source not "../../content";
+/* <<< CMS */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Surfaces */
+  --color-bg: #161719;
+  --color-bg-2: #111112;
+  --color-card: #1d1e21;
+  --color-card-2: #212225;
+  --color-card-3: #2c2c2f;
+  --color-line: #2a2b2e;
+  --color-line-soft: #232427;
+
+  /* Text */
+  --color-ink: #e3dbd8;
+  --color-ink-strong: #ffffff;
+  --color-mut: #c0c0c0;
+  --color-mut-2: #888891;
+  --color-mut-3: #5f5f66;
+
+  /* Accent */
+  --color-flame: #fa6e43;
+  --color-flame-soft: #fa6f45;
+
+  --font-sans: var(--font-inter), "Inter", sans-serif;
+  --font-mono: var(--font-code), monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #161719;
+  --foreground: #e3dbd8;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
+
+::selection {
+  background: #fa6e43;
+  color: #161719;
+}
+
+/* Display headings emulate Inter Display via tight tracking */
+.display {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-mut-3);
+}
+
+/* Reveal-on-scroll (matches the reference's blur + rise appear effect) */
+.reveal {
+  opacity: 0;
+  transform: translateY(34px);
+  filter: blur(6px);
+  transition: opacity 0.8s cubic-bezier(0.44, 0, 0.56, 1),
+    transform 0.8s cubic-bezier(0.44, 0, 0.56, 1),
+    filter 0.8s cubic-bezier(0.44, 0, 0.56, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}
+
+/* Marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+
+/* Glow + texture helpers */
+.flame-glow {
+  background: radial-gradient(
+    60% 60% at 70% 30%,
+    rgba(250, 110, 67, 0.55) 0%,
+    rgba(250, 110, 67, 0.12) 38%,
+    rgba(22, 23, 25, 0) 72%
+  );
+}
+
+.grid-faint {
+  background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.pulse-dot {
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Spacegear additions (fidelity rebuild). Everything above is the     */
+/* original platform-clone stylesheet, unchanged except --font-mono.   */
+/* ------------------------------------------------------------------ */
+
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* Focus and anchor targets stop below the fixed nav (72px including its 16px top
+   offset, 70px on phones) plus a 16px gap. Sections add scroll-mt-2, so an anchor
+   still lands 96px from the top, where scroll-mt-24 alone put it. */
+html { scroll-padding-top: 88px; }
+
+/* Keyboard focus stays visible everywhere. */
+:focus-visible {
+  outline: 2px solid #fa6e43;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 12px;
+  left: 16px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: #fa6e43;
+  color: #161719;
+  font-size: 13px;
+  font-weight: 500;
+  transform: translateY(-160%);
+  transition: transform 0.2s;
+}
+.skip-link:focus {
+  transform: none;
+}
+
+/* Ambient loops as CSS: no JavaScript frames, paused for reduced motion. */
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.18; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+.dot-pulse { opacity: 0.18; animation: dotPulse 2.6s ease-in-out infinite; }
+@keyframes tilePulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.tile-pulse { animation: tilePulse 2.2s ease-in-out infinite; }
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+.spin-16 { animation: spinSlow 16s linear infinite; }
+.spin-18 { animation: spinSlow 18s linear infinite; }
+.spin-26 { animation: spinSlow 26s linear infinite; }
+
+/* Let people stop the capability ticker (WCAG 2.2.2, Pause, Stop, Hide). Its container
+   (Analytics.tsx) takes focus, so hovering it, tabbing to it (with the focus ring) or tapping
+   it on touch pauses the loop until focus or the pointer leaves; reduced motion stops it
+   altogether (below). */
+:where(:hover, :focus, :focus-within) > .marquee-track,
+.marquee-track:hover { animation-play-state: paused; }
+
+/* FAQ: native <details> with the original open/close motion. */
+.faq-item::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size 0.3s ease, content-visibility 0.3s allow-discrete;
+}
+.faq-item[open]::details-content { block-size: auto; }
+.faq-item > summary::-webkit-details-marker,
+.mobile-menu > summary::-webkit-details-marker { display: none; }
+.faq-item > summary,
+.mobile-menu > summary { list-style: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; }
+  .dot-pulse, .tile-pulse, .spin-16, .spin-18, .spin-26, .marquee-track, .pulse-dot { animation: none; }
+  .dot-pulse { opacity: 0.6; }
+  .faq-item::details-content { transition: none; }
+  html { scroll-behavior: auto; }
+  /* Entrance end states from first paint (mirrors NoScriptStyles.tsx). The
+     markup is identical for every visitor, so CSS, not a render branch,
+     reveals it; MotionProvider's skipAnimations stops the transitions. */
+  [data-reveal] { opacity: 1 !important; transform: none !important; filter: none !important; }
+  [data-scroll-word] { opacity: 1 !important; color: #e3dbd8 !important; }
+  [data-fill] { width: var(--fill) !important; }
+  [data-fill-h] { height: var(--fill) !important; }
+  [data-fill-svg] { width: 100% !important; }
+  [data-line] { width: 100% !important; }
+  [data-dot] { transform: none !important; }
+}
+
+/* Contact form (logic in ContactForm.tsx) in the original input style. */
+.contact-form { position: relative; border: 1px solid #2a2b2e; border-radius: 16px; background: rgba(29, 30, 33, 0.5); padding: 28px; }
+.form-row { display: grid; gap: 0 12px; }
+@media (min-width: 640px) { .form-row { grid-template-columns: 1fr 1fr; } }
+.field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; font-size: 13px; color: #e3dbd8; }
+.field label span { font-size: 12px; color: #888891; }
+.field input, .field select, .field textarea { width: 100%; border: 1px solid #2a2b2e; border-radius: 12px; background: rgba(33, 34, 37, 0.6); padding: 14px 16px; font-size: 14px; color: #e3dbd8; }
+.field input::placeholder, .field textarea::placeholder { color: #888891; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color: #fa6e43; outline: none; }
+.field textarea { min-height: 160px; resize: vertical; }
+.field-error { font-size: 12px; color: #ffaf92; }
+.form-note { margin: 16px 0; font-size: 12px; color: #888891; }
+.form-note a { color: #fa6e43; text-decoration: underline; }
+.form-feedback { margin-bottom: 16px; border: 1px solid rgba(250, 110, 67, 0.4); border-radius: 12px; background: rgba(250, 110, 67, 0.06); padding: 14px 16px; font-size: 13px; color: #e3dbd8; }
+.contact-form .button { min-height: 50px; line-height: 1.4; display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; background: #fa6e43; padding: 14px 20px; font-size: 13px; font-weight: 500; color: #161719; transition: filter 0.3s, box-shadow 0.3s, transform 0.25s; }
+.contact-form .button span { font-size: 20px; line-height: 1; }
+.contact-form .button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 10px 30px -8px rgba(250, 110, 67, 0.6); }
+.contact-form .button:disabled { cursor: not-allowed; opacity: 0.55; }
+.honeypot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* Privacy and terms text inside the original card style. */
+.prose-card section + section { margin-top: 40px; }
+.prose-card h2 { font-size: 24px; font-weight: 500; letter-spacing: -0.04em; line-height: 1.1; color: #e3dbd8; }
+.prose-card p { margin-top: 12px; font-size: 14px; line-height: 1.7; color: #888891; }
+.prose-card a { color: #fa6e43; text-decoration: underline; text-underline-offset: 4px; }
+.prose-card .policy-preview { margin: 0 0 32px; border: 1px solid rgba(250, 110, 67, 0.4); border-radius: 12px; background: rgba(250, 110, 67, 0.05); padding: 16px 18px; font-size: 13px; color: #e3dbd8; }
+
+/* Brand kit (docs/brand/): the footer wordmark's ™ in the muted grey it had before (Wordmark.tsx draws it in currentColor). */
+.brand-wordmark .brand-tm { color: var(--color-mut-3); }
+
+/* Hero (OrbitalCinematic.tsx). Until hydration, desktops that will get the
+   300vh cinematic keep its height, so deep links and reloads do not jump.
+   NoScriptStyles.tsx resets it without JavaScript; Save-Data (marked before
+   first paint by the inline gate, IntroGate.tsx) never gets the cinematic. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  html:not([data-save-data]) .hero-reserve { min-height: 300vh; }
+}
+/* The static desktop hero shows the poster over exactly the first screen (OrbitalCinematic.tsx). Where it
+   stays static (reduced motion; Save-Data, marked before first paint; no JavaScript, NoScriptStyles.tsx)
+   the poster fades into the page above the statement instead of ending in a hard line across the globe.
+   The first paint of a desktop that hydrates into the cinematic keeps the full frame, the one the canvas
+   fades in on. (`:not(.hero-reserve)` also covers a hydrated static hero the gate did not mark.) */
+@media (min-width: 1024px) {
+  html[data-save-data] .hero-static-backdrop,
+  #home:not(.hero-reserve) .hero-static-backdrop {
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .hero-static-backdrop {
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+    mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  }
+}
+/* Windows wider than the poster's 2.4:1 (globe/poster.ts): object-fit: cover would scale it by width and
+   draw the globe larger than the live frame; contain keeps it at the viewport's height and centred, like
+   the scene, with the sides in the scene's background. */
+@media (min-width: 1024px) and (min-aspect-ratio: 12/5) {
+  #home .hero-backdrop img { object-fit: contain; background-color: #08080b; }
+  /* The static hero (reduced motion, no JavaScript) feathers the pillarboxed poster's sides into the page,
+     so the globe is not cut by a hard vertical edge. Not the cinematic one: the canvas fades in over it. */
+  #home .hero-static-backdrop img {
+    -webkit-mask-image: linear-gradient(90deg, transparent calc(50% - 120vh), #000 calc(50% - 120vh + 80px), #000 calc(50% + 120vh - 80px), transparent calc(50% + 120vh));
+    mask-image: linear-gradient(90deg, transparent calc(50% - 120vh), #000 calc(50% - 120vh + 80px), #000 calc(50% + 120vh - 80px), transparent calc(50% + 120vh));
+  }
+}
+/* Hero copy over the globe on desktops (OrbitalCinematic.tsx): a soft scrim from the left (over the poster
+   and the canvas alike, fading with the copy), a dark halo around the headline words and the muted text, a
+   soft dark backing behind the two rows of small text (the eyebrow and the stats, which reach the lit limb
+   on large screens, where the 1240 px container keeps the copy near the centre while the globe grows with
+   the height), and lighter muted text. Every word keeps WCAG AA over the opening frame from 1280 to 3440 px
+   (scripts/globe-poster.mjs heroContrastCheck); this keeps more of the limb than a stronger scrim. */
+.hero-scrim { background: linear-gradient(90deg, rgba(8, 8, 11, 0.64) 0, rgba(8, 8, 11, 0.5) 36%, rgba(8, 8, 11, 0.22) 51%, rgba(8, 8, 11, 0) 62%); }
+@media (min-width: 1024px) {
+  #home .hero-copy .hero-word,
+  #home .hero-copy .text-mut-2 { text-shadow: 0 0 32px rgba(8, 8, 11, 0.92), 0 0 12px rgba(8, 8, 11, 0.85), 0 0 3px rgba(8, 8, 11, 0.75); }
+  #home .hero-copy .text-mut-2,
+  #home .hero-copy .hero-stat-sub { color: #b4b4bd; }
+  #home .hero-copy .hero-backing { position: relative; width: fit-content; isolation: isolate; }
+  #home .hero-copy .hero-backing::before {
+    content: "";
+    position: absolute;
+    inset: -16px -44px -16px -28px;
+    z-index: -1;
+    border-radius: 9999px;
+    background: rgba(8, 8, 11, 0.55);
+    filter: blur(18px);
+    pointer-events: none;
+  }
+}
+/* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
+#home[data-copy-hidden] a { pointer-events: none; }
+
+/* The hero globe canvases (EarthScene.tsx) fade in over the poster or the galaxy once their first
+   textured frame has rendered (data-globe="ready"). */
+.hero-scene,
+.hero-mobile-globe { opacity: 0; transition: opacity 0.6s cubic-bezier(0.44, 0, 0.56, 1); }
+.hero-scene[data-globe="ready"],
+.hero-mobile-globe[data-globe="ready"] { opacity: 1; }
+/* The phone and tablet globe (OrbitalCinematic.tsx MobileScene) sits behind the statement on a
+   transparent canvas and fades into the page at the bottom. */
+.hero-mobile-globe {
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+/* With the globe behind it, the statement's words keep a dark halo, a backstop to the globe's dimming
+   as they fill (MobileScene). */
+.hero-mobile-globe ~ * .hero-statement [data-scroll-word] { text-shadow: 0 0 18px rgba(8, 8, 11, 0.85), 0 0 4px rgba(8, 8, 11, 0.9); }
+/* Fine pointers can spin the globe (usePointerInput.ts); touch keeps native scrolling. A press on the
+   scene never starts a text selection, so the hook can leave the press (and focus) alone. */
+.hero-scene { -webkit-user-select: none; user-select: none; }
+@media (hover: hover) and (pointer: fine) {
+  .hero-scene[data-globe="ready"] { cursor: grab; }
+  .hero-scene[data-dragging] { cursor: grabbing; }
+}
+
+/* Hero headline words rise out of masks (OrbitalCinematic.tsx). The padding keeps the display face's
+   ink inside the clip at its 0.92 line height: 0.36em on top for stacked accents (Vietnamese "Ấ"),
+   0.18em below for descenders, 0.1em at the sides for the em dash's overhang. The negative margins
+   cancel it in layout, so the lines break and stack exactly as plain text. `overflow: clip` clips
+   without making a scroll container; `hidden` is the fallback (in @supports, which the minifier
+   keeps). Words rotate in from their bottom-left corner on intro visits. The end state for reduced
+   motion and no-JS is the [data-reveal] rule on each word. */
+.hero-word-mask { display: inline-block; overflow: clip; vertical-align: top; padding: 0.36em 0.1em 0.18em; margin: -0.36em -0.1em -0.18em; }
+.hero-word { display: inline-block; transform-origin: 0% 100%; }
+/* Only the words take pointer events, not their masks' padding, which overlaps the eyebrow and the
+   row above. The cinematic hero's copy layer stays pointer-transparent, so drags reach the globe. */
+.hero-word-mask { pointer-events: none; }
+.hero-word { pointer-events: auto; }
+.hero-copy-layer .hero-word { pointer-events: none; }
+
+/* Intro loader (IntroOverlay.tsx). It shows only while the inline gate (IntroGate.tsx) has set
+   html[data-intro]: never without JavaScript, under reduced motion, on Save-Data or slow
+   connections, on phones or on repeat views. It sits under the skip link (z-index 100). */
+.intro-overlay { display: none; }
+html[data-intro="play"] .intro-overlay,
+html[data-intro="reveal"] .intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  gap: 32px;
+  padding: 0 32px 40px;
+  background: #08080b;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* It takes the presses people aim at a loading screen: IntroOverlay.tsx turns one into a skip and
+   cancels its click. Before hydration it simply absorbs them; the failsafe's visibility: hidden lets
+   them through again. During the curtain lift hit-testing follows the clip-path, so only the part
+   still covered takes presses and the uncovered page is live. */
+html[data-intro="play"] .intro-overlay { clip-path: inset(0); }
+/* The exit lifts it from the bottom up, like the site's curtain. */
+html[data-intro="reveal"] .intro-overlay { clip-path: inset(0 0 100% 0); transition: clip-path 0.9s cubic-bezier(0.76, 0, 0.24, 1) 0.12s; }
+/* The counter rises out of its own clip box, like the headline words. It is wide enough for "100", so
+   the track does not jump when the third digit appears. */
+.intro-count-mask { display: block; overflow: clip; }
+.intro-count { display: block; min-width: 1.8em; font-weight: 500; font-size: clamp(72px, 11vw, 168px); line-height: 0.85; letter-spacing: -0.05em; color: #e3dbd8; font-variant-numeric: tabular-nums; }
+html[data-intro="reveal"] .intro-count { transform: translateY(-105%); transition: transform 0.45s cubic-bezier(0.76, 0, 0.24, 1); }
+.intro-track { position: relative; flex: 1; height: 2px; margin-bottom: 20px; background: #2a2b2e; }
+.intro-bar { position: absolute; inset: 0; background: #fa6e43; box-shadow: 0 0 14px rgba(250, 110, 67, 0.55); transform: scaleX(0); transform-origin: left; }
+@supports not (overflow: clip) {
+  .hero-word-mask, .intro-count-mask { overflow: hidden; }
+}
+/* Under the overlay the globe appears at once: it fades up from black itself when the overlay lifts. */
+html[data-intro="play"] .hero-scene { transition: none; }
+/* Failsafe if the overlay's script never runs (a failed chunk, an exception): 6 s after the gate
+   marked the intro, more than the 4 s load cap, the 0.28 s hold on 100 and the 1.2 s reveal
+   (intro-store.ts), the overlay hides itself and the held hero copy shows. Animations outrank the
+   copy's inline entrance styles; both rules stop applying as soon as the script moves data-intro
+   past "play". */
+html[data-intro="play"] .intro-overlay { animation: intro-failsafe 0s linear 6s forwards; }
+html[data-intro="play"] #home [data-reveal] { animation: intro-failsafe-copy 0s linear 6s forwards; }
+@keyframes intro-failsafe { to { visibility: hidden; opacity: 0; } }
+@keyframes intro-failsafe-copy { to { opacity: 1; transform: none; filter: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-intro] .intro-overlay { display: none !important; }
+}
+
+/* FAQ question focus ring stays inside its rounded, overflow-hidden card. */
+.faq-item > summary:focus-visible { outline-offset: -3px; border-radius: 0.75rem; }
+
+/* ================================================================== */
+/* === FX === Motion system (src/components/fx). Flags on <html>:      */
+/*   data-fx-motion  JavaScript on and motion allowed: CSS reveals and  */
+/*                   scroll draws, on every device.                     */
+/*   data-fx         hover + fine pointer, >= 1024 px, motion allowed:  */
+/*                   heavy effects.                                     */
+/* Without a flag, every rule below leaves content in its end state,   */
+/* so no-JS and reduced-motion visitors see everything. New rules go   */
+/* immediately above the closing marker.                               */
+/* ================================================================== */
+:root {
+  --fx-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fx-ease-io: cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+/* Grain: one static noise tile at 3.5%, click-through (Grain.tsx). It sits above the nav (z-index 50)
+   and under the intro overlay (90) and the skip link (100). */
+.fx-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Smooth anchors (smooth-anchors.ts): the html rule's smooth scrolling applies only after a press or a
+   key, so a reload, Back and a deep link land at once instead of gliding from the top of the page. */
+html:not([data-fx-smooth-anchors]) { scroll-behavior: auto; }
+
+/* Smooth scroll (SmoothScroll.tsx): Lenis's base rules. */
+html.lenis,
+html.lenis body { height: auto; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+
+/* Cursor (Cursor.tsx): dot + spring ring inverted against the page; the native caret over fields. It sits
+   above the skip link (100): it takes no pointer events. FxLayer does not mount it in forced colours. */
+html[data-fx-cursor],
+html[data-fx-cursor] * { cursor: none !important; }
+html[data-fx-cursor] :is(input, textarea, select, [contenteditable]) { cursor: auto !important; }
+.fx-cursor { position: fixed; left: 0; top: 0; z-index: 110; width: 0; height: 0; pointer-events: none; mix-blend-mode: difference; }
+.fx-cursor[data-state="label"] { mix-blend-mode: normal; }
+.fx-cursor-dot-pos,
+.fx-cursor-ring { position: absolute; left: 0; top: 0; }
+.fx-cursor-dot { display: block; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
+.fx-cursor-ring { display: grid; place-items: center; width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+.fx-cursor-disc { position: absolute; inset: 0; border: 1.5px solid #fff; border-radius: 9999px; transition: opacity 0.2s, scale 0.4s var(--fx-ease), background-color 0.25s, border-color 0.25s; }
+.fx-cursor-label { position: relative; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #161719; opacity: 0; transition: opacity 0.2s; }
+.fx-cursor:is([data-state="hover"], [data-state="label"]) .fx-cursor-dot { scale: 0; }
+.fx-cursor[data-state="hover"] .fx-cursor-disc { scale: 1.6; background: #fff; }
+.fx-cursor[data-state="label"] .fx-cursor-disc { scale: 2.2; border-color: #fa6e43; background: #fa6e43; }
+.fx-cursor[data-state="label"] .fx-cursor-label { opacity: 1; }
+.fx-cursor:is([data-state="hidden"], [data-state="text"]) :is(.fx-cursor-dot, .fx-cursor-disc) { opacity: 0; }
+
+/* Magnetic (Magnetic.tsx): the arrow glyph travels a little further than its button. */
+html[data-fx] [data-magnetic] [data-magnetic-glyph] { translate: calc(var(--mx, 0) * 3px) calc(var(--my, 0) * 3px); transition: translate 0.3s var(--fx-ease); }
+
+/* Spotlight (Spotlight.tsx, Tilt.tsx): a warm highlight under the pointer. Decorative and click-through.
+   It tints the text it passes over too, so its peak stays at 6%: the cards' 12 px muted labels (#888891 on
+   the card, 4.93:1) keep 4.57:1 right under the pointer (AA; 18% dropped them to 3.81:1). */
+.fx-spotlight { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(280px circle at var(--sx, 50%) var(--sy, 50%), rgba(250, 110, 67, 0.06), transparent 65%); transition: opacity 0.35s ease-out; }
+html[data-fx] [data-spotlight]:hover > .fx-spotlight { opacity: 1; }
+
+/* Split titles (SplitReveal.tsx, ScrollColorTitle.tsx): on fine-pointer desktops each word's characters rise
+   out of the word's mask, blur to sharp, staggered left to right. The mask is the hero's (.hero-word-mask):
+   0.36em on top for stacked accents (Vietnamese "Ấ"), 0.18em below for descenders, 0.1em at the sides, all
+   cancelled by negative margins, so the line boxes, line breaks and the section height stay those of the
+   plain title; nowrap keeps a word whole, as its text was. Only the characters take pointer events, not the
+   masks' padding. The hidden start applies only under data-fx-motion and before the title's data-in;
+   everything else (no-JS, reduced motion, touch: those never split anyway) is the end state. The
+   transitions apply only once the title is in view, so the hidden start never animates in. The stagger
+   is 30 ms per character, squeezed for long titles so the last one starts within 0.6 s (--n: count). */
+.fx-split-mask { display: inline-block; overflow: clip; white-space: nowrap; vertical-align: top; padding: 0.36em 0.1em 0.18em; margin: -0.36em -0.1em -0.18em; pointer-events: none; }
+.fx-split-char { display: inline-block; pointer-events: auto; }
+html[data-fx-motion] [data-split-title]:not([data-in]) .fx-split-char { translate: 0 115%; opacity: 0; filter: blur(10px); }
+[data-split-title][data-in] .fx-split-char { transition: translate 1s var(--fx-ease), opacity 0.7s ease-out, filter 0.9s ease-out; transition-delay: calc(var(--i, 0) * min(30ms, 600ms / var(--n, 20))); }
+@supports not (overflow: clip) {
+  .fx-split-mask { overflow: hidden; }
+}
+
+/* Progress rail (ScrollProgressRail.tsx). Faded but focusable over the hero and footer; focus shows it.
+   Below 1280 px the container's gutter is 32 px, so the rail moves closer to the edge to stay in it. */
+.fx-rail { position: fixed; right: 18px; top: 50%; z-index: 40; translate: 0 -50%; transition: opacity 0.4s ease-out; }
+@media (max-width: 1279px) {
+  .fx-rail { right: 6px; }
+}
+.fx-rail[data-idle]:not(:focus-within) { opacity: 0; pointer-events: none; }
+.fx-rail-track { position: absolute; top: 11px; bottom: 11px; right: 10.5px; width: 1px; overflow: hidden; background: #2a2b2e; }
+.fx-rail-fill { position: absolute; inset: 0; background: #fa6e43; transform-origin: top; }
+.fx-rail-list { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.fx-rail-link { position: relative; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 8px; }
+.fx-rail-dot { width: 6px; height: 6px; border-radius: 9999px; background: #5f5f66; transition: background-color 0.3s, scale 0.35s var(--fx-ease); }
+.fx-rail-link[aria-current] .fx-rail-dot { background: #fa6e43; scale: 1.6; }
+.fx-rail-label { position: absolute; right: calc(100% + 8px); top: 50%; translate: 6px -50%; white-space: nowrap; border: 1px solid #2a2b2e; border-radius: 8px; background: rgba(22, 23, 25, 0.92); padding: 5px 10px; font-size: 12px; line-height: 1.2; color: #e3dbd8; opacity: 0; pointer-events: none; transition: opacity 0.25s, translate 0.3s var(--fx-ease); }
+.fx-rail-link:is(:hover, :focus-visible) .fx-rail-label { opacity: 1; translate: 0 -50%; }
+/* Forced colours replace every background with Canvas, which would erase the dots, the track and the fill:
+   draw them in system colours instead (the current section and the progress in Highlight). */
+@media (forced-colors: active) {
+  .fx-rail-track,
+  .fx-rail-fill,
+  .fx-rail-dot { forced-color-adjust: none; }
+  .fx-rail-track { background: GrayText; }
+  .fx-rail-fill { background: Highlight; }
+  .fx-rail-dot { background: CanvasText; }
+  .fx-rail-link[aria-current] .fx-rail-dot { background: Highlight; }
+}
+
+/* Micro-interactions. Sweep fill and underline draw on hover devices (and the underline on keyboard focus);
+   focus glow on every device. Transforms only, except the glow's box-shadow (paint, no layout). */
+@media (hover: hover) {
+  .fx-sweep,
+  .contact-form .button { position: relative; isolation: isolate; overflow: hidden; }
+  .fx-sweep::before,
+  .contact-form .button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--fx-sweep, #ff9573); pointer-events: none; transform: scaleX(0); transform-origin: right; transition: transform 0.5s var(--fx-ease-io); }
+  .fx-sweep:hover::before,
+  .contact-form .button:not(:disabled):hover::before { transform: scaleX(1); transform-origin: left; }
+  .fx-underline:hover::after { transform: scaleX(1); transform-origin: left; }
+}
+.fx-sweep-ghost { --fx-sweep: rgba(250, 110, 67, 0.16); }
+.fx-underline { position: relative; }
+.fx-underline::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 1px; background: currentColor; pointer-events: none; transform: scaleX(0); transform-origin: right; transition: transform 0.4s var(--fx-ease-io); }
+.fx-underline:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+.fx-field,
+.field :is(input, select, textarea) { transition: border-color 0.25s, box-shadow 0.35s; }
+.fx-field:focus,
+.field :is(input, select, textarea):focus { box-shadow: 0 0 0 3px rgba(250, 110, 67, 0.16), 0 0 28px -6px rgba(250, 110, 67, 0.55); }
+
+/* Page transition (PageTransition.tsx), 720 ms: an orange curtain rises over the held old page, the old page
+   drops out while covered, then the curtain lifts off the top as the new page settles. The nav and the cursor
+   are named only while a transition runs (a permanent name would make the header a backdrop root and drop
+   the nav's blur): they ride above the curtain as their live new state, so the pill moves once and the
+   cursor never vanishes. The footer sits outside the page too: its old state is held with the old page (a
+   footer link clicked at the end of a page would otherwise uncover the new page at once), and its new state
+   stays hidden, as the content covers it. The transition layer itself takes no pointer events; captured
+   elements take none until it ends. Stack, bottom to top: new page, old footer, old page, curtain, nav,
+   cursor. */
+::view-transition { pointer-events: none; }
+.fx-vt-curtain { position: fixed; inset: 0; pointer-events: none; }
+html:active-view-transition body > header { view-transition-name: fx-nav; }
+html:active-view-transition footer#contact { view-transition-name: fx-footer; }
+/* The cursor's root box is 0 × 0 (its parts are offset from it), which a snapshot cannot capture: while the
+   transition runs it spans the viewport instead, still click-through, and its difference blend carries over. */
+html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset: 0; width: auto; height: auto; }
+::view-transition-group(.fx-page-in) { z-index: 1; animation: none; }
+/* The footer group keeps the browser's own group animation, which starts from the old footer's box, and holds
+   that first keyframe for the whole curtain: a group's static box is the NEW footer's, which after the scroll to
+   the top sits far below the viewport whenever the footer is in the page flow (phones, short laptops). */
+::view-transition-group(fx-footer) { z-index: 2; animation-duration: 720ms; animation-timing-function: step-end; }
+::view-transition-group(.fx-page-out) { z-index: 3; animation: none; }
+::view-transition-group(.fx-curtain) { z-index: 4; animation: none; }
+::view-transition-group(fx-nav) { z-index: 5; animation: none; }
+::view-transition-group(fx-cursor) { z-index: 6; animation: none; }
+::view-transition-old(fx-nav),
+::view-transition-old(fx-cursor),
+::view-transition-new(fx-footer) { display: none; }
+::view-transition-new(fx-nav),
+::view-transition-new(fx-cursor) { animation: none; }
+::view-transition-new(.fx-curtain) { background: #fa6e43; animation: fx-curtain 720ms var(--fx-ease-io) both; }
+::view-transition-old(.fx-page-out),
+::view-transition-old(fx-footer) { animation: fx-page-hold 720ms linear both; }
+::view-transition-new(.fx-page-in) { animation: fx-page-settle 720ms var(--fx-ease) both; }
+@keyframes fx-curtain {
+  0% { clip-path: inset(100% 0 0 0); }
+  46%, 54% { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 0 100% 0); }
+}
+@keyframes fx-page-hold { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes fx-page-settle { 0%, 50% { translate: 0 40px; } 100% { translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation-duration: 0s !important; animation-delay: 0s !important; }
+}
+
+/* Services (Services.tsx). The desktop accordion's columns keep fixed layout boxes: the row sets each column's
+   opening amount (--fx-sv-<i>, 0 closed to 1 open; registered here, up to the CMS limit of 12 columns, so the
+   amounts transition together) and every column's width and translate follow from them, in units of the row
+   (a size container). Opening a column therefore moves no box. Without @property the amounts jump, and the
+   columns snap open. As a column opens, an orange panel wipes off its image while the image settles. */
+@property --fx-sv-0 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-1 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-2 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-3 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-4 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-5 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-6 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-7 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-8 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-9 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-10 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-11 { syntax: "<number>"; inherits: true; initial-value: 0; }
+.fx-svc {
+  container-type: inline-size;
+  transition-property: --fx-sv-0, --fx-sv-1, --fx-sv-2, --fx-sv-3, --fx-sv-4, --fx-sv-5, --fx-sv-6, --fx-sv-7, --fx-sv-8, --fx-sv-9, --fx-sv-10, --fx-sv-11;
+  transition-duration: 0.5s;
+  transition-timing-function: var(--fx-ease);
+}
+.fx-reveal-wipe { position: absolute; inset: 0; background: #fa6e43; pointer-events: none; transform: scaleX(0); transform-origin: right; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-wipe { transform: scaleX(1); }
+html[data-fx-motion] [data-active="true"] .fx-reveal-wipe { transition: transform 0.8s var(--fx-ease-io) 0.12s; }
+html[data-fx-motion] .fx-reveal-img { transition: scale 1.2s var(--fx-ease) 0.12s; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-img { scale: 1.12; }
+
+/* What We Measure (Analytics.tsx): dial hands sweep into place, donut segments draw in turn. */
+.fx-hand { transform-box: view-box; transform-origin: 50px 50px; transform: rotate(var(--a)); }
+html[data-fx-motion] .fx-dial .fx-hand { transition: transform 1.3s var(--fx-ease) calc(var(--d, 0) * 1s); }
+html[data-fx-motion] .fx-dial:not([data-in]) .fx-hand { transform: rotate(calc(var(--a) - 140deg)); }
+html[data-fx-motion] .fx-donut circle { transition: stroke-dasharray 1.1s var(--fx-ease) calc(var(--i, 0) * 0.16s); }
+html[data-fx-motion] .fx-donut:not([data-in]) circle { stroke-dasharray: 0 100; }
+/* The ticker pauses when its box (or anything in it) is hovered or focused, through the skew wrapper (WCAG 2.2.2). */
+[role="marquee"]:is(:hover, :focus, :focus-within) .marquee-track { animation-play-state: paused; }
+
+/* Engagements (Pricing.tsx): the desktop rows slide in from the right in turn as the list enters (translate and
+   opacity only). The hidden start applies only under data-fx-motion and before the list's data-in, and the
+   transition only once it is in view, so the start never animates in. A selected row pulses a glow ring
+   once: decorative, click-through, and at rest (invisible) without motion. */
+html[data-fx-motion] .fx-rows:not([data-in]) > * { opacity: 0; translate: 80px 0; }
+.fx-rows[data-in] > * { transition: opacity 0.7s ease-out, translate 1s var(--fx-ease); transition-delay: calc(var(--i, 0) * 120ms); }
+.fx-pulse { position: absolute; inset: 0; z-index: 2; border: 2px solid #fa6e43; border-radius: 1rem; box-shadow: 0 0 44px 2px rgba(250, 110, 67, 0.45); pointer-events: none; opacity: 0; }
+html[data-fx-motion] .fx-pulse { animation: fx-pulse 1s var(--fx-ease) 1; }
+@keyframes fx-pulse { 0% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.03; } }
+
+/* Footer wordmark (FooterWordmark.tsx, the drawn <Wordmark>): the nine glyphs rise in sequence from just below
+   their line as the curtain uncovers them (translate and opacity, staggered by --i) and lean away from the
+   pointer (transform, from --rx/--ry, easing back). Only under data-fx: touch, phones, reduced motion and no-JS
+   keep the glyphs at rest (docs/brand/guidelines.md §9). The rise transitions only once risen (data-in): the
+   letters drop out of sight at once, which happens only while the content covers them. The ™ is not a letter
+   and never moves; it fades in after the last letter, so it never waits alone on an empty line. */
+html[data-fx] .fx-wordmark .fx-letter { transform: translate(var(--rx, 0px), var(--ry, 0px)); transition: transform 0.45s var(--fx-ease); }
+html[data-fx] .fx-wordmark[data-in] .fx-letter { transition: transform 0.45s var(--fx-ease), translate 1s var(--fx-ease) calc(var(--i, 0) * 55ms), opacity 0.7s ease-out calc(var(--i, 0) * 55ms); }
+html[data-fx] .fx-wordmark:not([data-in]) .fx-letter { translate: 0 0.55em; opacity: 0; }
+html[data-fx] .fx-wordmark[data-in] .brand-tm { transition: opacity 0.6s ease-out 0.5s; }
+html[data-fx] .fx-wordmark:not([data-in]) .brand-tm { opacity: 0; }
+
+/* === /FX === */

@@ -1,0 +1,146 @@
+{
+  "recordedAt": "2026-10-20T05:23:56.856Z",
+  "scope": "Local preview only. Not production, Lighthouse or field metrics.",
+  "browser": {
+    "version": "156.0.8078.4",
+    "profiles": [
+      {
+        "name": "mobile-320",
+        "models": 0,
+        "passed": true
+      },
+      {
+        "name": "mobile-390",
+        "models": 0,
+        "passed": true
+      },
+      {
+        "name": "tablet",
+        "models": 0,
+        "passed": true
+      },
+      {
+        "name": "desktop",
+        "models": 1,
+        "passed": true
+      },
+      {
+        "name": "reduced-motion",
+        "models": 0,
+        "passed": true
+      },
+      {
+        "name": "no-javascript",
+        "models": 0,
+        "passed": true
+      }
+    ],
+    "interactions": [
+      "mobile menu keyboard open/Escape/focus and navigation",
+      "desktop globe stops rendering offscreen",
+      "native FAQ keyboard toggles, contact service selection, compact viewport/text zoom, preview form disabled",
+      "all 12 routes: actual text bounds fit 320px, including long service headings",
+      "failed WebGL retains headline, poster and CTA",
+      "actual form: expired challenge, 503, lost response, input retention, stable retry key, success reset and focus"
+    ]
+  },
+  "seo": {
+    "testedAt": "2026-10-20T05:19:02.208Z",
+    "base": "http://127.0.0.1:8787",
+    "mode": "preview",
+    "routes": [
+      {
+        "route": "/",
+        "title": "spacegear.tech | Digital Transformation & AI Consulting",
+        "status": 200,
+        "schemaBlocks": 1
+      },
+      {
+        "route": "/services/",
+        "title": "Services | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 2
+      },
+      {
+        "route": "/services/digital-transformation/",
+        "title": "Digital Transformation Strategy | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 3
+      },
+      {
+        "route": "/services/ai-strategy/",
+        "title": "AI Strategy & Enablement | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 3
+      },
+      {
+        "route": "/services/applied-ai/",
+        "title": "Applied AI & Deep Learning | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 3
+      },
+      {
+        "route": "/services/automation-integration/",
+        "title": "Automation & Systems Integration | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 3
+      },
+      {
+        "route": "/services/product-delivery/",
+        "title": "Digital Product & Platform Delivery | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 3
+      },
+      {
+        "route": "/approach/",
+        "title": "Our Approach | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 1
+      },
+      {
+        "route": "/about/",
+        "title": "About | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 1
+      },
+      {
+        "route": "/contact/",
+        "title": "Discuss a Project | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 1
+      },
+      {
+        "route": "/privacy/",
+        "title": "Privacy | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 1
+      },
+      {
+        "route": "/terms/",
+        "title": "Website Terms | spacegear.tech",
+        "status": 200,
+        "schemaBlocks": 1
+      }
+    ],
+    "links": 12,
+    "assets": 5
+  },
+  "unitTests": {
+    "passed": 15,
+    "failed": 0,
+    "includes": [
+      "local D1 races and transaction rollback",
+      "configured form SSR prevents native GET",
+      "concurrent outbox backoff preservation"
+    ]
+  },
+  "workerDryRun": {
+    "passed": true,
+    "uploadKiB": 16.44,
+    "gzipKiB": 5.79
+  },
+  "globe": {
+    "sourceBytes": 10372724,
+    "optimizedBytes": 1450416
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "featured": {
+    "label": "Featured Service",
+    "name": "Applied AI",
+    "slug": "applied-ai"
+  },
+  "lineup": {
+    "label": "Service Lineup",
+    "count": "5/5",
+    "title": "Strategy and Delivery Under One Roof",
+    "text": "Digital transformation, AI strategy, applied AI, automation and product delivery, connected from the first decision to daily use.",
+    "footer": "From direction to daily use"
+  },
+  "tiles": [
+    {
+      "slug": "digital-transformation",
+      "name": "Digital Transformation",
+      "desc": "Find the friction, set priorities and plan a practical path forward."
+    },
+    {
+      "slug": "automation-integration",
+      "name": "Automation & Integration",
+      "desc": "Connect your tools and remove repeated manual work."
+    },
+    {
+      "slug": "ai-strategy",
+      "name": "AI Strategy",
+      "desc": "Decide where AI can help, what it needs and how to begin."
+    },
+    {
+      "slug": "product-delivery",
+      "name": "Product Delivery",
+      "desc": "Carry an idea from discovery to software people use."
+    }
+  ],
+  "assessment": {
+    "title": "Opportunity Assessment",
+    "badge": "01/03",
+    "note": "The recommended first step.",
+    "chip": "Engagement stage",
+    "value": "01",
+    "unit": "/03",
+    "progress": 33.3,
+    "cta": "Start with an assessment",
+    "href": "/contact/"
+  }
+}
