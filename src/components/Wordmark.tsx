@@ -6,7 +6,7 @@ import type { CSSProperties, Ref } from "react";
  * these paths only together with the masters.
  *
  * - Sized like text: it follows the font-size of its context (1em = 183.150 units; the x-height is
- *   0.546em, Inter's own, so the existing `text-[clamp(...)]` classes keep today's size).
+ *   0.546em, Inter's own, so the footer's existing font-size clamps keep today's size).
  * - Motion-ready, static by default: every glyph is a `<span data-letter class="fx-letter glyph-…">` with
  *   `--i` (its index) holding its own inline SVG, so the motion work's rise and cursor lean
  *   (`.fx-letter` translate/transform, staggered by `--i`) apply per glyph. Nothing moves here; under

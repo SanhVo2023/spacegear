@@ -6,7 +6,7 @@
  * - Outlined shapes only: no font, no live text, so it renders identically everywhere and on the server.
  * - Colour follows CSS: every shape is filled with `currentColor` (default `text-flame`). Optional hooks:
  *   `.brand-symbol .half-top`, `.half-bottom`, `.brand-wordmark .glyph`, `.glyph-tm` (for example, the
- *   two-tone "twilight" colourway on dark grounds: `.twilight .half-top { fill: var(--color-ink) }`).
+ *   two-tone "twilight" colourway on dark grounds fills `.half-top` with the ink colour).
  * - Decorative: the SVG is `aria-hidden`. The caller names the link, and the name must contain the visible
  *   text, e.g. `<Link aria-label="spacegear home"><Brand /></Link>`.
  * - Static: no motion here. Motion work may animate `.half-top` / `.half-bottom` (they slide like the curtain)
