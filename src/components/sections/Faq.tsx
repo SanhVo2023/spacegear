@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import Parallax from "@/components/fx/Parallax";
+import { ringText } from "@/components/ring-text";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
 import { FAQ_CARD, FAQS, SECTIONS } from "@/lib/content";
 
@@ -71,7 +72,11 @@ export function FaqAccordion({ items, group, firstOpen = true }: { items: QA[]; 
   );
 }
 
-/** Rotating circular badge with an orange core (matches the footer mark). */
+/** The badge's ring: its copy runs exactly once round the circle (ring-text.ts). */
+const BADGE_RING = ringText(FAQ_CARD.badge, 36, { size: 8 });
+
+/** Rotating circular badge with an orange core (matches the footer mark). The copy is sized to close the
+ *  circle exactly, its closing "·" one gap before the first letter. */
 export function CircleBadge() {
   return (
     <div aria-hidden className="relative h-20 w-20">
@@ -79,8 +84,8 @@ export function CircleBadge() {
         <defs>
           <path id="faqCircle" d="M50,50 m-36,0 a36,36 0 1,1 72,0 a36,36 0 1,1 -72,0" />
         </defs>
-        <text className="fill-ink/80 font-mono text-[8px] uppercase tracking-[0.16em]">
-          <textPath href="#faqCircle" startOffset="0%">{FAQ_CARD.badge}</textPath>
+        <text className="fill-ink/80 font-mono uppercase" style={{ fontSize: BADGE_RING.fontSize, letterSpacing: BADGE_RING.letterSpacing }}>
+          <textPath href="#faqCircle" startOffset="0%" textLength={BADGE_RING.textLength} lengthAdjust="spacing">{FAQ_CARD.badge}</textPath>
         </text>
       </svg>
       <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-flame shadow-[0_0_20px_rgba(250,110,67,0.6)]" />

@@ -1230,6 +1230,106 @@ desktop("FAQ: the icon spins as it morphs and the photo drifts in its frame", as
   assert.deepEqual((await shifts()).filter((shift) => !shift.input), [], "desktop: opening and closing a question and the photo drift shift no layout (CLS 0)");
 });
 
+// --- Footer wordmark and pills (FooterWordmark.tsx, Footer.tsx) ---
+
+/** The footer wordmark: whether it has risen, and per letter its opacity, rise offset (translate) and lean
+ *  (transform); the ™ likewise. */
+const wordmarkState = (page) => page.evaluate(() => {
+  const mark = document.querySelector(".fx-wordmark");
+  const read = (el) => {
+    const style = getComputedStyle(el);
+    const lean = new DOMMatrixReadOnly(style.transform === "none" ? undefined : style.transform);
+    return { opacity: +parseFloat(style.opacity).toFixed(3), translate: style.translate, lean: [Math.round(lean.m41), Math.round(lean.m42)].join() };
+  };
+  return { risen: mark.hasAttribute("data-in"), letters: [...mark.querySelectorAll("[data-letter]")].map(read), tm: read(mark.querySelector(".brand-tm")) };
+});
+const atRest = (part) => part.opacity > 0.99 && ["none", "0px"].includes(part.translate) && part.lean === "0,0";
+
+desktop("the footer wordmark rises as the curtain opens and leans away from the pointer", async (page) => {
+  const before = await page.evaluate(() => {
+    const mark = document.querySelector(".fx-wordmark");
+    return { letters: mark?.querySelectorAll("[data-letter]").length ?? 0, risen: mark?.hasAttribute("data-in") ?? null, name: mark?.querySelector(".sr-only")?.textContent ?? null };
+  });
+  assert.deepEqual(before, { letters: 9, risen: false, name: "spacegear" }, "desktop: the drawn wordmark waits behind the curtain with its full name");
+  const hidden = await wordmarkState(page);
+  assert.ok(hidden.letters.every((letter) => letter.opacity < 0.01 && letter.translate !== "none") && hidden.tm.opacity < 0.01, `desktop: the letters wait lowered and hidden, the ™ with them (${JSON.stringify(hidden)})`);
+  const shifts = await recordShifts(page, "footer#contact");
+  // Half the pinned footer uncovered (from the bottom up): the wordmark near its top is still covered.
+  const uncover = (share) => page.evaluate((s) => {
+    const footer = document.querySelector("footer#contact");
+    window.scrollTo({ top: document.documentElement.scrollHeight - footer.offsetHeight - innerHeight + footer.offsetHeight * s, behavior: "instant" });
+    return getComputedStyle(footer.parentElement).position;
+  }, share);
+  assert.equal(await uncover(0.5), "fixed", "desktop: the footer is pinned behind the content at 1440×1000 (precondition)");
+  await page.waitForTimeout(400);
+  assert.equal((await wordmarkState(page)).risen, false, "desktop: the letters wait while the curtain has not reached the wordmark");
+  await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.waitForTimeout(1700);
+  const risen = await wordmarkState(page);
+  assert.ok(risen.risen && risen.letters.every(atRest) && atRest(risen.tm), `desktop: the letters rise when the curtain uncovers them, the ™ with them (${JSON.stringify(risen)})`);
+  const letter = page.locator(".fx-wordmark [data-letter]").nth(2);
+  const box = await letter.boundingBox();
+  await page.mouse.move(box.x - 60, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 2 - 20, box.y + box.height / 2, { steps: 5 });
+  await page.waitForTimeout(700);
+  const pushed = (await matrixOf(letter)).m41;
+  assert.ok(pushed > 1, `desktop: a letter right of the pointer leans right (${pushed}px)`);
+  assert.equal((await wordmarkState(page)).tm.lean, "0,0", "desktop: the ™ never leans");
+  // Leaving the footer (into the strip of page above it) lets every letter settle back.
+  await page.mouse.move(box.x, 40, { steps: 3 });
+  await page.waitForTimeout(700);
+  const settled = await wordmarkState(page);
+  assert.ok(settled.letters.every(atRest), `desktop: the letters settle once the pointer leaves the footer (${JSON.stringify(settled.letters)})`);
+  assert.deepEqual(await shifts(), [], "desktop: the rise and the lean shift no layout in the footer");
+  await jumpTo(page, 0);
+  await page.waitForTimeout(300);
+  assert.equal((await wordmarkState(page)).risen, false, "desktop: the letters sink once the content covers the footer again, so the rise replays");
+});
+
+desktop("a footer link keeps the risen wordmark still under the page curtain", async (page, ctx) => {
+  await fresh(page, ctx.base, "/about/");
+  await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.waitForTimeout(1700);
+  assert.equal((await wordmarkState(page)).risen, true, "desktop: the wordmark has risen at the end of /about/ (precondition)");
+  // Every change of the risen state, and whether a view transition was running when it happened.
+  await page.evaluate(() => {
+    const mark = document.querySelector(".fx-wordmark");
+    window.__fxWordmark = [];
+    new MutationObserver(() => window.__fxWordmark.push({ risen: mark.hasAttribute("data-in"), underCurtain: document.documentElement.matches(":active-view-transition") }))
+      .observe(mark, { attributes: true, attributeFilter: ["data-in"] });
+  });
+  const link = page.locator('#contact nav a[href="/services/"]').first();
+  await settle(link);
+  const box = await link.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await waitForCurtain(page);
+  await page.waitForURL("**/services/");
+  await transitionsDone(page);
+  await page.waitForTimeout(400);
+  // /services/ opens at its top, so the content covers the footer again: the letters sink once, after the curtain.
+  assert.deepEqual(await page.evaluate(() => window.__fxWordmark), [{ risen: false, underCurtain: false }], "desktop: the letters keep still under the curtain and sink, out of sight, once it has gone");
+});
+
+const SITE_COPY = JSON.parse(readFileSync(new URL("../content/site.json", import.meta.url), "utf8"));
+if (SITE_COPY.socialProfiles.length === 0) {
+  desktop("the footer's Privacy and Terms pills are magnetic and keep their names", async (page) => {
+    await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+    await page.waitForTimeout(500);
+    const pills = page.locator("#contact a[data-magnetic]");
+    assert.deepEqual(await pills.evaluateAll((links) => links.map((a) => [a.getAttribute("href"), a.textContent.trim()])), [["/privacy/", "Privacy"], ["/terms/", "Terms"]], "desktop: both pills are magnetic links with their names");
+    const pill = pills.first();
+    await settle(pill);
+    const box = await pill.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y - 30);
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.75, { steps: 4 }); // inside the rounded corner
+    await page.waitForTimeout(500);
+    const pull = await matrixOf(pill);
+    assert.ok(pull.m41 > 0.5 && pull.m42 > 0.5, `desktop: the Privacy pill leans toward the pointer (${pull.m41}, ${pull.m42})`);
+  });
+}
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -64,6 +64,18 @@ test("curtainReveal measures how much of the footer is uncovered", () => {
   assert.equal(math.curtainReveal(10, 1000, 5000, 0), 1);
 });
 
+test("shownBelow measures how much of a box shows below the content and inside the viewport", () => {
+  // An 80 px tall wordmark at 200–280 px in a 1000 px viewport.
+  assert.equal(math.shownBelow(200, 280, 1000, 1000), 0, "covered: the content reaches the viewport bottom");
+  assert.equal(math.shownBelow(200, 280, 280, 1000), 0, "the content's edge at the box's bottom");
+  assert.equal(math.shownBelow(200, 280, 240, 1000), 0.5);
+  assert.equal(math.shownBelow(200, 280, 0, 1000), 1, "fully uncovered");
+  assert.equal(math.shownBelow(-40, 40, -500, 1000), 0.5, "half above the viewport top");
+  assert.equal(math.shownBelow(960, 1040, 0, 1000), 0.5, "half below the viewport bottom");
+  assert.equal(math.shownBelow(-120, -40, -500, 1000), 0, "scrolled past");
+  assert.equal(math.shownBelow(10, 10, 0, 1000), 0, "an empty box never shows");
+});
+
 test("cellAt and ringDistance drive the dot-matrix ripple", () => {
   assert.deepEqual(math.cellAt(0, 0, 200, 100, 5, 5), { row: 0, col: 0 });
   assert.deepEqual(math.cellAt(199, 99, 200, 100, 5, 5), { row: 4, col: 4 });

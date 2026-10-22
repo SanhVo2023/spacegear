@@ -57,6 +57,15 @@ export function curtainReveal(scrollY: number, viewportH: number, scrollHeight: 
   return clamp((scrollY + viewportH - (scrollHeight - footerH)) / footerH, 0, 1);
 }
 
+/** Share (0–1) of a box spanning `top` to `bottom` (viewport px) that shows: inside the viewport and below
+ *  `edge`, the bottom of the page content, under which the footer shows (pinned behind the content, or
+ *  following it in the flow). The footer wordmark rises on its own share: the curtain uncovers the pinned footer
+ *  from the bottom up, and the wordmark sits near its top. */
+export function shownBelow(top: number, bottom: number, edge: number, viewportH: number) {
+  if (bottom <= top) return 0;
+  return tidy(clamp((Math.min(bottom, viewportH) - Math.max(top, edge, 0)) / (bottom - top), 0, 1));
+}
+
 /** Grid cell under a pointer at (px, py) inside a w×h field of cols×rows cells. */
 export function cellAt(px: number, py: number, w: number, h: number, cols: number, rows: number) {
   return {

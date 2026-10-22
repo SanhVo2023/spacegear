@@ -639,4 +639,16 @@ html[data-fx-motion] .fx-rows:not([data-in]) > * { opacity: 0; translate: 80px 0
 html[data-fx-motion] .fx-pulse { animation: fx-pulse 1s var(--fx-ease) 1; }
 @keyframes fx-pulse { 0% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.03; } }
 
+/* Footer wordmark (FooterWordmark.tsx, the drawn <Wordmark>): the nine glyphs rise in sequence from just below
+   their line as the curtain uncovers them (translate and opacity, staggered by --i) and lean away from the
+   pointer (transform, from --rx/--ry, easing back). Only under data-fx: touch, phones, reduced motion and no-JS
+   keep the glyphs at rest (docs/brand/guidelines.md §9). The rise transitions only once risen (data-in): the
+   letters drop out of sight at once, which happens only while the content covers them. The ™ is not a letter
+   and never moves; it fades in after the last letter, so it never waits alone on an empty line. */
+html[data-fx] .fx-wordmark .fx-letter { transform: translate(var(--rx, 0px), var(--ry, 0px)); transition: transform 0.45s var(--fx-ease); }
+html[data-fx] .fx-wordmark[data-in] .fx-letter { transition: transform 0.45s var(--fx-ease), translate 1s var(--fx-ease) calc(var(--i, 0) * 55ms), opacity 0.7s ease-out calc(var(--i, 0) * 55ms); }
+html[data-fx] .fx-wordmark:not([data-in]) .fx-letter { translate: 0 0.55em; opacity: 0; }
+html[data-fx] .fx-wordmark[data-in] .brand-tm { transition: opacity 0.6s ease-out 0.5s; }
+html[data-fx] .fx-wordmark:not([data-in]) .brand-tm { opacity: 0; }
+
 /* === /FX === */
