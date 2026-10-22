@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const { INLINE_SYNTAX, LegalPageError, parseLegalMarkdown } = await import("../src/lib/legal-markdown.ts");
-const { legalSections } = await import("../src/lib/legal.ts");
+const { LEGAL_PAGES, legalSections } = await import("../src/lib/legal.ts");
 
 /** The problems parseLegalMarkdown reports for `source` (none if it parses). */
 const problemsOf = (source, file = "x.md") => {
@@ -20,20 +20,17 @@ const problemsOf = (source, file = "x.md") => {
 const TEXT_HINT = "write the text without * _ ` < > [ ] \\ | ~~ or &…;";
 const HEADING_HINT = "write the heading without # * _ ` < > [ ] \\ | ~~ or &…;";
 
-test("the privacy page keeps its five sections", () => {
-  assert.deepEqual(legalSections("privacy").map((section) => section.heading), [
-    "Information you provide", "How it is used", "Storage and service providers", "Retention and access", "Website measurement",
-  ]);
-});
-
-test("the terms page keeps its four sections", () => {
-  assert.deepEqual(legalSections("terms").map((section) => section.heading), [
-    "Website content", "Engagements", "Appropriate use", "Third-party material",
-  ]);
-});
-
-test("every legal section has one plain paragraph today", () => {
-  for (const page of ["privacy", "terms"]) for (const section of legalSections(page)) assert.equal(section.paragraphs.length, 1, `${page}: ${section.heading}`);
+// The text is the editors' to change: scripts/check-migration.mjs compares the headings, the
+// paragraphs and the full text with the pre-CMS copy. Here only the structure counts.
+test("each legal page parses into sections, each with a heading and at least one paragraph", () => {
+  for (const page of LEGAL_PAGES) {
+    const sections = legalSections(page);
+    assert.ok(sections.length > 0, `${page}: no sections`);
+    for (const { heading, paragraphs } of sections) {
+      assert.ok(heading.trim().length > 0, `${page}: a heading is empty`);
+      assert.ok(paragraphs.length > 0 && paragraphs.every((paragraph) => paragraph.trim().length > 0), `${page}: "${heading}" has no text`);
+    }
+  }
 });
 
 test("soft line breaks join with one space; CRLF and an empty front matter block are accepted", () => {

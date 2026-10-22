@@ -24,11 +24,12 @@ test("the committed content passes validation", () => {
   assert.deepEqual(issuesOf(fresh()), []);
 });
 
-test("buildContent reproduces every pre-CMS export from the files in content/", () => {
+// The values are the editors' to change; scripts/check-migration.mjs compares them with the
+// pre-CMS copy. Here only the names count: every content export except the two code-only lists.
+test("buildContent builds every pre-CMS content export from the files in content/", () => {
   const { values } = readJson("tests/fixtures/content-v1.json");
-  const built = buildContent(fresh());
-  assert.equal(Object.keys(built).length, 20);
-  for (const [name, value] of Object.entries(built)) assert.equal(JSON.stringify(value), JSON.stringify(values[name]), name);
+  const expected = Object.keys(values).filter((name) => !["INSIGHTS", "CASE_STUDIES"].includes(name));
+  assert.deepEqual(Object.keys(buildContent(fresh())).sort(), expected.sort());
 });
 
 test("collection entries are ordered by their order field, not by file name", () => {
