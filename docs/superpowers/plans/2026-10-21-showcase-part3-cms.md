@@ -3404,25 +3404,32 @@ The only task that edits section components. Each edit replaces `src={X}` with `
 
 ## Merge notes (for the controller, merging `feat/showcase-cms` after Part 1)
 
-- **`src/lib/content.ts` is rewritten.** As of `d6e8e4e`, Part 1 has not changed `content.ts`, `site.ts`, the legal pages or `tests/content.test.mjs`. If it changes or adds copy in `content.ts` later (for example intro text), the merge conflicts there:
+- **`src/lib/content.ts` is rewritten.** As of `77ac72a` (main's HEAD at the Task 11 review round; the review itself saw `696e142`), Part 1 has not changed `content.ts`, `site.ts`, the legal pages, `README.md` or any test that Part 3 changed. If it changes or adds copy in `content.ts` later (for example intro text), the merge conflicts there:
   1. Keep the loader, and port the change into the matching `content/*.json` file. Extend `content-model.ts` and `config.yml` if a field was added; `npm test` (the config mirror tests) shows what is missing.
   2. `node scripts/check-migration.mjs` must then list exactly that change and nothing else.
-  3. Run `node scripts/check-migration.mjs --refresh`, check `git diff tests/fixtures`, and commit the fixture with the reason. For a new or changed export type, edit `tests/fixtures/content-v1.d.ts` by hand and extend `src/lib/content-contract.ts` (`npm run typecheck` fails until then).
+  3. Run `node scripts/check-migration.mjs --refresh` (or `--refresh-structure` if the change adds an export or a route), check `git diff tests/fixtures`, and commit the fixture with the reason. For a new or changed export type, edit `tests/fixtures/content-v1.d.ts` by hand and extend `src/lib/content-contract.ts` (`npm run typecheck` fails until then). Leave `tests/fixtures/sample-project/` alone: it is the tests' frozen input, not a copy of the live content.
   4. Record it under "Amendments".
-- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment), `scripts/build-production.mjs` (before `const checks=`) and `src/app/globals.css` (the two `@source not` lines after `@import "tailwindcss";`, Task 9). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
+- **Fenced blocks** (`>>> CMS (showcase Part 3)` … `<<< CMS`) in `public/_headers` (end of file), `scripts/package-site.mjs` (before `let headers=`), `scripts/check-export.mjs` (before the last line), `scripts/check-seo.mjs` (before the broken-resource loop), `scripts/browser-check.mjs` (one line before the report is written; see the Task 10 amendment), `scripts/build-production.mjs` (before `const checks=`) and `src/app/globals.css` (the three `@source not` lines after `@import "tailwindcss";`: Task 9, and the configuration schema in the Task 11 review round). They do not overlap Part 1's expected edits (model/Draco removal in the asset allowlists, globe assertions).
 - **Task 10's browser checks live in `scripts/admin-check.mjs`**, which `browser-check.mjs` calls from one fenced line between `await formPage.close();` and the `browser-report.json` write. Part 1 does not touch those lines. It inserts its texture-tier check directly after the `x-content-type-options` assertion, where the plan first put the CMS header block, so that block moved into the module.
-- **`git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`** shows no conflict (Task 10, and again in Task 11 with `feat/spacegear-showcase` at `d6e8e4e`). Five files are changed on both sides, and all five merge cleanly:
-  - `package.json`: Part 1 adds `build:textures`; Part 3 changes the `build` line and adds three scripts and `js-yaml` (see the `package.json` bullet below);
+- **`git merge-tree dc4b6af feat/spacegear-showcase feat/showcase-cms`** shows no conflict (Task 10; Task 11 with `feat/spacegear-showcase` at `d6e8e4e`; the Task 11 review round at `77ac72a`). Five files are changed on both sides, and all five merge cleanly:
+  - `package.json`: Part 1 adds `build:textures`; Part 3 changes the `build` line and adds three scripts, `js-yaml` and `ajv` (see the `package.json` bullet below);
   - `scripts/browser-check.mjs`, `scripts/check-export.mjs`, `scripts/package-site.mjs`: Part 3's fenced blocks;
   - `src/app/globals.css`: Part 3's fenced `@source not` lines.
 
-  `README.md` and the tests are changed on this branch only. Re-run the command right before merging, because Part 1 may have moved on.
-- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. Both are pinned exactly in `package.json`, and Part 1 keeps the same two versions (checked at `d6e8e4e`). If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
+  `README.md`, `package-lock.json` and the tests Part 3 changed are changed on this branch only; Part 1 adds its own new test files. Main keeps moving (`696e142` at the review, `77ac72a` an hour later), so re-run the command right before merging.
+- **`tests/headers.test.mjs` runs Cloudflare's own `_headers` code** from `node_modules`: wrangler 4.151.2's parser and miniflare 5.20261019.0-beta's asset worker, through `tests/helpers/wrangler-headers.mjs`. Both are pinned exactly in `package.json`, and Part 1 keeps the same two versions (checked at `77ac72a`). If a merge or upgrade changes either version and the code moves, that test fails with "… no longer has …". Then check `scripts/lib/headers.mjs` against the new code and update the helper's slices.
 - **The CMS browser check caches the three admin fonts** in `artifacts/cms-fonts/` (gitignored). In a checkout without that folder, the first `test:browser` fetches them once from jsDelivr. With no network and no cache, the check fails and says so.
 - **`check-export.mjs`'s CMS block reads two things Part 1 owns** (Task 7 review):
-  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. Part 1 still writes ``errors.push(`Excluded source/template asset: ${relative}`)`` at `d6e8e4e`. If Part 1 rewords that message, update the prefix: otherwise the first real upload fails check-export with that message.
+  - It drops the excluded-asset rule's errors for uploads by their message prefix, `Excluded source/template asset: uploads/`, because upload names are checked by the upload rules instead. Part 1 still writes ``errors.push(`Excluded source/template asset: ${relative}`)`` at `77ac72a`. If Part 1 rewords that message, update the prefix: otherwise the first real upload fails check-export with that message.
   - Its letter-case check reads every page, payload and chunk (except `admin/`) for local asset paths, and names any that differ in case from the file that ships. Part 1's own references are covered too; on Windows, `need` alone would accept them.
-- **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` is a new devDependency. Re-run `npm install --package-lock-only` after resolving a lockfile conflict.
+- **`package.json`:** the `build` line changes (index + variants before check-content); three scripts are added at the end of `scripts`; `js-yaml` 4.2.0 and `ajv` 6.15.0 are new exact devDependencies, both already in the tree through ESLint (one line each in `package.json` and `package-lock.json`). Re-run `npm install --package-lock-only` after resolving a lockfile conflict. After the merge, run `npm ls js-yaml tsx ajv`: each must resolve to one version (4.2.0, 4.23.15, 6.15.0), with no `invalid` or `missing`.
+- **Copy in main's `scripts/browser-check.mjs`** (Part 1 owns it). Several selectors name copy that editors can change in the CMS, so a valid edit would fail `test:browser` after the merge. Line numbers are those of the review's merged file; search for the strings, because main keeps moving:
+  - `:981`: the hero link by the name `/Discuss a project/` (`HOME.cta.label`);
+  - `:116` and `:464`: `#home .hero-copy a[href="/contact/"]` (`HOME.cta.href`);
+  - `:118`, `:732` and `:740`: `#home a[href="/services/applied-ai/"]` (`HOME.corner.href`, and the featured tile's service, `WORK.featured.slug`);
+  - `:646`: `words.count > 5`, while the schema allows a five-word headline (one lead word, three verbs, one tail word).
+
+  The fix after the merge: read `content/home.json` and `content/work.json` once at the top of `browser-check.mjs`, build those selectors from them, find the hero link with `getByRole("link", { name: HOME_COPY.cta.label, exact: true })`, and check the headline with `words.count >= 5` (or derive the count from the headline fields). `/contact/?service=applied-ai` (`:897`) names a service slug, which the CMS cannot change, so it can stay.
 - **Task 8 is deferred** (controller amendment). Nothing on this branch imports `contentImage()` yet, so an upload renders as its original until Task 8 runs. It runs after Part 2, in the main worktree, against the section components as Part 2 leaves them: its Step 1 grep finds the image render sites then, and each `src={x}` becomes `{...contentImage(x)}`.
 - **The site CSP** in `/*` can change independently (for example if Part 1 drops `'wasm-unsafe-eval'` with Draco); the admin rule removes whatever it is. `browser-check` compares each page with the current `/*` value, so no expectation needs updating.
 - **HTML baseline across the merge** (Part 1 changes the hero markup on purpose, so the Part 3 baseline does not carry over):
@@ -3442,10 +3449,11 @@ The only task that edits section components. Each edit replaces `src={X}` with `
        1. Diff the two factories (`moduleFactory` in `scripts/html-snapshot.mjs`, or the chunks directly).
        2. Confirm that every differing token is a module id and that each maps to a module that is itself the same code.
        3. Record the pairs under "Amendments", or escalate. Any other difference is a real change.
+     - **`content.ts` differs on purpose.** `src/lib/content.ts` is module 13003 in both builds today (with the entry index merged into it on this branch). If the recursion of `--explain-client-ids` reaches it, its factory differs by design: on this branch it is the loader. Then do not escalate: take `--loose-client-ids` (pages identical apart from the ids) together with a green `node scripts/check-migration.mjs` as the evidence, and record it under "Amendments".
      - `--loose-client-ids` only drops the ids (with a warning), for a first look.
      - **The stylesheet.** Chunk names are masked, so also compare the CSS chunk with the one in `artifacts/dist-pre-merge` (for example `cmp`). Tailwind scans `docs/` and `README.md`, and the merged tree holds both branches' docs, so a class-like word in either can add a rule. Part 3's docs add none to Part 3's own build (Task 11: all 19 chunks byte-identical). If the merged stylesheet differs, find the added rules and reword the prose that produced them.
   3. Once the compare passes (identical, or every id change explained), save the baseline again from the merged build and keep it for the remaining work.
-  4. **The other gates on the merged HEAD:** `npm run lint && npm run typecheck && npm test`; `node --experimental-strip-types scripts/check-content.mjs`; `npm run cms:vendor -- --check`; `node scripts/build-content-index.mjs --check`; `node scripts/check-migration.mjs` (green while no copy has been edited; see the first bullet); `check:seo`; `test:browser` twice; and the manual Chrome check of `/admin/` (Task 11 report).
+  4. **The other gates on the merged HEAD:** `npm run lint && npm run typecheck && npm test`; `npm ls js-yaml tsx ajv`; `node --experimental-strip-types scripts/check-content.mjs`; `npm run cms:vendor -- --check`; `node scripts/build-content-index.mjs --check`; `node scripts/check-sveltia-config.mjs`; `node scripts/check-migration.mjs` (green while no copy has been edited; see the first bullet); `check:seo`; `test:browser` twice; and the manual Chrome check of `/admin/` (Task 11 report).
 - **The format-3 `scripts/html-snapshot.mjs` lands on this branch first** (`b387688`, then `33545bc` after the Task 6b review).
   - The copy that step 1 runs from `artifacts/` is therefore format 3. It compares the markup plus the resolved RSC tree, keeps client module ids, and writes a `.format` marker.
   - `compare` refuses format-1 folders (no marker) and format-2 folders, so save the pre-merge baseline with that copy, not with an older one.
@@ -4083,6 +4091,51 @@ The only task that edits section components. Each edit replaces `src={X}` with `
      - `check:seo` and `test:browser` pass.
 
      The gates on the final HEAD are in the Task 11 report.
+
+- **Task 11 review round** (`84cc6ea`, `2bff18e`, `3fb3403`, `6669d69` and the docs commit that records this entry). It supersedes the Task 11 entry above where they differ. The reviewer's plants are `scratchpad/t11-review/plant.sh`; the same script, pointed at a one-commit copy of each tree, is `artifacts/plants/plant.sh` (`setup.sh`, `run-all.sh`, `table.mjs`, and one summary per run).
+  1. **CMS edits no longer fail `npm test`** (Important 1).
+     - **Frozen sample tree.** `tests/fixtures/sample-project/content/` is a copy of `content/` as it was when the CMS landed. It is never refreshed. `tests/helpers/content.mjs` exports `SAMPLE_ROOT`, `sampleInput()` and `copySampleContent(root)`; the last copies the sample into a temporary project and writes the entry index that matches it there.
+     - **Moved onto the sample:** every test that changes entries by file name or position (`content-loader.test.mjs`, the temporary-copy tests in `content.test.mjs`, `content-rules.test.mjs`, `upload-checks.test.mjs`, `uploads.test.mjs`). `uploads.test.mjs`'s `setImage` read the live file instead of the copy; it now reads the copy.
+     - **Other fixes:** the canonical-form test asserts only the fixed collections (5 services, 3 engagements); the stage-number test builds its expected names from the copied files; the processor test uses a fixed list of Cloudflare services plus the sample pages' names; the scan-coverage test derives its file list from the live entries.
+     - **Still on the live `content/`**, because a valid edit keeps them true: validation, the canonical form, the index, the content rules, the honesty scan, the structural legal tests, the export names and the routes.
+  2. **Copy rules move into check-content** (Important 2). `scripts/lib/content-rules.mjs` gains `countProblems`, `teamProblems`, `illustrativeProblems`, `stockImageProblems`, `linkProblems` and `contentRuleProblems` (all of them, with `stageNumberProblems`), and check-content runs them, so `build:production` enforces them in GitHub mode. They are the rules that only `npm test` enforced: displayed counts, disciplines rather than people (the original heuristic, two capitalised words, also refuses "Data Engineering"), the illustrative labels, the stock portraits and art, and links to real pages. `content.test.mjs` keeps only what the schemas and the loader guarantee; `content-rules.test.mjs` has a unit test per rule on the sample, a test that the live content and the sample pass, and a temporary-project run of check-content with the reviewer's three policy plants.
+  3. **Migration check** (minors 1 to 4):
+     - Content that does not load stops the check with its problems and exit 1: a `ContentError` or `LegalPageError` (its `issues`), and a broken or missing content file. Every content JSON file is parsed before the loader imports it, because tsx reports a broken JSON import outside any catch, with a stack. A missing or broken fixture gives a clear message.
+     - `--refresh` keeps `exports` and `site.routes` unless `--refresh-structure` is passed, says what changed, warns when `tests/fixtures/` already has uncommitted changes, and keeps `legal-v1.json`'s `about` line when the legal pages did not change.
+     - `--help` and every failure say that character positions count from 1 and list positions from 0.
+     - **Hidden content:** `tests/fixtures/content-files-v1.json` holds every JSON file of `content/` as parsed values, and the check compares them, key order aside. The unconfirmed testimonial is now red.
+  4. **Config-schema validator** (concern 3):
+     - The vendor script keeps `package/schema/sveltia-cms.json` from the same verified tarball as `scripts/sveltia-cms.schema.json` (`extractSchema`), pinned in `SVELTIA.schema` and repeated in the lock as `schema`, outside `SVELTIA.files`, so `ADMIN_FILES` and `/admin/` are unchanged. sha256 `59a82ee7…fb9c778` (417,141 B, one line, no line ending), equal to the schema in the Task 7 reviewer's copy of the tarball. Re-vendoring left the three vendored files byte-identical.
+     - `.gitattributes` marks the schema `-text -diff`, and `src/app/globals.css` (fenced) excludes it from Tailwind's scan, with a test.
+     - `scripts/check-sveltia-config.mjs` validates `config.yml` against it offline with ajv 6 (draft-07, the Task 9 options). `ajv` 6.15.0 is an exact devDependency, the version ESLint already brings: `npm install --save-dev --save-exact ajv@6.15.0 --offline` changed one line in each manifest after npm's reordering of `esbuild` was undone, and downloaded nothing.
+     - `tests/cms-config.test.mjs` runs it: the committed config is valid; a top-level `bogus_option` gives exactly `/ should NOT have additional properties (bogus_option)`; a top-level `use_emoji_autocomplete` and an `auto_increment` on `order` are refused. The CLI on a planted copy exits 1 with the same line.
+  5. **README:** the review's eleven points. The site's CSP does set `frame-ancestors 'none'` (and `X-Frame-Options: DENY`), so the hardening row keeps it and now also names the header.
+  6. **Merge notes:** the copy-dependent selectors in main's `browser-check.mjs` and their fix, `content.ts` as module 13003, `npm ls js-yaml tsx ajv`, main's HEAD (`77ac72a` now), the third `@source not` line and `ajv`.
+  7. **Test counts:** 196 (194 pass) after Task 11, 199 after the sample tree and the rules (197 pass), 202 after the validator (200 pass, 2 skipped).
+  8. **Plants** (`artifacts/plants/`, each on a one-commit copy of the tree; every result is the reviewer's plant applied, the three checks run, then the copy reset):
+
+     | Plant | Kind | check-content | check-migration before → after | `npm test` before → after |
+     |---|---|---|---|---|
+     | engagement-rename | CMS edit | valid | red → red | red (1 fail) → green |
+     | faq-drag | CMS edit | valid | red → red | red (2 fail) → green |
+     | faq-drag-last | CMS edit | valid | red → red | red (3 fail) → green |
+     | faq-delete | CMS edit | valid | red → red | red (7 fail) → green |
+     | team-delete | CMS edit | valid | red → red | red (2 fail) → green |
+     | faq-add | CMS edit | valid | red → red | red (1 fail) → green |
+     | team-add | CMS edit | valid | red → red | red (1 fail) → green |
+     | testimonial-hidden | CMS edit | valid | green → red | red (1 fail) → green |
+     | cta-label | CMS edit | valid | red → red | green → green |
+     | faq-answer-example | CMS edit | valid | red → red | green → green |
+     | legal-drop-section | CMS edit | valid | red → red | red (1 fail) → green |
+     | count-edit | policy | valid → refused | red → red | red (1 fail) → red (1 fail) |
+     | policy-edits | policy | valid → refused | red → red | red (2 fail) → red (1 fail) |
+     | legal-empty | structural | refused | red (stack trace) → red (stops: does not load) | red (6 fail) → red (2 fail) |
+     | legal-heading-only | structural | refused | red (stack trace) → red (stops: does not load) | red (5 fail) → red (2 fail) |
+     | export-rename | structural | valid | red → red | red (3 fail) → red (3 fail) |
+     | service-file-rename | structural | refused | red (stack trace) → red (stops: does not load) | red (28 fail) → red (14 fail) |
+     | service-slug-edit | structural | refused | red (stack trace) → red (stops: does not load) | red (27 fail) → red (14 fail) |
+
+     Every CMS-style edit keeps `npm test` green and turns `check-migration` red; the policy plants fail check-content (and the live-content rule test in `npm test`); the structural plants still fail `npm test`. Before the round, at `c0ce8f7`, 9 of the 11 CMS-style plants failed `npm test`, the policy plants passed check-content, and the hidden testimonial passed `check-migration`.
 
 ## Risks and open questions
 
