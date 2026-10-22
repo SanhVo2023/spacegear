@@ -170,6 +170,41 @@ export async function deepReloadCheck(browser, base) {
 }
 
 /**
+ * A touch whose node is removed before the finger lifts: the touchend goes to that detached node only and
+ * never reaches the window. The gate also listens on the touched node, so the globe still mounts about
+ * INPUT_QUIET_MS after the release, not after its stale-touch fallback.
+ */
+export async function detachedTouchCheck(browser, base, { quietMs }) {
+  const { context, page, errors, scene } = await phone(browser, { hasTouch: true, isMobile: true });
+  try {
+    await page.goto(base, { waitUntil: "load" });
+    await page.waitForSelector("#home:not(.hero-reserve)", { state: "attached", timeout: 30000 }); // hydrated
+    await page.evaluate(() => {
+      const node = document.createElement("div");
+      node.id = "detached-touch";
+      node.style.cssText = "position:fixed;left:0;top:300px;width:100%;height:120px;z-index:999";
+      document.body.append(node);
+    });
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 195, y: 360 }] });
+    await page.evaluate(() => document.getElementById("detached-touch").remove());
+    await page.waitForTimeout(1500);
+    const held = { sceneChunk: [...scene], globe: await page.locator("#home .hero-mobile-globe").count() };
+    const releasedAt = await page.evaluate(() => performance.now());
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await page.waitForSelector('#home .hero-mobile-globe[data-globe="ready"]', { timeout: 45000 });
+    const order = await mountOrder(page, scene);
+    const facts = { held, releasedAt: Math.round(releasedAt), ...order, afterRelease: order.chunk - Math.round(releasedAt), errors };
+    assert.deepEqual(held, { sceneChunk: [], globe: 0 }, `detached touch: no globe while the touch is held (${JSON.stringify(facts)})`);
+    assert.ok(order.chunk >= releasedAt + quietMs && order.chunk < releasedAt + quietMs + 2000 && errors.length === 0, `detached touch: the release on the removed node is heard, and the globe mounts ${quietMs} ms after it (${JSON.stringify(facts)})`);
+    return facts;
+  } finally {
+    await context.close();
+  }
+}
+
+/**
  * A touch held from before the page's load event: the globe's mount waits until the touch has ended and
  * INPUT_QUIET_MS more have passed, so its script evaluation never lands on a tap or a swipe. The galaxy
  * is held back a little so the touch starts after hydration and before load.

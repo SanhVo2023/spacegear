@@ -28,9 +28,10 @@ test("the srcset lists every candidate by width, and sizes follows the poster's 
   assert.equal(POSTER.srcSet, POSTER_FILES.map((file) => `${file.src} ${file.width}w`).join(", "));
   assert.equal(POSTER.src, POSTER_FILES[0].src);
   assert.deepEqual([POSTER.width, POSTER.height], [POSTER_FILES[0].width, POSTER_FILES[0].height]);
-  // Shown at the viewport's height by object-fit: cover, so POSTER_ASPECT × 100vh wide, or 100vw on wider windows.
-  assert.equal(POSTER.sizes, `(min-aspect-ratio: 12/5) 100vw, ${POSTER_ASPECT * 100}vh`);
-  assert.equal(12 / 5, POSTER_ASPECT);
+  // Shown at the viewport's height (object-fit: cover, and contain on windows wider than the poster), so
+  // always POSTER_ASPECT × 100vh wide.
+  assert.equal(POSTER.sizes, `${POSTER_ASPECT * 100}vh`);
+  assert.equal(12 / 5, POSTER_ASPECT, "globals.css switches to contain at min-aspect-ratio: 12/5");
 });
 
 test("the poster is the shader globe's frame, not the GLB-era one", async () => {

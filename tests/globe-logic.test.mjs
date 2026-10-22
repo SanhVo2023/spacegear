@@ -499,6 +499,8 @@ const GATE_CASES = [
   ["a phone", { width: 390 }, undefined],
   ["reduced motion", { reducedMotion: true }, undefined],
   ["Save-Data", { saveData: true }, undefined],
+  ["Save-Data on a phone", { saveData: true, width: 390 }, undefined],
+  ["Save-Data on another page", { saveData: true, path: "/services/" }, undefined],
   ["a slow-2g connection", { effectiveType: "slow-2g" }, undefined],
   ["a 2g connection", { effectiveType: "2g" }, undefined],
   ["a 3g connection", { effectiveType: "3g" }, undefined],
@@ -516,6 +518,7 @@ test("the inline gate plays the intro only on a first desktop visit to the home 
     const win = fakeWindow(options);
     assert.doesNotThrow(() => runGate(win), label);
     assert.equal(win.attributes["data-intro"], expected, label);
+    assert.equal(win.attributes["data-save-data"], options.saveData ? "" : undefined, `${label}: Save-Data is marked before first paint`);
     const marked = expected === "play" || options.seen ? "1" : undefined;
     assert.equal(win.storage.get(gate.INTRO_SESSION_KEY), marked, `${label}: only a played intro marks the tab`);
   }
@@ -539,8 +542,8 @@ test("the gate script is fixed ES5 text with a knowable CSP hash", () => {
   assert.match(script, /^[\x20-\x7e]*$/, "printable ASCII, so the hash does not depend on an encoding");
   assert.ok(!script.includes("<"), "safe inside an inline <script>");
   // A change to the gate changes these pins; a CSP script-src entry would be 'sha256-<this hash>'.
-  assert.equal(script.length, 496);
-  assert.equal(createHash("sha256").update(script).digest("base64"), "0y3wV+PoPNzI6HQAOkd/uEUhzfrGQIcFoTGmdo7yXCU=");
+  assert.equal(script.length, 553);
+  assert.equal(createHash("sha256").update(script).digest("base64"), "gl55GdwTCtdGdnpKy2yPXv6Zyrp6oMpngn6X2DYxSzs=");
 });
 
 test("the CSS failsafe hides the overlay and releases the held copy only after the caps", async () => {

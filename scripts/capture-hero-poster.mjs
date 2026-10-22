@@ -5,14 +5,15 @@
 // The poster is the desktop hero's first paint, its loading state under the WebGL canvas and the static
 // hero for reduced motion, no JavaScript, Save-Data and missing WebGL2, so it must be the frame the canvas
 // fades in on: the opening pose at scroll 0, which the globe holds through its fade-in
-// (OPENING_HOLD_SECONDS). The shot is that pose exactly: the pose is read at the first frame, and after
-// the 4k swap the page's clock is frozen and the pose restored (three.js objects are reached through
-// three's devtools hook), with the copy, the nav and the intro overlay hidden.
+// (OPENING_HOLD_SECONDS) before its motion eases in. The shot is that pose exactly: the pose is checked at
+// the first frame, and after the 4k swap the page's clock is frozen and the pose restored (three.js
+// objects are reached through three's devtools hook: globe-poster.mjs freezeOpeningPose), with the copy,
+// the nav and the intro overlay hidden. The 3D stars come from a fixed seed, so they match too.
 //
 // Geometry: three's camera keeps a fixed vertical field of view, so the scene scales with the viewport's
 // height and stays centred. A poster this wide (POSTER_ASPECT, 2.4:1, wider than nearly every desktop
-// window) shown with object-fit: cover therefore scales by height too and lands on the live frame at any
-// desktop shape. Each candidate is rendered at its own size (DPR 1), so it is sharp, not upscaled.
+// window) shown with object-fit: cover (contain on wider windows) therefore scales by height too and lands on
+// the live frame at any desktop shape. Each candidate is rendered at its own size (DPR 1), so it is sharp, not upscaled.
 //
 // Run it on a real GPU (headless Chromium uses the machine's GPU where it can; the page's own renderer
 // string is used, so the 4k set streams as on a capable desktop):
@@ -22,6 +23,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
+import { captureHooks, freezeOpeningPose, readPose } from "./globe-poster.mjs";
 import { CAMERA_Z, INITIAL_SPIN } from "../src/components/globe/constants.ts";
 import { INTRO_SESSION_KEY } from "../src/components/globe/intro-gate.ts";
 import { POSTER_FILES } from "../src/components/globe/poster.ts";
@@ -34,33 +36,6 @@ const base = args.find((arg) => !arg.startsWith("--")) || "http://127.0.0.1:8787
 const tier = option("tier", "4k");
 const out = option("out", "public/images");
 const QUALITY = 80;
-
-/** Init script: collects three's scenes (devtools hook) and lets the capture freeze performance.now(). */
-function captureHooks() {
-  const scenes = [];
-  window.__scenes = scenes;
-  const hook = new EventTarget();
-  hook.addEventListener("observe", (event) => { if (event.detail?.isScene) scenes.push(event.detail); });
-  window.__THREE_DEVTOOLS__ = hook;
-  const now = performance.now.bind(performance);
-  let frozen = null;
-  performance.now = () => frozen ?? now();
-  window.__freezeClock = () => { frozen = now(); };
-}
-
-/** Runs in the page: the globe's posed objects (null until the scene has its globe). */
-function posed() {
-  for (const scene of window.__scenes) {
-    let earth = null, clouds = null, sky = null;
-    scene.traverse((o) => {
-      if (o.material?.name === "GlobeEarth") earth = o;
-      if (o.material?.name === "GlobeClouds") clouds = o;
-      if (o.isMesh && o.material?.map && o.material.side === 1) sky = o; // the galaxy's back-face sphere
-    });
-    if (earth && clouds && sky) return { scene, earth, clouds, sky, spin: earth.parent, tilt: earth.parent.parent.parent, parallax: sky.parent };
-  }
-  return null;
-}
 
 async function capture(browser, { width, height }) {
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
@@ -85,37 +60,19 @@ async function capture(browser, { width, height }) {
     if (!loaded.some((url) => url.includes(`/textures/earth/${tier}/`))) throw new Error(`The globe did not load its ${tier} textures.`);
     // Freeze the page's clock (every frame now has a zero delta), restore the opening pose with the
     // cursor's tilt and parallax at rest, hide everything but the canvas and let a few frames render.
-    // The first frame after the freeze still advances by the time since the previous one: let it pass.
-    await page.evaluate(() => { window.__freezeClock(); return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
-    await page.evaluate(({ source, pose }) => {
-      const found = (0, eval)(`(${source})`)();
-      found.spin.rotation.y = pose.spin;
-      found.clouds.rotation.y = pose.clouds;
-      found.sky.rotation.y = pose.sky;
-      found.parallax.rotation.set(0, 0, 0);
-      found.tilt.rotation.set(0, 0, 0);
-    }, { source: posed.toString(), pose });
+    await freezeOpeningPose(page);
     await page.addStyleTag({ content: "* { transition: none !important; } header, .intro-overlay { display: none !important; } #home .sticky > :not(.hero-scene) { visibility: hidden !important; }" });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
     const check = { ...(await readPose(page)), ...(await page.evaluate(() => {
       const scene = document.querySelector("#home .hero-scene");
       return { tier: scene.dataset.globeTier, opacity: getComputedStyle(scene).opacity, scrollY };
     })) };
-    if (check.spin !== pose.spin || check.tier !== tier || check.opacity !== "1" || check.scrollY !== 0) throw new Error(`The frame is not the opening pose: ${JSON.stringify(check)}`);
+    if (check.spin !== pose.spin || check.clouds !== 0 || check.sky !== 0 || check.tier !== tier || check.opacity !== "1" || check.scrollY !== 0) throw new Error(`The frame is not the opening pose: ${JSON.stringify(check)}`);
     const png = await page.screenshot({ type: "png" });
     return { png, pose, check, renderer: await rendererOf(page) };
   } finally {
     await context.close();
   }
-}
-
-/** The pose at this moment (page side, through the devtools hook). */
-function readPose(page) {
-  return page.evaluate((source) => {
-    const found = (0, eval)(`(${source})`)();
-    if (!found) throw new Error("The globe's objects were not found through three's devtools hook.");
-    return { spin: found.spin.rotation.y, clouds: found.clouds.rotation.y, sky: found.sky.rotation.y };
-  }, posed.toString());
 }
 
 /** The GPU the page renders with, as the scene reads it (device.ts rendererName). */

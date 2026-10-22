@@ -5,8 +5,8 @@ import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
-import { deepReloadCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
-import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, posterMatchCheck, saveDataDesktopCheck, staticBackdrop } from "./globe-poster.mjs";
+import { deepReloadCheck, detachedTouchCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
+import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, heroContrastCheck, posterMatchCheck, saveDataDesktopCheck, staticBackdrop, textureFailureCheck } from "./globe-poster.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -929,6 +929,9 @@ try {
   // A touch held from before the load event puts the globe's mount off until INPUT_QUIET_MS after it ends.
   const hold = await touchHoldCheck(browser, base, { quietMs: INPUT_QUIET_MS });
   report.interactions.push(`touch phone: no globe while a touch is held; its chunk is requested ${hold.chunk - hold.releasedAt} ms after the touch ends (quiet time ${INPUT_QUIET_MS} ms)`);
+  // The touched node is removed before the finger lifts: the release is still heard, on that node.
+  const detached = await detachedTouchCheck(browser, base, { quietMs: INPUT_QUIET_MS });
+  report.interactions.push(`touch phone: a release on a node removed mid-touch is heard; the globe's chunk is requested ${detached.afterRelease} ms after it`);
 
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });
   await page.goto(`${base}/contact/?service=applied-ai`, { waitUntil: "networkidle" });
@@ -1024,13 +1027,20 @@ try {
   await fallbackPage.close();
   report.interactions.push("failed WebGL retains headline, poster and CTA, without errors or any globe download");
 
-  // Save-Data on a desktop keeps the static poster: no intro and no globe download.
+  // A first texture set that fails leaves the poster, and nothing escapes as an uncaught error.
+  const textureFailure = await textureFailureCheck(browser, base);
+  report.interactions.push(`a failed 2k map leaves the poster and the copy (globe ${textureFailure.globe}), with no uncaught page error`);
+  // Save-Data on a desktop keeps the static poster from first paint: no intro and no globe download.
   const saveData = await saveDataDesktopCheck(browser, base);
-  report.interactions.push(`Save-Data desktop keeps the static poster (${saveData.source}), without the intro or any globe download`);
-  // The poster is the globe's opening frame: the canvas fades in over it without a jump (1920×960).
+  report.interactions.push(`Save-Data desktop keeps the static poster (${saveData.source}) from first paint (hero ${saveData.painted.hero} px, faded), without the intro or any globe download`);
+  // The poster is the globe's opening frame: the canvas fades in over it without a jump, also on an ultrawide window.
   const match = await posterMatchCheck(browser, base);
   report.posterMatch = match;
-  report.interactions.push(`the poster (${match.source}) matches the live opening frame at ${match.viewport.width}×${match.viewport.height}: ${JSON.stringify(match.regions)}`);
+  for (const m of match) report.interactions.push(`the poster (${m.source}, ${m.fit}) matches the live opening frame at ${m.viewport.width}×${m.viewport.height}: ${JSON.stringify(m.regions)}`);
+  // Every word of the hero copy keeps WCAG AA over the poster and over the live opening frame.
+  const contrast = await heroContrastCheck(browser, base);
+  report.heroContrast = contrast;
+  report.interactions.push(`hero copy contrast (10th percentile, worst word per mode): ${Object.entries(contrast).map(([key, r]) => `${key} ${r.closest[0].text} ${r.closest[0].p10}/${r.closest[0].need}`).join("; ")}`);
   // Either side of 1024 px: the poster or the galaxy, without layout shift; hydration keeps the poster in place.
   const boundary = await boundaryCheck(browser, base);
   report.posterBoundary = boundary;

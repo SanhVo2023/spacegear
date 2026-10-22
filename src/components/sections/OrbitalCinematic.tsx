@@ -161,11 +161,12 @@ function whenIdle(callback: () => void): () => void {
  */
 const INPUT_QUIET_MS = 500;
 /**
- * A touch with no touch event for this long counts as over. Removing the touched node before the finger
- * lifts sends touchend to that detached node only, so the window never hears it; without this the globe
- * would wait for a release that never comes.
+ * A last resort: a touch with no touch event for this long counts as over. The release is normally heard,
+ * also when the touched node was removed before the finger lifted (its touchend then reaches only that
+ * detached node, which the gate listens on too), so this only covers a release that never arrives at all.
+ * Long enough that a still press is never taken for a release.
  */
-const TOUCH_STALE_MS = 5000;
+const TOUCH_STALE_MS = 30000;
 /** The globe's brightness behind filled statement words: the filled text then keeps a WCAG contrast of
  *  at least 4.5:1 over the lit crescent and the rim (scripts/globe-mobile.mjs). */
 const FILLED_DIM = 0.55;
@@ -247,9 +248,17 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
       lastInput = performance.now();
       attempt();
     };
+    // The touched nodes: their release is heard there even if they leave the document mid-touch (the
+    // window then never hears it).
+    const touched = new Set<EventTarget>();
     const onTouch = (event: TouchEvent) => {
       touching = event.touches.length > 0;
       lastInput = lastTouch = performance.now();
+      const target = event.target;
+      if (event.type !== "touchstart" || !target || target === window || touched.has(target)) return;
+      touched.add(target);
+      target.addEventListener("touchend", onTouch as EventListener, { passive: true });
+      target.addEventListener("touchcancel", onTouch as EventListener, { passive: true });
     };
     const onScroll = () => {
       lastInput = performance.now();
@@ -265,6 +274,11 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
       window.removeEventListener("load", onLoad);
       window.removeEventListener("pageshow", onShow);
       for (const type of TOUCH_EVENTS) window.removeEventListener(type, onTouch, { capture: true });
+      for (const target of touched) {
+        target.removeEventListener("touchend", onTouch as EventListener);
+        target.removeEventListener("touchcancel", onTouch as EventListener);
+      }
+      touched.clear();
       window.removeEventListener("scroll", onScroll);
     };
     observer.observe(section);
@@ -335,6 +349,8 @@ function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
           <source media={DESKTOP} srcSet={POSTER.srcSet} sizes={POSTER.sizes} width={POSTER.width} height={POSTER.height} />
           <img src={GALAXY} alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70 min-[1024px]:opacity-100" />
         </picture>
+        {/* desktop: the legibility scrim under the copy (globals.css), as over the cinematic's canvas */}
+        <div className="hero-scrim absolute inset-0 hidden min-[1024px]:block" />
         <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg min-[1024px]:hidden" />
         <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)] min-[1024px]:hidden" />
       </div>
@@ -397,7 +413,7 @@ function Stat({ value, unit, label, sub }: StatData) {
       </span>
       <span className="mt-1">
         <span className="block text-[14px] text-ink">{label}</span>
-        <span className="block text-[12px] text-mut-2">{sub}</span>
+        <span className="hero-stat-sub block text-[12px] text-mut-2">{sub}</span>
       </span>
     </div>
   );
@@ -470,7 +486,9 @@ function HeroCopy() {
   const [startPhase] = useState(getIntroPhase);
   const state = copyState(phase, startPhase);
   return (
-    <div className="hero-copy mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
+    // Desktop layout from the same px boundary as the cinematic query (`min-[1024px]:`; Tailwind's `lg` is
+    // in rem, so it moves with the browser's default font size).
+    <div className="hero-copy mx-auto max-w-2xl text-center min-[1024px]:mx-0 min-[1024px]:text-left">
       <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="text-[15px] leading-tight">
         <span className="text-mut-2">{HOME.eyebrow.muted}</span>{" "}
         <span className="font-medium text-ink">{HOME.eyebrow.strong}</span>
@@ -493,7 +511,7 @@ function HeroCopy() {
         ))}
       </motion.h1>
 
-      <motion.div data-reveal="" variants={PITCH} initial="hidden" animate={state} className="mt-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center lg:items-start">
+      <motion.div data-reveal="" variants={PITCH} initial="hidden" animate={state} className="mt-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center min-[1024px]:items-start">
         <div>
           <h2 className="text-xl font-medium text-ink">{HOME.pitch.title}</h2>
           <p className="mx-auto mt-1 max-w-xs text-[13px] text-mut-2">{HOME.pitch.text}</p>
@@ -511,7 +529,7 @@ function HeroCopy() {
         </Link>
       </motion.div>
 
-      <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 lg:justify-start">
+      <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 min-[1024px]:justify-start">
         {HOME.stats.map((stat) => (
           <Stat key={stat.label} {...stat} />
         ))}
@@ -601,6 +619,10 @@ export default function OrbitalCinematic() {
         {/* the 3D scene supplies the galaxy, sun and earth */}
         <HeroScene progress={progress} active={active} />
 
+        {/* legibility scrim under the hero copy (globals.css), over the poster and the canvas alike; it
+            fades with the copy, from the same scroll progress */}
+        <Choreo progress={progress} opacity={[[0, 0.18, 0.34], [1, 1, 0]]} className="hero-scrim pointer-events-none absolute inset-0" />
+
         {/* legibility scrim for the statement beat */}
         <Choreo progress={progress} opacity={[[0.5, 0.62], [0, 0.55]]} className="pointer-events-none absolute inset-0 bg-[#0f0f12]" />
 
@@ -619,7 +641,7 @@ export default function OrbitalCinematic() {
           <Link
             prefetch={false}
             href={HOME.corner.href}
-            className="pointer-events-auto absolute bottom-10 right-8 hidden w-72 items-center justify-between rounded-xl border border-line bg-card/80 px-4 py-3 backdrop-blur lg:flex"
+            className="pointer-events-auto absolute bottom-10 right-8 hidden w-72 items-center justify-between rounded-xl border border-line bg-card/80 px-4 py-3 backdrop-blur min-[1024px]:flex"
           >
             <div>
               <p className="text-[13px] text-ink">{HOME.corner.title}</p>

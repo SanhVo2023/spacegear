@@ -267,16 +267,18 @@ html { scroll-padding-top: 88px; }
 
 /* Hero (OrbitalCinematic.tsx). Until hydration, desktops that will get the
    300vh cinematic keep its height, so deep links and reloads do not jump.
-   NoScriptStyles.tsx resets it without JavaScript. */
+   NoScriptStyles.tsx resets it without JavaScript; Save-Data (marked before
+   first paint by the inline gate, IntroGate.tsx) never gets the cinematic. */
 @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
-  .hero-reserve { min-height: 300vh; }
+  html:not([data-save-data]) .hero-reserve { min-height: 300vh; }
 }
 /* The static desktop hero shows the poster over exactly the first screen (OrbitalCinematic.tsx). Where it
-   stays static (reduced motion; Save-Data once hydrated; no JavaScript, NoScriptStyles.tsx) the poster
-   fades into the page above the statement instead of ending in a hard line across the globe. The first
-   paint of a desktop that hydrates into the cinematic (.hero-reserve) keeps the full frame, the one the
-   canvas fades in on. */
+   stays static (reduced motion; Save-Data, marked before first paint; no JavaScript, NoScriptStyles.tsx)
+   the poster fades into the page above the statement instead of ending in a hard line across the globe.
+   The first paint of a desktop that hydrates into the cinematic keeps the full frame, the one the canvas
+   fades in on. (`:not(.hero-reserve)` also covers a hydrated static hero the gate did not mark.) */
 @media (min-width: 1024px) {
+  html[data-save-data] .hero-static-backdrop,
   #home:not(.hero-reserve) .hero-static-backdrop {
     -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
     mask-image: linear-gradient(to bottom, #000 72%, transparent);
@@ -287,6 +289,22 @@ html { scroll-padding-top: 88px; }
     -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
     mask-image: linear-gradient(to bottom, #000 72%, transparent);
   }
+}
+/* Windows wider than the poster's 2.4:1 (globe/poster.ts): object-fit: cover would scale it by width and
+   draw the globe larger than the live frame; contain keeps it at the viewport's height and centred, like
+   the scene, with the sides in the scene's background. */
+@media (min-width: 1024px) and (min-aspect-ratio: 12/5) {
+  #home .hero-backdrop img { object-fit: contain; background-color: #08080b; }
+}
+/* Hero copy over the globe on desktops (OrbitalCinematic.tsx): a soft scrim from the left (over the poster
+   and the canvas alike, fading with the copy), a dark halo around the headline words and the muted text,
+   and slightly lighter 12 px stat labels. Every word keeps WCAG AA over the opening frame
+   (scripts/globe-poster.mjs heroContrastCheck). */
+.hero-scrim { background: linear-gradient(90deg, rgba(8, 8, 11, 0.64) 0, rgba(8, 8, 11, 0.5) 36%, rgba(8, 8, 11, 0.22) 51%, rgba(8, 8, 11, 0) 62%); }
+@media (min-width: 1024px) {
+  #home .hero-copy .hero-word,
+  #home .hero-copy .text-mut-2 { text-shadow: 0 0 32px rgba(8, 8, 11, 0.92), 0 0 12px rgba(8, 8, 11, 0.85), 0 0 3px rgba(8, 8, 11, 0.75); }
+  #home .hero-copy .hero-stat-sub { color: #9d9da6; }
 }
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }
