@@ -47,6 +47,7 @@ export default function Services() {
                     prefetch={false}
                     key={s.no}
                     href={`/services/${s.slug}/`}
+                    data-cursor="Open"
                     onMouseEnter={() => setActive(i)}
                     onFocus={() => setActive(i)}
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl border transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${

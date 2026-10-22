@@ -296,6 +296,90 @@ touch("reloads, route changes and Back land at once without Lenis", async (page,
   assertRestorations("touch", await restorations(page));
 });
 
+desktop("the cursor follows the mouse, steps aside for the keyboard and over text fields", async (page) => {
+  await page.mouse.move(640, 420);
+  await page.mouse.move(660, 430, { steps: 3 });
+  await page.waitForTimeout(200);
+  const shown = await page.evaluate(() => ({
+    state: document.querySelector("[data-fx-cursor-root]")?.dataset.state ?? "missing",
+    native: getComputedStyle(document.body).cursor,
+  }));
+  assert.ok(!["hidden", "missing"].includes(shown.state), `desktop: the custom cursor appears with the mouse (${shown.state})`);
+  assert.equal(shown.native, "none", "desktop: the native cursor is replaced");
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(350);
+  const focus = await page.evaluate(() => {
+    const el = document.activeElement;
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const style = getComputedStyle(el);
+    return {
+      state: root.dataset.state,
+      dot: parseFloat(getComputedStyle(root.querySelector(".fx-cursor-dot")).opacity),
+      disc: parseFloat(getComputedStyle(root.querySelector(".fx-cursor-disc")).opacity),
+      outline: style.outlineStyle !== "none" && parseFloat(style.outlineWidth) >= 2,
+      onTop: Boolean(hit && (hit === el || el.contains(hit))),
+      native: getComputedStyle(document.body).cursor,
+    };
+  });
+  assert.deepEqual(focus, { state: "hidden", dot: 0, disc: 0, outline: true, onTop: true, native: "auto" }, "desktop: keyboard focus hides the custom cursor and keeps the focus ring visible");
+  await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.waitForTimeout(500);
+  await page.getByLabel("Your name").hover();
+  await page.waitForTimeout(250);
+  const overField = await page.evaluate(() => ({
+    state: document.querySelector("[data-fx-cursor-root]").dataset.state,
+    cursor: getComputedStyle(document.querySelector('input[aria-label="Your name"]')).cursor,
+  }));
+  assert.equal(overField.state, "text", "desktop: the custom cursor steps aside over a text field");
+  assert.notEqual(overField.cursor, "none", "desktop: the native caret shows over a text field");
+});
+
+desktop("the cursor shows the data-cursor label", async (page) => {
+  await jumpTo(page, await sectionTop(page, "work"));
+  await page.waitForTimeout(900);
+  await page.locator('#work [data-cursor="View"]').first().hover();
+  await page.waitForTimeout(300);
+  const labelled = await page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const label = root.querySelector(".fx-cursor-label");
+    return { state: root.dataset.state, text: label.textContent, opacity: parseFloat(getComputedStyle(label).opacity) };
+  });
+  assert.deepEqual({ state: labelled.state, text: labelled.text }, { state: "label", text: "View" }, "desktop: a What We Do tile labels the cursor");
+  assert.ok(labelled.opacity > 0.99, "desktop: the label is visible");
+});
+
+desktop("the cursor never takes a pointer event, and the live globe labels it Drag", async (page) => {
+  // The globe wrapper carries data-cursor="Drag" while the live globe shows (Part 1).
+  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 });
+  const spot = await page.evaluate(() => {
+    for (let x = innerWidth - 120; x > innerWidth / 2; x -= 40) {
+      for (let y = 240; y < innerHeight - 160; y += 60) {
+        if (document.elementFromPoint(x, y)?.closest(".hero-scene")) return { x, y };
+      }
+    }
+    return null;
+  });
+  assert.ok(spot, "desktop: part of the live globe is open to the pointer (precondition)");
+  await page.mouse.move(spot.x - 30, spot.y);
+  await page.mouse.move(spot.x, spot.y, { steps: 3 });
+  await page.waitForTimeout(300);
+  const over = await page.evaluate(({ x, y }) => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const parts = [root, ...root.querySelectorAll("*")];
+    const hit = document.elementFromPoint(x, y);
+    return {
+      state: root.dataset.state,
+      label: root.querySelector(".fx-cursor-label").textContent,
+      clickThrough: parts.every((el) => getComputedStyle(el).pointerEvents === "none"),
+      hitsGlobe: Boolean(hit?.closest(".hero-scene")),
+      hidden: root.getAttribute("aria-hidden"),
+    };
+  }, spot);
+  assert.deepEqual(over, { state: "label", label: "Drag", clickThrough: true, hitsGlobe: true, hidden: "true" }, "desktop: over the live globe the cursor reads Drag, passes every pointer event to the globe and stays hidden from assistive technology");
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

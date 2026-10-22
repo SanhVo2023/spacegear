@@ -68,6 +68,7 @@ export default function Team() {
               {/* CENTER: image — swipe to change; fixed 3:4 cell */}
               <motion.div
                 drag="x"
+                data-cursor="Drag"
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.18}
                 onDragEnd={(_, info) => {

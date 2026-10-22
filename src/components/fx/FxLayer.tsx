@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Grain from "./Grain";
+import Cursor from "./Cursor";
 import SmoothScroll from "./SmoothScroll";
 import { useFx, useMotionOK } from "./env";
 import { useSmoothAnchors } from "./smooth-anchors";
@@ -37,6 +38,7 @@ export default function FxLayer() {
     <>
       <SmoothScroll />
       <Grain />
+      <Cursor />
     </>
   );
 }

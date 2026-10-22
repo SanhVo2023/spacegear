@@ -26,7 +26,7 @@ function ArrowBtn() {
 /** Service tile with hover-revealed description + image zoom. Reused on service pages. */
 export function Tile({ name, img, desc, href }: WorkTile) {
   return (
-    <Link prefetch={false} href={href} className="group relative block h-full overflow-hidden rounded-2xl border border-line">
+    <Link prefetch={false} href={href} data-cursor="View" className="group relative block h-full overflow-hidden rounded-2xl border border-line">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={img}
@@ -172,7 +172,7 @@ export default function Work() {
         <AppearGroup className="mt-10 hidden auto-rows-[200px] gap-4 lg:grid lg:grid-cols-3 lg:[grid-auto-rows:200px]" stagger={0.07}>
           {/* featured service — spans 2 cols, 2 rows */}
           <AppearItem className="sm:col-span-2 sm:row-span-2">
-            <Link prefetch={false} href={f.href} className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
+            <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={f.img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/80 via-transparent to-[#0c0d0f]/40" />
