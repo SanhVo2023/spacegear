@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { load } from "js-yaml";
-import { contentRuleProblems, countProblems, illustrativeProblems, linkProblems, stageNumberProblems, stockImageProblems, teamProblems } from "../scripts/lib/content-rules.mjs";
+import { DISCIPLINE_WORDS, contentRuleProblems, countProblems, illustrativeProblems, linkProblems, readsLikePerson, stageNumberProblems, stockImageProblems, teamProblems } from "../scripts/lib/content-rules.mjs";
 import { copySampleContent, sampleInput } from "./helpers/content.mjs";
 import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
 
@@ -62,6 +62,13 @@ test("displayed counts match the data", () => {
   assert.deepEqual(countProblems(sample((input) => { input.home.stats[1].sub = input.home.stats[1].sub.toUpperCase(); })), [], "letter case is free");
 });
 
+const PERSON_ADVICE = "reads like a person's name, and team cards describe a discipline. If it is a discipline, write it in sentence case (such as \"Brand storytelling\") or with \"&\" (such as \"Brand & Story\"); a maintainer can also add its word to DISCIPLINE_WORDS in scripts/lib/content-rules.mjs. A real person goes in the founder card (content/team.json)";
+// The reviewer's probes (scratchpad/t11-review/person-rule-proposal.mjs).
+const DISCIPLINE_NAMES = ["Adoption & Support", "AI & Data Engineering", "Integration & Automation", "Product & Delivery", "Strategy & Discovery", "Product Design",
+  "Data Engineering", "Cloud Infrastructure", "Machine Learning", "Applied AI", "Quality Assurance", "Change Management", "Security Engineering",
+  "Service Design", "Data Science", "Platform Engineering", "Technical Writing", "User Research", "Mobile Development", "Data engineering", "Ada"];
+const PERSON_NAMES = ["Ada Lovelace", "John Smith", "Maria Garcia", "J. Smith", "Dr Smith", "Anna-Lena Berg", "Nguyễn Văn An", "Lê Minh", "Ada Lovelace Byron", "Ludwig van Beethoven"];
+
 test("team cards describe disciplines, not people", () => {
   const edited = sample((input) => {
     entry(input, "team-roles", "product-and-delivery.json").name = "Ada Lovelace";
@@ -69,11 +76,25 @@ test("team cards describe disciplines, not people", () => {
   });
   const support = edited.TEAM_ROLES.find((role) => role.img === "/images/team/team-1.webp").name;
   assert.deepEqual(teamProblems(edited), [
-    'content/team-roles: "Ada Lovelace" reads like a person\'s name; team cards describe a discipline (a person goes in the founder card in content/team.json)',
+    `content/team-roles: "Ada Lovelace" ${PERSON_ADVICE}`,
     `content/team-roles: ${JSON.stringify(support)} uses a stock portrait (/images/team/team-1.webp); use a discipline image instead`,
   ]);
-  assert.deepEqual(teamProblems(sample((input) => { entry(input, "team-roles", "product-and-delivery.json").name = "Data Engineering"; })).length, 1, "two capitalised words read like a name, whatever they say");
-  assert.deepEqual(teamProblems(sample((input) => { entry(input, "team-roles", "product-and-delivery.json").name = "Design & Research"; })), []);
+  assert.deepEqual(teamProblems(sample((input) => { entry(input, "team-roles", "product-and-delivery.json").name = "Data Engineering"; })), [], "a discipline word passes");
+});
+
+test("a team-card name is refused only when it has the shape of a person's name", () => {
+  assert.equal(DISCIPLINE_NAMES.length, 21);
+  assert.equal(PERSON_NAMES.length, 10);
+  assert.deepEqual(DISCIPLINE_NAMES.filter(readsLikePerson), [], "discipline names pass");
+  assert.deepEqual(PERSON_NAMES.filter((name) => !readsLikePerson(name)), [], "person names are refused");
+  const live = content.TEAM_ROLES.map((role) => role.name);
+  assert.deepEqual(live.filter(readsLikePerson), [], `today's ${live.length} live names pass`);
+  assert.deepEqual(sample().TEAM_ROLES.map((role) => role.name).filter(readsLikePerson), [], "and the sample's");
+  // The two fixes the message offers an editor, and the maintainer's.
+  assert.equal(readsLikePerson("Brand Storytelling"), true, "two capitalised name words with no discipline word");
+  assert.equal(readsLikePerson("Brand storytelling"), false, "sentence case");
+  assert.equal(readsLikePerson("Brand & Story"), false, "with &");
+  assert.ok(DISCIPLINE_WORDS.has("engineering") && [...DISCIPLINE_WORDS].every((word) => word === word.toLowerCase()), "DISCIPLINE_WORDS holds lowercase words");
 });
 
 test("the sample dashboard is labelled illustrative, in its section and on every card", () => {
@@ -102,13 +123,22 @@ test("testimonials and articles use their own images, not the original site's st
   ]);
 });
 
-test("links point at pages of this site, home sections or full addresses", () => {
+test("links point at pages of this site, with or without a query or fragment, or at full addresses", () => {
   const edited = sample((input) => {
     input.home.corner.href = "/blog/";
     input.engagementsPanel.footer.href = "/#pricing";
     input.faqCard.href = "https://example.org/faq";
+    input.team.cta.href = "/about/#team";
+    input.process.cta.href = "/contact/?service=applied-ai";
+    input.measure.cta.href = "/blog/?page=2";
+    input.work.assessment.href = "/nope/#top";
   });
-  assert.deepEqual(linkProblems(edited, routes), ['link in export HOME.corner.href: "/blog/" is not a page of this site; use a page such as /contact/ or /#faq, or a full https:// address']);
+  const advice = "is not a page of this site; use a page such as /contact/ or /#faq, or a full https:// address";
+  assert.deepEqual(linkProblems(edited, routes), [
+    `link in export HOME.corner.href: "/blog/" ${advice}`,
+    `link in export WORK.assessment.href: "/nope/#top" ${advice}`,
+    `link in export MEASURE.cta.href: "/blog/?page=2" ${advice}`,
+  ]);
 });
 
 test("check-content lists every rule's problems and changes no file (temporary project)", () => {
@@ -146,7 +176,7 @@ test("check-content lists every rule's problems and changes no file (temporary p
       `content/engagements: ${JSON.stringify(data.name)} is number ${index + 1} in the list but its stage number is ${JSON.stringify(data.stageNo)}; keep stage numbers in list order (01, 02, 03…)`));
     for (const problem of [
       'content/work.json: lineup.count is "4/5", but the site has 5 services: set it to "5/5"',
-      'content/team-roles: "Ada Lovelace" reads like a person\'s name; team cards describe a discipline (a person goes in the founder card in content/team.json)',
+      `content/team-roles: "Ada Lovelace" ${PERSON_ADVICE}`,
       'content/sections.json: analytics.description must say that the figures are illustrative and not client results (both words "illustrative" and "not client results"), because the dashboard shows sample data',
     ]) assert.ok(listed.includes(problem), `${problem}\n${result.stderr}`);
     for (const { name } of dragged) assert.equal(fs.readFileSync(path.join(root, "content", "engagements", name), "utf8"), before[name], `${name} is left as it was`);

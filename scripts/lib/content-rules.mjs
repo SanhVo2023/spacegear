@@ -47,8 +47,34 @@ export function countProblems({ HOME, WORK, CORE_PANEL, PILLARS, SERVICES, ENGAG
   return problems;
 }
 
-/** "First Last": two capitalised words, the shape of a person's name. */
-const PERSON_NAME = /^[A-Z][a-z]+ [A-Z][a-z]+$/;
+/**
+ * Words that name a discipline. A capitalised name made only of name-like words reads as a person
+ * unless one of its words is here, so "Data Engineering" passes and "Ada Lovelace" does not. When
+ * a real discipline is refused, add its word here (lowercase).
+ */
+export const DISCIPLINE_WORDS = new Set(`adoption advisory ai analytics applied architecture assurance automation backend business change
+cloud communications compliance consulting content customer data delivery design development devops digital discovery enablement
+engineering experience frontend governance growth infrastructure insights integration intelligence learning machine management
+marketing ml mobile network operations platform process product program project quality reliability research science security
+service services software strategy support systems technical testing training transformation ui user ux web writing`.split(/\s+/));
+const HONORIFIC = /^(?:dr|mr|mrs|ms|mx|prof|sir|dame)\.?$/i;
+/** A capitalised name word in any script ("Ada", "Anna-Lena", "O’Neil", "Nguyễn"), or an initial ("J."). */
+const NAME_WORD = /^\p{Lu}\p{Ll}+(?:[-'’]\p{Lu}?\p{Ll}+)*$|^\p{Lu}\.$/u;
+const PARTICLE = /^(?:van|von|de|da|di|du|del|der|le|la|bin|binti)$/;
+
+/**
+ * Whether a team-card name has the shape of a person's name: 2 to 4 words, and either an honorific
+ * first ("Dr Smith"), or only capitalised name words and particles ("Ludwig van Beethoven",
+ * "Nguyễn Văn An"), none of them a discipline word. "&", digits, acronyms ("AI") and lowercase
+ * words ("Data engineering") never read as a person.
+ */
+export function readsLikePerson(name) {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2 || words.length > 4) return false;
+  if (HONORIFIC.test(words[0])) return true;
+  if (!words.every((word) => NAME_WORD.test(word) || PARTICLE.test(word))) return false;
+  return !words.some((word) => DISCIPLINE_WORDS.has(word.toLowerCase().replace(/[.'’]/g, "")));
+}
 
 /**
  * The team section shows disciplines, not invented people: a card's name may not read like a
@@ -57,7 +83,7 @@ const PERSON_NAME = /^[A-Z][a-z]+ [A-Z][a-z]+$/;
  */
 export function teamProblems({ TEAM_ROLES }) {
   return TEAM_ROLES.flatMap((role) => [
-    ...(PERSON_NAME.test(role.name) ? [`content/team-roles: ${quote(role.name)} reads like a person's name; team cards describe a discipline (a person goes in the founder card in content/team.json)`] : []),
+    ...(readsLikePerson(role.name) ? [`content/team-roles: ${quote(role.name)} reads like a person's name, and team cards describe a discipline. If it is a discipline, write it in sentence case (such as "Brand storytelling") or with "&" (such as "Brand & Story"); a maintainer can also add its word to DISCIPLINE_WORDS in scripts/lib/content-rules.mjs. A real person goes in the founder card (content/team.json)`] : []),
     ...(/images\/team\//.test(role.img) ? [`content/team-roles: ${quote(role.name)} uses a stock portrait (${role.img}); use a discipline image instead`] : []),
   ]);
 }
@@ -93,10 +119,11 @@ export function stockImageProblems({ TESTIMONIALS, ARTICLES }) {
 
 /**
  * Every link in the copy points at a page of this site or at a full address. `routes` are the
- * published pages ("/", "/services/", …); `/#<section>` links to a home section.
+ * published pages ("/", "/services/", …). A query or fragment may follow the page ("/#faq",
+ * "/about/#team", "/contact/?service=applied-ai"); only the path part must be a known page.
  */
 export function linkProblems(content, routes) {
-  const allowed = new Set([...routes, ...Object.keys(content.SECTIONS).map((id) => `/#${id}`)]);
+  const allowed = new Set(routes);
   const problems = [];
   const walk = (value, at) => {
     if (Array.isArray(value)) value.forEach((item, index) => walk(item, `${at}[${index}]`));
@@ -104,7 +131,8 @@ export function linkProblems(content, routes) {
       for (const [key, child] of Object.entries(value)) {
         const field = `${at}.${key}`;
         if (key === "href" && typeof child === "string") {
-          if (!allowed.has(child) && !/^https?:\/\//.test(child)) problems.push(`link in export ${field}: ${quote(child)} is not a page of this site; use a page such as /contact/ or /#faq, or a full https:// address`);
+          const page = child.split(/[?#]/, 1)[0];
+          if (!allowed.has(page) && !/^https?:\/\//.test(child)) problems.push(`link in export ${field}: ${quote(child)} is not a page of this site; use a page such as /contact/ or /#faq, or a full https:// address`);
         } else walk(child, field);
       }
     }
