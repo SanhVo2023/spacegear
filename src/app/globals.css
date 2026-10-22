@@ -547,26 +547,33 @@ html[data-fx-motion] [data-split-title]:not([data-in]) .fx-split-char { translat
 /* Page transition (PageTransition.tsx), 720 ms: an orange curtain rises over the held old page, the old page
    drops out while covered, then the curtain lifts off the top as the new page settles. The nav and the cursor
    are named only while a transition runs (a permanent name would make the header a backdrop root and drop
-   the nav's blur): they ride above the curtain as their live new state, so the pill slides once and the
-   cursor never vanishes. The transition layer takes no pointer events: the live page under it, nav
-   included, keeps taking clicks. */
+   the nav's blur): they ride above the curtain as their live new state, so the pill moves once and the
+   cursor never vanishes. The footer sits outside the page too: its old state is held with the old page (a
+   footer link clicked at the end of a page would otherwise uncover the new page at once), and its new state
+   stays hidden, as the content covers it. The transition layer itself takes no pointer events; captured
+   elements take none until it ends. Stack, bottom to top: new page, old footer, old page, curtain, nav,
+   cursor. */
 ::view-transition { pointer-events: none; }
 .fx-vt-curtain { position: fixed; inset: 0; pointer-events: none; }
 html:active-view-transition body > header { view-transition-name: fx-nav; }
+html:active-view-transition footer#contact { view-transition-name: fx-footer; }
 /* The cursor's root box is 0 × 0 (its parts are offset from it), which a snapshot cannot capture: while the
    transition runs it spans the viewport instead, still click-through, and its difference blend carries over. */
 html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset: 0; width: auto; height: auto; }
 ::view-transition-group(.fx-page-in) { z-index: 1; animation: none; }
-::view-transition-group(.fx-page-out) { z-index: 2; animation: none; }
-::view-transition-group(.fx-curtain) { z-index: 3; animation: none; }
-::view-transition-group(fx-nav) { z-index: 4; animation: none; }
-::view-transition-group(fx-cursor) { z-index: 5; animation: none; }
+::view-transition-group(fx-footer) { z-index: 2; animation: none; }
+::view-transition-group(.fx-page-out) { z-index: 3; animation: none; }
+::view-transition-group(.fx-curtain) { z-index: 4; animation: none; }
+::view-transition-group(fx-nav) { z-index: 5; animation: none; }
+::view-transition-group(fx-cursor) { z-index: 6; animation: none; }
 ::view-transition-old(fx-nav),
-::view-transition-old(fx-cursor) { display: none; }
+::view-transition-old(fx-cursor),
+::view-transition-new(fx-footer) { display: none; }
 ::view-transition-new(fx-nav),
 ::view-transition-new(fx-cursor) { animation: none; }
 ::view-transition-new(.fx-curtain) { background: #fa6e43; animation: fx-curtain 720ms var(--fx-ease-io) both; }
-::view-transition-old(.fx-page-out) { animation: fx-page-hold 720ms linear both; }
+::view-transition-old(.fx-page-out),
+::view-transition-old(fx-footer) { animation: fx-page-hold 720ms linear both; }
 ::view-transition-new(.fx-page-in) { animation: fx-page-settle 720ms var(--fx-ease) both; }
 @keyframes fx-curtain {
   0% { clip-path: inset(100% 0 0 0); }

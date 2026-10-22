@@ -905,6 +905,29 @@ desktop("What We Do images drift inside their frames and leaving cards stack and
   assert.deepEqual(await page.evaluate(() => window.__workShifts), [], "desktop: scrolling through What We Do shifts no layout");
 });
 
+desktop("a footer link at the end of a page holds the old footer until the curtain covers it", async (page, ctx) => {
+  await fresh(page, ctx.base, "/about/");
+  await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+  await page.waitForTimeout(500);
+  const link = page.locator('#contact nav a[href="/services/"]').first();
+  await settle(link);
+  const box = await link.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
+  await page.mouse.down();
+  await page.mouse.up();
+  await waitForCurtain(page);
+  // The footer sits outside the page boundary: without its own held snapshot the new page would show through
+  // where the footer was, before the curtain arrives.
+  const held = await page.evaluate(() => ({
+    old: document.getAnimations().filter((a) => a.effect?.pseudoElement === "::view-transition-old(fx-footer)").map((a) => a.animationName),
+    newShown: getComputedStyle(document.documentElement, "::view-transition-new(fx-footer)").display !== "none",
+  }));
+  assert.deepEqual(held, { old: ["fx-page-hold"], newShown: false }, "desktop: the old footer is held with the old page, and the new one stays hidden");
+  await page.waitForURL("**/services/");
+  await transitionsDone(page);
+  assert.deepEqual(await page.evaluate(() => ({ y: window.scrollY, footer: getComputedStyle(document.querySelector("footer#contact")).viewTransitionName })), { y: 0, footer: "none" }, "desktop: /services/ opens at its top and the footer is plain again");
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
