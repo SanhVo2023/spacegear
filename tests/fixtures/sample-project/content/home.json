@@ -1,0 +1,44 @@
+{
+  "eyebrow": {
+    "muted": "You bring the challenge,",
+    "strong": "we build the system."
+  },
+  "headline": {
+    "lead": "The smarter way to",
+    "verbs": [
+      "plan",
+      "build",
+      "scale"
+    ],
+    "tail": "your business."
+  },
+  "pitch": {
+    "title": "Start with one challenge",
+    "text": "Tell us what you want to improve."
+  },
+  "cta": {
+    "label": "Discuss a project",
+    "href": "/contact/"
+  },
+  "stats": [
+    {
+      "value": "05",
+      "unit": "",
+      "label": "Core services",
+      "sub": "From strategy to delivery"
+    },
+    {
+      "value": "03",
+      "unit": "",
+      "label": "Ways to engage",
+      "sub": "Assess, build, improve"
+    }
+  ],
+  "corner": {
+    "title": "Applied AI & Deep Learning",
+    "sub": "// Featured service",
+    "href": "/services/applied-ai/"
+  },
+  "scrollHint": "Scroll to explore ↓",
+  "statement": "We turn business challenges into working digital systems your team can use."
+}

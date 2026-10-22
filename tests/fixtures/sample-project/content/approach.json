@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "step": "Stage 1",
+      "name": "Assess",
+      "desc": "Understand the work. Map the current workflow, systems, constraints and people involved. Agree the problem before choosing a solution.",
+      "outputs": [
+        "Current-state map",
+        "Problem definition"
+      ]
+    },
+    {
+      "step": "Stage 2",
+      "name": "Prioritize",
+      "desc": "Choose a useful next step. Compare opportunities by value, feasibility and dependencies. Agree a baseline and what success would mean.",
+      "outputs": [
+        "Opportunity shortlist",
+        "Delivery roadmap"
+      ]
+    },
+    {
+      "step": "Stage 3",
+      "name": "Validate",
+      "desc": "Test the important assumptions with a prototype or a focused pilot, compare results with a baseline and decide what deserves further investment.",
+      "outputs": [
+        "Evaluation evidence",
+        "Go/no-go decision"
+      ]
+    },
+    {
+      "step": "Stage 4",
+      "name": "Deliver",
+      "desc": "Build around the real workflow. Design and engineer in reviewable increments, and test integrations, exceptions and the user experience before rollout.",
+      "outputs": [
+        "Tested implementation",
+        "Rollout plan"
+      ]
+    },
+    {
+      "step": "Stage 5",
+      "name": "Adopt",
+      "desc": "Prepare for everyday use. Document operation and ownership, support the handover and agree how to measure and improve the system.",
+      "outputs": [
+        "Operating guidance",
+        "Improvement backlog"
+      ]
+    }
+  ]
+}

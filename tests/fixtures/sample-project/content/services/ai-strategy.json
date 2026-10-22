@@ -1,0 +1,32 @@
+{
+  "order": 2,
+  "slug": "ai-strategy",
+  "name": "AI Strategy & Enablement",
+  "shortName": "AI strategy",
+  "category": "Direction",
+  "image": "/images/suite/neural-core.webp",
+  "summary": "Move from AI interest to an informed decision about where it can help, what it needs and how to begin.",
+  "buyerProblem": "A promising demonstration is not yet a business case. We connect potential AI use cases to available data, operational constraints and a clear way to evaluate whether the solution is useful.",
+  "deliverables": [
+    "AI opportunity and readiness assessment",
+    "Prioritized use cases and data requirements",
+    "Evaluation criteria, risks and human review points",
+    "A pilot plan and an enablement approach"
+  ],
+  "process": [
+    "Explore decisions, tasks and information flows.",
+    "Compare AI options against simpler alternatives.",
+    "Define a pilot, evaluation process and adoption plan."
+  ],
+  "faqs": [
+    {
+      "question": "What if our data is not ready?",
+      "answer": "That is a useful starting point. We identify the data and process work needed before an AI pilot can be evaluated responsibly."
+    },
+    {
+      "question": "Will you recommend AI for every problem?",
+      "answer": "No. Rules, better integration or a simpler workflow may be more appropriate. The recommendation follows the problem."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

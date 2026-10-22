@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { readContentInput, readJson } from "./helpers/content.mjs";
+import { readContentInput, readJson, sampleInput } from "./helpers/content.mjs";
 
 const { buildContent } = await import("../src/lib/content-model.ts");
 const { ContentError } = await import("../src/lib/content-schema.ts");
 
-const fresh = () => readContentInput(".");
+// The committed content (live: editors change it), and the frozen sample, which the tests below
+// change by file name and position (tests/helpers/content.mjs).
+const committed = () => readContentInput(".");
+const fresh = sampleInput;
 const issuesOf = (input) => {
   try {
     buildContent(input);
@@ -21,7 +24,8 @@ const issuesOf = (input) => {
 const entry = (input, collection, file) => input.collections[collection].find((item) => item.file === file).data;
 
 test("the committed content passes validation", () => {
-  assert.deepEqual(issuesOf(fresh()), []);
+  assert.deepEqual(issuesOf(committed()), []);
+  assert.deepEqual(issuesOf(fresh()), [], "and so does the frozen sample");
 });
 
 // The values are the editors' to change; scripts/check-migration.mjs compares them with the
@@ -29,7 +33,7 @@ test("the committed content passes validation", () => {
 test("buildContent builds every pre-CMS content export from the files in content/", () => {
   const { values } = readJson("tests/fixtures/content-v1.json");
   const expected = Object.keys(values).filter((name) => !["INSIGHTS", "CASE_STUDIES"].includes(name));
-  assert.deepEqual(Object.keys(buildContent(fresh())).sort(), expected.sort());
+  assert.deepEqual(Object.keys(buildContent(committed())).sort(), expected.sort());
 });
 
 test("collection entries are ordered by their order field, not by file name", () => {

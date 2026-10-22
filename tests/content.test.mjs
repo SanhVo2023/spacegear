@@ -6,10 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import { contentFiles, findForbidden, scanContentTree, scanExports, scanFile } from "../scripts/lib/honesty.mjs";
 import { pathsFromRoot } from "../scripts/lib/project-path.mjs";
-import { readContentInput } from "./helpers/content.mjs";
+import { COLLECTIONS, listEntries } from "../scripts/build-content-index.mjs";
+import { SAMPLE_ROOT, copySampleContent, readContentInput } from "./helpers/content.mjs";
 
 const content = await import("../src/lib/content.ts");
-const { buildContent } = await import("../src/lib/content-model.ts");
+const { buildContent, SINGLETON_FILES } = await import("../src/lib/content-model.ts");
+// Tests that change entries by name work on the frozen sample, never on the live copy.
+const SAMPLE_CONTENT = path.join(SAMPLE_ROOT, "content");
 
 const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "ARTICLES", "FOOTER", "SERVICES", "serviceBySlug"];
 
@@ -118,11 +121,11 @@ test("the legal pages may state periods and name processors, but not founding ye
   for (const text of ["spacegear has served clients since 2012", "a decade of experience", "We deliver every project within 2 weeks", "We are an AWS Advanced Tier Partner"]) {
     assert.notDeepEqual(findForbidden(text, legal), [], text);
   }
-  // Every processor the legal pages name passes in any file.
-  const pages = ["privacy", "terms"].map((page) => fs.readFileSync(`content/legal/${page}.md`, "utf8")).join("\n");
-  const processors = [...new Set(pages.match(/Cloudflare(?: [A-Z][a-z]+)*/g))];
-  assert.ok(processors.length >= 3, processors.join(", "));
-  for (const name of processors) assert.deepEqual(findForbidden(name, "content/faqs/x.json"), [], name);
+  // A processor the legal pages name passes in any file: the Cloudflare services the site uses, and
+  // every one the sample pages name. The live pages may list more or fewer (check-content scans them).
+  const PROCESSORS = ["Cloudflare", "Cloudflare Turnstile", "Cloudflare Web Analytics", "Cloudflare Email Service", "Cloudflare Workers", "Cloudflare D1"];
+  const pages = ["privacy", "terms"].map((page) => fs.readFileSync(path.join(SAMPLE_CONTENT, "legal", `${page}.md`), "utf8")).join("\n");
+  for (const name of new Set([...PROCESSORS, ...pages.match(/Cloudflare(?: [A-Z][a-z]+)*/g)])) assert.deepEqual(findForbidden(name, "content/faqs/x.json"), [], name);
 });
 
 test("JSON files and exports are scanned as decoded values: escapes, line breaks and tabs hide nothing", () => {
@@ -177,7 +180,8 @@ test("no pattern is slow on long pathological input", () => {
 
 test("no file under content/ makes an unverified claim, including fields the site does not render", () => {
   const files = contentFiles(".").map((file) => file.replaceAll("\\", "/"));
-  for (const file of ["content/home.json", "content/faqs/what-we-do.json", "content/legal/privacy.md", "content/legal/terms.md"]) assert.ok(files.includes(file), `the scan covers ${file}`);
+  const entries = COLLECTIONS.flatMap((collection) => listEntries(".", collection).map((name) => `content/${collection}/${name}`));
+  for (const file of ["content/site.json", ...Object.values(SINGLETON_FILES), "content/legal/privacy.md", "content/legal/terms.md", ...entries]) assert.ok(files.includes(file), `the scan covers ${file}`);
   assert.deepEqual(scanContentTree("."), []);
 });
 
@@ -185,7 +189,7 @@ test("a price written into a content entry fails both scans (temporary copy, rea
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-honesty-"));
   const planted = "content/faqs/zz-planted-price.json";
   try {
-    fs.cpSync("content", path.join(root, "content"), { recursive: true });
+    fs.cpSync(SAMPLE_CONTENT, path.join(root, "content"), { recursive: true });
     const entry = { question: "What does it cost?", answer: "Packages start at $499 per month.", order: 99 };
     fs.writeFileSync(path.join(root, planted), JSON.stringify(entry, null, 2));
     assert.ok(scanContentTree(root).some((problem) => problem.startsWith(`${planted}: answer: a price`)), "the file scan flags it");
@@ -198,7 +202,7 @@ test("a price written into a content entry fails both scans (temporary copy, rea
 test("a price written into a legal page fails the file scan (temporary copy)", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-honesty-"));
   try {
-    fs.cpSync("content", path.join(root, "content"), { recursive: true });
+    fs.cpSync(SAMPLE_CONTENT, path.join(root, "content"), { recursive: true });
     fs.appendFileSync(path.join(root, "content/legal/terms.md"), "\n## Fees\n\nProjects cost from 900 EUR.\n");
     assert.ok(scanContentTree(root).some((problem) => problem.startsWith("content/legal/terms.md: a price")));
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
@@ -210,8 +214,9 @@ test("a price written into a legal page fails the file scan (temporary copy)", (
 test("check-content passes the committed content and lists every problem by file, field and fix, without a stack trace", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-check-"));
   try {
-    for (const dir of ["content", "src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
+    for (const dir of ["src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
+    copySampleContent(root);
     fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
     const env = { ...process.env, SITE_MODE: "preview", NEXT_PUBLIC_SHOW_SAMPLES: "" };
     const run = () => spawnSync(process.execPath, ["--experimental-strip-types", path.join(root, "scripts", "check-content.mjs")], { cwd: path.join(root, "src"), encoding: "utf8", env });
@@ -284,7 +289,7 @@ test("check-content passes the committed content and lists every problem by file
 
     // A syntax error in code is a bug too: its stack, and the file Node does not name. (The broken
     // entry from above would fail the import first, so it is put back.)
-    fs.copyFileSync("content/faqs/who-we-work-with.json", path.join(root, "content/faqs/who-we-work-with.json"));
+    fs.copyFileSync(path.join(SAMPLE_CONTENT, "faqs", "who-we-work-with.json"), path.join(root, "content/faqs/who-we-work-with.json"));
     const loader = path.join(root, "src/lib/content.ts");
     const original = fs.readFileSync(loader, "utf8");
     fs.writeFileSync(loader, `${original}\nexport const broken = ;\n`);
@@ -336,17 +341,17 @@ test("every section header has a title, a three-digit index, a heading and a des
   }
 });
 
-test("illustrative measures are labelled as such", () => {
+// The rules the site promises about its copy (counts that match the data, disciplines rather than
+// people, the illustrative labels, no stock portraits, links to real pages) are in
+// scripts/lib/content-rules.mjs, which check-content runs; tests/content-rules.test.mjs tests them.
+test("the sample dashboard is marked illustrative in the data", () => {
   assert.equal(content.MEASURE.illustrative, true);
-  assert.match(content.SECTIONS.analytics.description, /illustrative/i);
-  assert.match(content.SECTIONS.analytics.description, /not client results/i);
 });
 
 test("work tiles and service pillars point at real service pages", () => {
   const slugs = new Set(content.SERVICES.map((service) => service.slug));
   assert.equal(content.WORK.tiles.length, 4);
   for (const tile of content.WORK.tiles) assert.ok(slugs.has(tile.slug), tile.slug);
-  assert.deepEqual(content.PILLARS.map((pillar) => pillar.slug).sort(), [...slugs].sort(), "one pillar per service");
   const art = (slug) => content.serviceBySlug(slug).image;
   for (const item of [...content.WORK.tiles, ...content.PILLARS]) assert.equal(item.img, art(item.slug), `${item.slug} uses its service image`);
   assert.equal(content.WORK.featured.img, art(content.WORK.featured.href.split("/")[2]), "featured tile uses its service image");
@@ -369,8 +374,6 @@ test("engagements carry no prices and exactly one starting point", () => {
 
 test("the team section shows roles, not invented people", () => {
   for (const role of content.TEAM_ROLES) {
-    assert.doesNotMatch(role.name, /^[A-Z][a-z]+ [A-Z][a-z]+$/, `${role.name} looks like a person's name`);
-    assert.doesNotMatch(role.img, /images\/team\//, "role cards must not use the stock portraits");
     assert.equal(role.links.length, 0, `${role.name} must not link to invented profiles`);
   }
   if (content.FOUNDER) assert.ok(content.FOUNDER.name && content.FOUNDER.img && content.FOUNDER.bio, "founder card needs a real name, photo and bio");
@@ -380,52 +383,12 @@ test("testimonials and articles only hold publishable entries", () => {
   for (const item of content.TESTIMONIALS) {
     assert.equal(item.permissionConfirmed, true);
     assert.ok(item.name && item.company && item.quote && item.img);
-    assert.doesNotMatch(item.img, /images\/reviews\//, "use the client's own approved photo");
   }
   for (const article of content.ARTICLES) {
     assert.ok(article.href && article.title && article.author);
-    assert.doesNotMatch(article.img, /images\/labs\//, "use the article's own image");
   }
 });
 
 test("sample preview data is not part of public content", () => {
   for (const key of Object.keys(content)) assert.doesNotMatch(key, /SAMPLE/);
-});
-
-test("every illustrative card says so", () => {
-  for (const key of ["workflow", "accuracy", "throughput", "readiness", "coverage"]) {
-    assert.match(JSON.stringify(content.MEASURE[key]), /illustrative|example|sample/i, `MEASURE.${key} is labelled`);
-  }
-  assert.match(content.MEASURE.stagesFooter, /illustrative/i);
-});
-
-test("displayed counts match the data", () => {
-  const n = content.SERVICES.length;
-  const pad = (v) => String(v).padStart(2, "0");
-  assert.equal(content.HOME.stats[0].value, pad(n));
-  assert.equal(content.HOME.stats[1].value, pad(content.ENGAGEMENTS.length));
-  assert.equal(content.HOME.stats[1].sub.toLowerCase(), content.ENGAGEMENTS.map((e) => e.short.toLowerCase()).join(", "), "the second hero stat names the engagements it counts");
-  assert.equal(content.WORK.lineup.count, `${n}/${n}`);
-  assert.equal(content.CORE_PANEL.count, `${n}/${n}`);
-  assert.equal(content.PILLARS.length, n);
-  assert.equal(content.WORK.assessment.badge, `01/${pad(content.ENGAGEMENTS.length)}`);
-});
-
-test("internal links point at real pages", () => {
-  const hrefs = [];
-  const walk = (value) => {
-    if (Array.isArray(value)) return value.forEach(walk);
-    if (value && typeof value === "object") {
-      for (const [key, child] of Object.entries(value)) {
-        if (key === "href" && typeof child === "string") hrefs.push(child);
-        else walk(child);
-      }
-    }
-  };
-  for (const value of Object.values(content)) if (typeof value !== "function") walk(value);
-  const allowed = new Set(["/", "/services/", "/approach/", "/about/", "/contact/", "/privacy/", "/terms/"]);
-  for (const service of content.SERVICES) allowed.add(`/services/${service.slug}/`);
-  for (const id of Object.keys(content.SECTIONS)) allowed.add(`/#${id}`);
-  assert.ok(hrefs.length > 0, "found hrefs");
-  for (const href of hrefs) assert.ok(allowed.has(href) || /^https?:\/\//.test(href), `${href} is not a real page`);
 });

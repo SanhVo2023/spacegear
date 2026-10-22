@@ -12,6 +12,7 @@ import { buildUploadVariants, cacheFolderProblem, cachedVariant, variantFile, wr
 import { imageReferenceProblems, missingImageFiles, referencedImages } from "../scripts/lib/content-assets.mjs";
 import { existsExact, LOCAL_REF, wrongCaseReferences } from "../scripts/lib/exact-paths.mjs";
 import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
+import { copySampleContent } from "./helpers/content.mjs";
 import { RASTER, SITE_IMAGE_PATH, UPLOAD_EXTENSIONS, UPLOAD_PATH, UPLOAD_REF, VARIANT, readManifest, shipUploads, uploadProblems, variantOriginal } from "../scripts/lib/uploads.mjs";
 
 const { contentImage, UPLOAD_WIDTHS } = await import("../src/lib/content-images.ts");
@@ -728,13 +729,14 @@ test("content may not point at a generated variant, a name the site cannot serve
 test("check-content refuses SVG and HTML uploads, variant references and missing variants, and passes real uploads", async () => {
   const root = projectTempDir("check-uploads-");
   try {
-    for (const dir of ["content", "src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
+    for (const dir of ["src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
+    copySampleContent(root);
     fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
     const env = { ...process.env, SITE_MODE: "preview", NEXT_PUBLIC_SHOW_SAMPLES: "" };
     const run = () => spawnSync(process.execPath, ["--experimental-strip-types", path.join(root, "scripts", "check-content.mjs")], { cwd: path.join(root, "src"), encoding: "utf8", env });
     const listed = (result) => result.stderr.split(/\r?\n/).filter((line) => line.startsWith("  - ")).map((line) => line.slice(4));
-    const setImage = (file, img) => fs.writeFileSync(path.join(root, file), JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), img }, null, 2));
+    const setImage = (file, img) => fs.writeFileSync(path.join(root, file), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(root, file), "utf8")), img }, null, 2));
     const uploads = path.join(root, "public", "uploads");
     const cache = path.join(root, ".cache", "upload-variants"); // where the copied scripts/lib/uploads.mjs looks
     fs.mkdirSync(path.join(uploads, "team"), { recursive: true });

@@ -12,7 +12,7 @@ import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 import { imageReferenceProblems, missingImageFiles } from "./lib/content-assets.mjs";
-import { stageNumberProblems } from "./lib/content-rules.mjs";
+import { contentRuleProblems } from "./lib/content-rules.mjs";
 import { pathsFromRoot } from "./lib/project-path.mjs";
 import { CACHE_DIR, locationProblems, uploadProblems } from "./lib/uploads.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
@@ -74,15 +74,17 @@ await attempt(() => parseContent(siteSchema, readJson("content/site.json"), "con
 for (const page of LEGAL_PAGES) await attempt(() => legalSections(page, ROOT));
 let routes = [];
 if (content) {
-  const { SERVICES, CASE_STUDIES, ENGAGEMENTS } = content;
+  const { SERVICES, CASE_STUDIES } = content;
   routes = ["/", "/services/", ...SERVICES.map((s) => `/services/${s.slug}/`), ...["about", "approach", "contact", "privacy", "terms"].map((s) => `/${s}/`)];
   errors.push(...validatePublication({ mode, origin: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:8787", contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL, policiesApproved: process.env.POLICIES_APPROVED === "true" }, routes));
   for (const service of SERVICES) {
     if (!service.summary || !service.buyerProblem || !service.deliverables.length || !service.faqs.length) errors.push(`incomplete service: ${service.slug}`);
   }
   if (CASE_STUDIES.some((study) => study.published && !study.approved)) errors.push("unverified published case study");
-  // Dragging engagements in the CMS reorders them but leaves their stage numbers as they were.
-  errors.push(...stageNumberProblems(ENGAGEMENTS));
+  // What the site promises about its copy (scripts/lib/content-rules.mjs): stage numbers in list
+  // order after a drag, counts that match the data, disciplines rather than people on team cards,
+  // the dashboard labelled illustrative, no stock portraits, and links to real pages.
+  errors.push(...contentRuleProblems(content, routes));
   // Honesty (scripts/lib/honesty.mjs): no invented prices, clients, results, offices, press or
   // timelines in any loaded export (each scanned on its own, for the scoped rules)...
   for (const problem of scanExports(content)) errors.push(`forbidden claim in export ${problem}`);

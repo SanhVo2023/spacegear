@@ -10,6 +10,7 @@ import zlib from "node:zlib";
 import sharp from "sharp";
 import { UPLOAD_PATH, exifHasGps, locationProblems, rawProfileBytes, renameAdvice, suggestedUploadName, uploadProblems, xmpHasGps } from "../scripts/lib/uploads.mjs";
 import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
+import { copySampleContent } from "./helpers/content.mjs";
 
 sharp.cache(false);
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-upload-checks-"));
@@ -185,8 +186,9 @@ test("uploadProblems gives the rename advice for a name the build refuses", () =
 test("check-content lists an upload with location data next to the other problems (temporary project)", async () => {
   const root = projectTempDir("check-gps-");
   try {
-    for (const dir of ["content", "src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
+    for (const dir of ["src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
+    copySampleContent(root);
     fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ type: "module" }));
     fs.mkdirSync(path.join(root, "public", "uploads"));
     await solid().withExif(GPS_EXIF).webp().toFile(path.join(root, "public", "uploads", "phone.webp"));

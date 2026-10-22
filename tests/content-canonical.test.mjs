@@ -12,16 +12,17 @@ const schemas = contentSchemas(SERVICES.map((service) => service.slug));
 const text = (file) => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 
 test("folder-collection entries are in the CMS's form: order first, then the fields in order", () => {
-  let count = 0;
   for (const collection of COLLECTIONS) {
     for (const name of listEntries(".", collection)) {
       const file = `content/${collection}/${name}`;
       assert.equal(text(file), canonicalJson(schemas.collections[collection], JSON.parse(text(file)), { orderFirst: true }), file);
       assert.match(text(file), /^\{\n {2}"order": \d+,\n/, `${file}: order is the first key`);
-      count++;
     }
   }
-  assert.equal(count, 21, "5 services, 3 engagements, 8 questions and 5 disciplines");
+  // Editors add and delete questions, disciplines, testimonials and articles; services and
+  // engagements are fixed (the CMS cannot create or delete them).
+  assert.equal(listEntries(".", "services").length, 5, "5 services");
+  assert.equal(listEntries(".", "engagements").length, 3, "3 engagements");
 });
 
 test("singletons are in the CMS's form: the fields in order", () => {
