@@ -882,6 +882,18 @@ desktop("under reduced motion the route change is instant", async (page) => {
   }
 });
 
+desktop("depth and parallax layers are promoted only once they near the viewport", async (page) => {
+  const promoted = () => page.evaluate(() => [...document.querySelectorAll("[data-depth], [data-parallax] > *")].filter((el) => getComputedStyle(el).willChange.includes("transform")).length);
+  assert.equal(await promoted(), 0, "desktop: over the hero no depth or parallax layer is promoted");
+  await jumpTo(page, (await sectionTop(page, "work")) - 400);
+  await page.waitForTimeout(400);
+  const near = await promoted();
+  assert.ok(near >= 6, `desktop: nearing What We Do promotes its layers ahead of the screen (${near})`);
+  await jumpTo(page, 0);
+  await page.waitForTimeout(400);
+  assert.equal(await promoted(), near, "desktop: they stay promoted, so leaving them never re-rasters their images");
+});
+
 desktop("What We Do images drift inside their frames and leaving cards stack and shrink", async (page) => {
   const read = () => page.evaluate(() => {
     const layer = document.querySelector("#work [data-parallax] > *");

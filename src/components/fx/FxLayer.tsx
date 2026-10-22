@@ -1,11 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import Grain from "./Grain";
-import Cursor from "./Cursor";
-import SmoothScroll from "./SmoothScroll";
 import { useForcedColors, useFx, useMotionOK } from "./env";
 import { useSmoothAnchors } from "./smooth-anchors";
+
+// Lenis and the cursor load on demand, in their own chunks, the first time a fine-pointer desktop renders
+// them: phones, tablets, touch screens and reduced motion never download them. Neither ever renders on the
+// server (FxLayer renders nothing there), so the static markup is unchanged.
+const SmoothScroll = dynamic(() => import("./SmoothScroll"), { ssr: false });
+const Cursor = dynamic(() => import("./Cursor"), { ssr: false });
 
 /**
  * Site-wide effects, mounted once in the root layout. It renders nothing on the server, during hydration,
@@ -15,6 +20,7 @@ import { useSmoothAnchors } from "./smooth-anchors";
  * data-fx-smooth-anchors and Next's data-scroll-behavior (smooth-anchors.ts), so in-page anchors glide
  * while restorations, deep links and route changes land at once. It touches no other attribute on <html>:
  * the intro gate's data-intro and data-save-data stay the gate's own, and Lenis manages its own classes.
+ * Lenis and the cursor arrive a moment after the flags, once their chunks load.
  */
 export default function FxLayer() {
   const fx = useFx();
