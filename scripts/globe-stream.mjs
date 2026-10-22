@@ -177,6 +177,10 @@ export function readStream(page) {
  * timing only the call would not have helped, and it would miss slow script in the same task. Instead a
  * measurement over the bound is taken once more on a fresh page (`remeasureFirstUpload`), and the check
  * fails only when both are over: a slow upload is slow every time, a busy machine rarely twice in a row.
+ * The fresh page runs in the same browser, so its GPU process has made one 4k texture already, as a real
+ * Chrome's long-lived GPU process has. On 2026-10-22, on a loaded machine, first measurements of 135, 153
+ * and 170 ms (126–163 ms in the call) were each under 50 ms the second time; a first upload made 120 ms
+ * slower measured 151 ms, then 147 ms, and failed.
  */
 export const FIRST_UPLOAD_ALLOWANCE_MS = 120;
 
