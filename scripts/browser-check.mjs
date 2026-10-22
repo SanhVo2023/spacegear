@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
-import { deepReloadCheck, hashLinkCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
+import { deepReloadCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -889,9 +889,6 @@ try {
   // A phone that reloads far below the hero loads none of the globe until the hero comes into view.
   const deep = await deepReloadCheck(browser, base);
   report.interactions.push(`deep reload on a phone (scrollY ${deep.scrollY}): no scene chunk, texture or WebGL context until the hero is back on screen, then the globe mounts`);
-  // A link to #pricing scrolls past the hero just after load: the globe never fetches a map twice.
-  const hash = await hashLinkCheck(browser, base);
-  report.interactions.push(`link to #pricing on a phone: each globe map fetched at most once (${JSON.stringify({ mounted: hash.mounted, counts: hash.counts })})`);
   // A touch held from before the load event puts the globe's mount off until INPUT_QUIET_MS after it ends.
   const hold = await touchHoldCheck(browser, base, { quietMs: INPUT_QUIET_MS });
   report.interactions.push(`touch phone: no globe while a touch is held; its chunk is requested ${hold.chunk - hold.releasedAt} ms after the touch ends (quiet time ${INPUT_QUIET_MS} ms)`);

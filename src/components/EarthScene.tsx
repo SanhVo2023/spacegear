@@ -10,6 +10,7 @@ import { CAMERA_FOV, CAMERA_Z, EXPOSURE, FLARE_GAIN, FLARE_SECONDS, MAX_TILT, MO
 import { readNavigatorFacts, rendererName } from "@/components/globe/device";
 import { createDragState, createSpring, stepDrag, stepSpring, unitOrZero, type PointerInput } from "@/components/globe/interaction";
 import { getIntroPhase, INTRO_CHUNK_SHARE, introStore } from "@/components/globe/intro-store";
+import { createPendingLoads } from "@/components/globe/pending-load";
 import { cameraZAt, clamp01, rigAt, slerpDirection, smoothstep, sunDirectionAt } from "@/components/globe/scroll";
 import { disposeTextureSet, globeEntries, loadHeroTextures, releaseSource, streamTextureSet, type GlobeTextureSet, type HeroTextures } from "@/components/globe/textures";
 import { canStream4k, streamMayStart, type GlobeTier } from "@/components/globe/tiers";
@@ -365,27 +366,16 @@ function SceneContents({ variant, load, active, progress, pointer, onReady, onTi
 }
 
 /**
- * A scene's first texture set, started once. React can throw a first render away and retry it before it
- * commits (an update interrupts it), and useState's initialiser runs again on every attempt: during a
- * scroll on a phone that refetched the 1k set five times for one canvas. The load waits here until a
- * scene commits with it, so a retry reuses it. A failed load is dropped, never reused.
+ * A scene's first texture set, started once and shared by every render attempt until a scene commits
+ * with it (pending-load.ts): a first render retried before commit reuses it instead of refetching.
  */
-const pendingLoads = new Map<SceneVariant, Promise<HeroTextures>>();
-function startLoad(variant: SceneVariant): Promise<HeroTextures> {
-  const pending = pendingLoads.get(variant);
-  if (pending) return pending;
-  const promise = loadHeroTextures(variant === "cinematic" ? "2k" : "1k", {
+const pendingLoads = createPendingLoads<SceneVariant, HeroTextures>((variant) =>
+  loadHeroTextures(variant === "cinematic" ? "2k" : "1k", {
     backdrop: variant === "cinematic",
     // The scene's own code chunk filled the counter's first INTRO_CHUNK_SHARE (OrbitalCinematic.tsx).
     onProgress: variant === "cinematic" ? (fraction) => introStore.setProgress(INTRO_CHUNK_SHARE + (1 - INTRO_CHUNK_SHARE) * fraction) : undefined,
-  });
-  pendingLoads.set(variant, promise);
-  // A failed load surfaces through use() → SceneBoundary; this also marks the rejection handled.
-  promise.catch(() => {
-    if (pendingLoads.get(variant) === promise) pendingLoads.delete(variant);
-  });
-  return promise;
-}
+  }),
+);
 
 /**
  * The hero globe. Desktop ("cinematic"): 2k textures plus the galaxy backdrop, the scroll beats,
@@ -395,11 +385,9 @@ function startLoad(variant: SceneVariant): Promise<HeroTextures> {
  * no input and rendered on demand at MOBILE_FPS; it never streams 4k.
  */
 export default function EarthScene({ variant, active, progress, dragTarget, onReady, onTier, onLost }: EarthSceneProps) {
-  const [load] = useState(() => startLoad(variant));
+  const [load] = useState(() => pendingLoads.take(variant));
   // Committed: this scene owns its load, and a later mount starts its own.
-  useEffect(() => {
-    if (pendingLoads.get(variant) === load) pendingLoads.delete(variant);
-  }, [variant, load]);
+  useEffect(() => pendingLoads.commit(variant, load), [variant, load]);
   const cinematic = variant === "cinematic";
   const pointer = usePointerInput(dragTarget, cinematic);
 

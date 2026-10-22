@@ -256,6 +256,28 @@ test("the hero mode follows the spec's device table", () => {
   assert.equal(tiers.chooseHeroMode({ ...desktop, effectiveType: "3g" }), "cinematic", "the desktop table is unchanged");
 });
 
+test("the WebGL2 probe (a throwaway context) runs only when nothing else decides the hero mode", () => {
+  let probes = 0;
+  const probe = () => { probes++; return true; };
+  const phone = { width: 390, reducedMotion: false, saveData: false, webgl2: probe };
+  const desktop = { ...phone, width: 1440 };
+  const decided = [
+    [{ ...phone, reducedMotion: true }, "galaxy"],
+    [{ ...phone, saveData: true }, "galaxy"],
+    [{ ...phone, deviceMemory: 2 }, "galaxy"],
+    [{ ...phone, effectiveType: "3g" }, "galaxy"],
+    [{ ...desktop, reducedMotion: true }, "poster"],
+    [{ ...desktop, saveData: true }, "poster"],
+  ];
+  for (const [env, mode] of decided) assert.equal(tiers.chooseHeroMode(env), mode);
+  assert.equal(probes, 0, "no probe when an earlier rule decides");
+  assert.equal(tiers.chooseHeroMode(phone), "mobile-globe");
+  assert.equal(tiers.chooseHeroMode(desktop), "cinematic");
+  assert.equal(probes, 2, "one probe per undecided call");
+  assert.equal(tiers.chooseHeroMode({ ...phone, webgl2: () => false }), "galaxy");
+  assert.equal(tiers.chooseHeroMode({ ...desktop, webgl2: () => false }), "poster");
+});
+
 test("the device table is a leaf module, so the hero's first-load chunk stays small", async () => {
   const source = await fs.readFile(new URL("../src/components/globe/hero-mode.ts", import.meta.url), "utf8");
   assert.deepEqual(source.match(/^\s*(import|export .* from)\b.*$/gm) ?? [], [], "hero-mode.ts imports nothing");

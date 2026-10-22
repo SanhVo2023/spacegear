@@ -32,12 +32,16 @@ export function readNavigatorFacts(): NavigatorFacts {
   return { saveData: Boolean(nav.connection?.saveData), effectiveType: nav.connection?.effectiveType, deviceMemory: nav.deviceMemory };
 }
 
-/** The facts chooseHeroMode() needs, read from the browser. */
+/**
+ * The facts chooseHeroMode() needs, read from the browser. WebGL2 is a probe that chooseHeroMode() runs
+ * only when the other facts have not decided (reduced motion, Save-Data, a slow connection or little
+ * memory never create the throwaway test context).
+ */
 export function readDeviceEnv(): DeviceEnv {
   return {
     width: window.innerWidth,
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     ...readNavigatorFacts(),
-    webgl2: hasWebGL2(),
+    webgl2: hasWebGL2,
   };
 }

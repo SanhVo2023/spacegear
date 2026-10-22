@@ -4,8 +4,9 @@
 // (by delay) and every WebGL context the page creates. `watchSceneChunk` finds the scene's code chunk by
 // its content (three's WebGLRenderer). `mountOrder` reads when the page loaded, the idle callback that
 // started the globe and the chunk and texture requests. `statementContrast` measures the WCAG contrast of
-// the hero statement's filled words against what is behind them. `deepLinkCheck` and `touchHoldCheck` are
-// whole-page checks on a phone.
+// the hero statement's filled words against what is behind them. `deepReloadCheck` and `touchHoldCheck`
+// are whole-page checks on a phone. (A retried first render reusing the scene's pending load is unit-tested
+// in tests/globe-pending.test.mjs: no page reliably interrupts that render.)
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import { CAPABLE_DESKTOP, fakeGpu } from "./globe-stream.mjs";
@@ -163,26 +164,6 @@ export async function deepReloadCheck(browser, base) {
     await page.waitForSelector('#home .hero-mobile-globe[data-globe="ready"]', { timeout: 45000 });
     assert.deepEqual({ sceneChunk: scene.size, textures: textures.length, errors }, { sceneChunk: 1, textures: 5, errors: [] }, "deep reload: back at the top, the globe mounts and fetches its five maps once");
     return deep;
-  } finally {
-    await context.close();
-  }
-}
-
-/**
- * A link to #pricing: the page loads at the top and then scrolls smoothly past the hero, while state
- * updates on the way interrupt the globe's first render. Whether or not the globe mounts in that window,
- * each map is fetched at most once (a retried first render reuses the scene's pending load).
- */
-export async function hashLinkCheck(browser, base) {
-  const { context, page, errors, textures, scene } = await phone(browser);
-  try {
-    await page.goto(`${base}/#pricing`, { waitUntil: "load" });
-    await page.waitForTimeout(3000);
-    const counts = {};
-    for (const url of textures) counts[url.split("/").pop()] = (counts[url.split("/").pop()] ?? 0) + 1;
-    const facts = { mounted: (await page.locator("#home .hero-mobile-globe").count()) > 0, sceneChunk: scene.size, counts, errors };
-    assert.ok(Object.values(counts).every((count) => count === 1) && scene.size <= 1 && errors.length === 0, `hash link: each globe map is fetched at most once while the page scrolls past the hero (${JSON.stringify(facts)})`);
-    return facts;
   } finally {
     await context.close();
   }

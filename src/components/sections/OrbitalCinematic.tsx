@@ -153,6 +153,12 @@ function whenIdle(callback: () => void): () => void {
  * screen.
  */
 const INPUT_QUIET_MS = 500;
+/**
+ * A touch with no touch event for this long counts as over. Removing the touched node before the finger
+ * lifts sends touchend to that detached node only, so the window never hears it; without this the globe
+ * would wait for a release that never comes.
+ */
+const TOUCH_STALE_MS = 5000;
 /** The globe's brightness behind filled statement words: the filled text then keeps a WCAG contrast of
  *  at least 4.5:1 over the lit crescent and the rim (scripts/globe-mobile.mjs). */
 const FILLED_DIM = 0.55;
@@ -191,27 +197,35 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
   useEffect(() => {
     const section = hero.current;
     if (enabled || !section) return;
-    let loaded = document.readyState === "complete";
+    let loaded = false;
     let visible = false;
     let touching = false;
     // The last touch, scroll or load event: the page must be still for INPUT_QUIET_MS after it.
     let lastInput = performance.now();
+    let lastTouch = 0;
     let decided = false;
     let cancel = () => {};
+    // A touch counts as held until its release, or until it goes stale (TOUCH_STALE_MS).
+    const held = () => touching && performance.now() - lastTouch < TOUCH_STALE_MS;
     const attempt = () => {
       cancel();
       cancel = () => {};
+      // Read here too: a page left before its load event and restored from the back/forward cache
+      // never sees that event.
+      loaded ||= document.readyState === "complete";
       if (decided || !loaded || !visible) return;
       const quiet = INPUT_QUIET_MS - (performance.now() - lastInput);
-      if (touching || quiet > 0) {
+      if (held() || quiet > 0) {
         const timer = window.setTimeout(attempt, Math.max(quiet, 100));
         cancel = () => window.clearTimeout(timer);
         return;
       }
       cancel = whenIdle(() => {
         cancel = () => {};
-        if (touching || performance.now() - lastInput < INPUT_QUIET_MS) return attempt();
+        if (held() || performance.now() - lastInput < INPUT_QUIET_MS) return attempt();
+        // The decision is final: stop listening, then mount the globe if the device qualifies.
         decided = true;
+        stop();
         if (chooseHeroMode(readDeviceEnv()) === "mobile-globe") setEnabled(true);
       });
     };
@@ -220,9 +234,15 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
       lastInput = performance.now();
       attempt();
     };
+    // A page restored from the back/forward cache: count it as still from now and try again.
+    const onShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      lastInput = performance.now();
+      attempt();
+    };
     const onTouch = (event: TouchEvent) => {
       touching = event.touches.length > 0;
-      lastInput = performance.now();
+      lastInput = lastTouch = performance.now();
     };
     const onScroll = () => {
       lastInput = performance.now();
@@ -231,17 +251,21 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
       visible = entry.isIntersecting;
       attempt();
     });
-    observer.observe(section);
-    window.addEventListener("load", onLoad, { once: true });
-    for (const type of TOUCH_EVENTS) window.addEventListener(type, onTouch, { passive: true, capture: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
+    const stop = () => {
       cancel();
+      cancel = () => {};
       observer.disconnect();
       window.removeEventListener("load", onLoad);
+      window.removeEventListener("pageshow", onShow);
       for (const type of TOUCH_EVENTS) window.removeEventListener(type, onTouch, { capture: true });
       window.removeEventListener("scroll", onScroll);
     };
+    observer.observe(section);
+    window.addEventListener("load", onLoad, { once: true });
+    window.addEventListener("pageshow", onShow);
+    for (const type of TOUCH_EVENTS) window.addEventListener(type, onTouch, { passive: true, capture: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return stop;
   }, [enabled, hero]);
 
   // It renders only while it is on screen and the tab is visible; reduced motion turned on removes it.
