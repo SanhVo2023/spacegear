@@ -4,6 +4,7 @@ import Nav from "@/components/Nav";
 import CurtainShell from "@/components/CurtainShell";
 import MotionProvider from "@/components/MotionProvider";
 import NoScriptStyles from "@/components/NoScriptStyles";
+import FxLayer from "@/components/fx/FxLayer";
 import IntroGate from "@/components/IntroGate";
 import IntroOverlay from "@/components/IntroOverlay";
 import Footer from "@/components/sections/Footer";
@@ -30,6 +31,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <Nav />
       {/* Original curtain: page content lifts away to reveal the pinned footer (desktop). */}
       <CurtainShell footer={<Footer />}>{children}</CurtainShell>
+      {/* === FX === smooth scroll, cursor and grain on fine-pointer desktops (src/components/fx) */}
+      <FxLayer />
     </MotionProvider>
     <StructuredData data={{ "@context": "https://schema.org", "@graph": [
       { "@type": "Organization", "@id": `${SITE.origin}/#organization`, name: SITE.name, url: SITE.origin, description: SITE.description, logo: `${SITE.origin}/icon.svg`, ...(SITE.contactEmail ? { email: SITE.contactEmail } : {}) },
