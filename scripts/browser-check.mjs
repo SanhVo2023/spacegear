@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 // === FX === motion-system checks (scripts/fx-checks.mjs)
 import { assertFxAbsent, checkFxDesktop, checkFxTouch } from "./fx-checks.mjs";
+import { NAV_HOME_NAME, WORDMARK_LETTERS, identityOnPage, identityServed } from "./identity-check.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 import { deepReloadCheck, detachedTouchCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
@@ -1016,9 +1017,12 @@ try {
       return [...range.getClientRects()].some(rect => rect.right > innerWidth + 1 || rect.left < -1) ? [el.textContent] : [];
     }));
     assert.deepEqual(clipped, [], `${route}: text clipped at 320px`);
+    await identityOnPage(narrowPage, route); // brand kit: nav logo name, footer letters, icon links, no "space—gear"
   }
   await narrowPage.close();
   report.interactions.push("all 12 routes: actual text bounds fit 320px, including long service headings");
+  report.interactions.push(`all ${routes.length} routes: the nav logo link is named "${NAV_HOME_NAME}", the footer wordmark has ${WORDMARK_LETTERS} letter elements, icons and the manifest are linked, no retired dash wordmark`);
+  report.interactions.push(await identityServed(base));
 
   const fallbackPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const fallbackErrors = [], fallbackDownloads = [];

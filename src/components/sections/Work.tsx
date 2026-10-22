@@ -161,7 +161,7 @@ export default function Work() {
             <div className="font-mono text-[11px] leading-relaxed text-mut-3">
               <span className="text-mut">{copy.index}</span>
               <br />
-              space<span className="text-flame">—</span>gear
+              spacegear
             </div>
             <h3 className="display max-w-md text-[clamp(22px,2.6vw,34px)] text-ink">{copy.heading}</h3>
             <p className="text-[12px] leading-relaxed text-mut-2">{copy.description}</p>

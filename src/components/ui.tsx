@@ -56,7 +56,7 @@ export function Container({
 /**
  * Standard section header hierarchy (matches "Our Work"):
  *  - large faint section title
- *  - a row: [00x / space—gear] · main heading · right-aligned blurb
+ *  - a row: [00x / spacegear] · main heading · right-aligned blurb
  */
 export function SectionHeader({
   title,
@@ -77,7 +77,7 @@ export function SectionHeader({
           <div className="font-mono text-[11px] leading-relaxed text-mut-3">
             <span className="text-mut">{index}</span>
             <br />
-            space<span className="text-flame">—</span>gear
+            spacegear
           </div>
           <h3 className="display max-w-xl text-[clamp(22px,2.8vw,36px)] text-ink">
             {heading}

@@ -107,7 +107,12 @@ async function fxState(page) {
       grain: Boolean(document.querySelector("[data-fx-grain]")),
       rail: Boolean(document.querySelector("[data-fx-rail]")),
       splitChars: document.querySelectorAll("[data-split-char]").length,
-      letters: document.querySelectorAll("[data-letter]").length,
+      // Footer wordmark letters out of their rest position. The drawn <Wordmark> (brand kit) always renders its
+      // nine [data-letter] glyphs, so the effect shows only as a letter that is lowered, hidden or leaning.
+      letters: [...document.querySelectorAll("[data-letter]")].filter((el) => {
+        const style = getComputedStyle(el);
+        return style.transform !== "none" || style.translate !== "none" || parseFloat(style.opacity) < 0.99;
+      }).length,
       // Magnetic, Tilt, ScrollDepth and Parallax layers that carry a transform (none when the effects are off).
       moved: [...document.querySelectorAll("[data-magnetic], [data-tilt], [data-depth], [data-parallax] > *")].filter((el) => getComputedStyle(el).transform !== "none").length,
     };

@@ -54,7 +54,8 @@ export const FORBIDDEN = [
   [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM]\b(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`), "a price or scale figure", { skip: MEASURE_FIGURE }],
   // The original site and the old identity.
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
-  [/Platform®|Platform B\.V\.|Platform Labs|plat—form/, "the old brand"],
+  // "space—gear" is the retired dash wordmark: the drawn logo replaced it (docs/brand/).
+  [/Platform®|Platform B\.V\.|Platform Labs|plat—form|space—gear/, "the old brand"],
   [/Book a Demo/i, "the old call to action"],
   [/®/, "a registered-trademark sign (use ™ until the mark is registered)"],
   // Clients, scale and results.

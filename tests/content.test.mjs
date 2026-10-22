@@ -91,6 +91,12 @@ test("ordinary copy passes", () => {
   for (const text of ORDINARY) assert.deepEqual(findForbidden(text, "content/faqs/x.json"), [], text);
 });
 
+test("the retired dash wordmark is refused in content, as check-export refuses it in the export; the name and the domain pass", () => {
+  // The drawn logo (docs/brand/) replaced "space—gear"; a CMS edit must not bring the dash back as text.
+  for (const text of ["space—gear", "Welcome to space—gear", "space\u{200B}—gear"]) assert.match(findForbidden(text, "content/faqs/x.json").join(), /the old brand/, JSON.stringify(text));
+  for (const text of ["spacegear", "spacegear.tech", "© 2026 spacegear.tech", "space and gear", "space — gear"]) assert.deepEqual(findForbidden(text, "content/faqs/x.json"), [], text);
+});
+
 test("the sample dashboard may show figures in its figure fields only", () => {
   const measure = JSON.parse(fs.readFileSync("content/measure.json", "utf8"));
   assert.deepEqual(scanFile("content/measure.json", JSON.stringify(measure)), [], "the real dashboard passes");

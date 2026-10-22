@@ -105,7 +105,7 @@ export default function Nav() {
           scrolled ? "border-line bg-[#161719]/85 backdrop-blur-xl" : "border-transparent bg-[#161719]/30 backdrop-blur-md"
         }`}
       >
-        <Link prefetch={false} href="/" aria-label="space—gear home" className="flex items-center gap-2 pl-2">
+        <Link prefetch={false} href="/" aria-label="spacegear home" className="flex items-center gap-2 pl-2">
           <Brand />
         </Link>
 

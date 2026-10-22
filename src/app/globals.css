@@ -272,6 +272,9 @@ html { scroll-padding-top: 88px; }
 .prose-card a { color: #fa6e43; text-decoration: underline; text-underline-offset: 4px; }
 .prose-card .policy-preview { margin: 0 0 32px; border: 1px solid rgba(250, 110, 67, 0.4); border-radius: 12px; background: rgba(250, 110, 67, 0.05); padding: 16px 18px; font-size: 13px; color: #e3dbd8; }
 
+/* Brand kit (docs/brand/): the footer wordmark's ™ in the muted grey it had before (Wordmark.tsx draws it in currentColor). */
+.brand-wordmark .brand-tm { color: var(--color-mut-3); }
+
 /* Hero (OrbitalCinematic.tsx). Until hydration, desktops that will get the
    300vh cinematic keep its height, so deep links and reloads do not jump.
    NoScriptStyles.tsx resets it without JavaScript; Save-Data (marked before

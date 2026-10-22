@@ -11,8 +11,8 @@ await fs.mkdir(target,{recursive:true});
 const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms"];
 // The hero globe's texture tiers (scripts/build-globe-textures.mjs): 1k phones, 2k desktop first frame, 4k streamed.
 const globeTextures=["1k","2k","4k"].flatMap(tier=>["day","night","normal","spec","clouds"].map(map=>`textures/earth/${tier}/${map}.webp`));
-const assets=["apple-icon.png","icon.svg","favicon.ico","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/hero-poster-3840w.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","seo/og.png",...globeTextures];
-const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|__next\..*\.txt)$/.test(name));
+const assets=["apple-icon.png","icon.svg","favicon.ico","icon-192.png","icon-512.png","icon-maskable-512.png","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/hero-poster-3840w.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","seo/og.png",...globeTextures];
+const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|manifest\.webmanifest|__next\..*\.txt)$/.test(name));
 for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});
   await fs.cp(path.join(source,name),dest,{recursive:true});
