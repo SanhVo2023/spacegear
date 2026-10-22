@@ -167,6 +167,13 @@ export function readStream(page) {
   }));
 }
 
+/**
+ * The long task that runs the first 4k upload (the day map, sRGB RGBA) may take this long; every other task
+ * during the stream stays under the spec's 100 ms. Measured here: 49–65 ms warm, up to 82 ms cold. A
+ * first upload 120 ms slower than that measures 146–150 ms, so 150 would let it through.
+ */
+export const FIRST_UPLOAD_ALLOWANCE_MS = 120;
+
 const MIB = 1024 * 1024;
 const mib = (bytes) => Math.round((bytes / MIB) * 10) / 10;
 
@@ -278,7 +285,7 @@ function watchProblems(page) {
  * An intro visit (the page's first load in its tab): the 2k set first, then the 4k stream after the
  * intro, its reveal and an idle callback, one upload per frame, a swap without a mixed frame, no 2k
  * texture left alive, and no long task over 100 ms while it streams (the spec's rule after the intro),
- * apart from the first upload's on a cold GPU, which gets 200 ms.
+ * apart from the first upload's on a cold GPU, which gets FIRST_UPLOAD_ALLOWANCE_MS.
  */
 export async function introVisit(page, { revealEndMs }) {
   await page.waitForSelector(`${SCENE}[data-globe="ready"]`, { timeout: 45000 });
@@ -308,10 +315,10 @@ export async function introVisit(page, { revealEndMs }) {
   );
   assert.ok(stream.mixedFrames === 0 && stream.last2kFrame < stream.first4kFrame, `capable desktop: the maps swap together, so no frame mixes the 2k and 4k sets (${JSON.stringify({ mixed: stream.mixedFrames, last2k: stream.last2kFrame, first4k: stream.first4kFrame })})`);
   // The spec's rule after the intro is no long task over 100 ms. The one exception is the task that runs
-  // the first 4k upload on a cold GPU (the day map), which gets 200 ms; its length is reported.
+  // the first 4k upload on a cold GPU (the day map), which gets FIRST_UPLOAD_ALLOWANCE_MS; its length is reported.
   const longTasks = JSON.stringify({ firstUpload: stream.firstUploadLongTask, firstUploadMs: stream.firstUpload4kMs, others: stream.otherLongTasksDuringStream });
   assert.ok(stream.otherLongTasksDuringStream.every((ms) => ms < 100), `capable desktop: no long task over 100 ms while the 4k set streams, apart from the first upload (${longTasks} ms)`);
-  assert.ok(!(stream.firstUploadLongTask >= 200), `capable desktop: the first 4k upload (the day map, on a cold GPU) runs in a task under 200 ms (${longTasks} ms)`);
+  assert.ok(!(stream.firstUploadLongTask >= FIRST_UPLOAD_ALLOWANCE_MS), `capable desktop: the first 4k upload (the day map, on a cold GPU) runs in a task under ${FIRST_UPLOAD_ALLOWANCE_MS} ms (${longTasks} ms)`);
   return stream;
 }
 
