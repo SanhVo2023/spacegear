@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import Link from "next/link";
+import Brand from "@/components/Brand";
 import { motion } from "motion/react";
 import Reveal from "@/components/Reveal";
 import { FillBar, FillColumn } from "@/components/motion";
@@ -59,9 +60,7 @@ export default function Analytics() {
               <span className="absolute left-5 top-5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink">
                 <span className="text-flame">{MEASURE.imageCard.accent}</span> {MEASURE.imageCard.label}
               </span>
-              <span className="absolute bottom-5 left-5 text-[15px] font-medium text-flame">
-                space<span className="text-ink">—</span>gear
-              </span>
+              <Brand className="absolute bottom-5 left-5 h-5 w-auto text-flame" />
             </div>
           </Reveal>
 

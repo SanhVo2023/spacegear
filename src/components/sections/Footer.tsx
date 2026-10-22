@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { BrandSymbol } from "@/components/Brand";
 import QuickStart from "@/components/QuickStart";
+import Wordmark from "@/components/Wordmark";
 import { Container } from "@/components/ui";
 import { FOOTER } from "@/lib/content";
 import { SITE } from "@/lib/site";
 
-/** Rotating circular wordmark badge with an orange core. */
+/** Rotating circular wordmark badge around the brand symbol, which stays still (docs/brand/guidelines.md, "Motion"). */
 function CircleBadge() {
   return (
     <div aria-hidden className="relative h-24 w-24">
@@ -16,7 +18,7 @@ function CircleBadge() {
           <textPath href="#circlePath" startOffset="0%">{FOOTER.badge}</textPath>
         </text>
       </svg>
-      <span className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-flame shadow-[0_0_24px_rgba(250,110,67,0.6)]" />
+      <BrandSymbol className="absolute left-1/2 top-1/2 block h-7 w-auto -translate-x-1/2 -translate-y-1/2 text-flame" />
     </div>
   );
 }
@@ -55,11 +57,9 @@ export default function Footer() {
               </Link>
             )}
             <div className="relative mt-4 lg:mt-8">
-              {/* sized so "space—gear" (one glyph wider than "plat—form") fills the same cell */}
-              <p className="display text-[clamp(36px,10vw,104px)] leading-[0.85] lg:text-[clamp(40px,8vw,104px)] text-flame">
-                space<span className="text-ink">—</span>gear
-                <sup aria-hidden className="ml-1 align-top text-base text-mut-3">™</sup>
-              </p>
+              {/* drawn wordmark (docs/brand/); 1em is the type size, so the clamps keep the cell's size. The ™ shows here only.
+                  Its letters sit in a flex row, so flex centring stands in for text-center on phones. */}
+              <Wordmark className="flex justify-center text-[clamp(36px,10vw,104px)] lg:justify-start lg:text-[clamp(40px,8vw,104px)] text-flame" />
               <div className="mt-5 text-[13px] leading-relaxed text-mut-2 lg:mt-6">
                 <p>{FOOTER.identity[0]}</p>
                 <p>{FOOTER.identity[1]}</p>
