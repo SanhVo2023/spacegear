@@ -91,7 +91,7 @@ export async function statementContrast(page, { fills = [0, 0.5, 1] } = {}) {
     const states = [];
     for (const fill of fills) {
       const y = Math.max(0, Math.round(start + fill * (end - start)));
-      await page.evaluate((y) => window.scrollTo(0, y), y);
+      await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), y);
       await page.waitForTimeout(500);
       const view = await page.evaluate(() => {
         const p = document.querySelector("#home p.display").getBoundingClientRect();
@@ -126,7 +126,7 @@ export async function statementContrast(page, { fills = [0, 0.5, 1] } = {}) {
     return states;
   } finally {
     await stars.evaluate((el) => el.remove());
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   }
 }
 

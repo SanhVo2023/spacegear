@@ -556,6 +556,9 @@ try {
       assert.ok(sceneChunks.size === 1 && order.load > 0 && order.idle !== null && order.chunk > order.idle && order.idle >= order.load + INPUT_QUIET_MS && order.textures > order.chunk, `${profile.name}: the globe's code loads only ${INPUT_QUIET_MS} ms after the page's load event and an idle callback, its textures after it (${JSON.stringify(order)})`);
       // With the 2D starfield hidden (it twinkles), the top strip of the globe's box looks the same with the
       // canvas shown and hidden (no dark rectangle), while its centre changes (the globe is drawn).
+      // The globe sits at the hero's bottom, below the fold on narrow phones: bring it into view first.
+      await page.evaluate(() => window.scrollTo({ top: Math.max(0, document.querySelector("#home .hero-mobile-globe").getBoundingClientRect().top + scrollY - 40), behavior: "instant" }));
+      await page.waitForTimeout(300);
       const box = await wrapper.boundingBox();
       const left = Math.max(0, box.x), width = Math.min(profile.width, box.x + box.width) - left;
       const shoot = async (y, h) => sharp(await page.screenshot({ clip: { x: left, y: box.y + box.height * y, width, height: box.height * h } })).removeAlpha().raw().toBuffer();
@@ -572,6 +575,7 @@ try {
       await layer({ stars: true, globe: true });
       const hidden = { top: await shoot(0, 0.08), centre: await shoot(0.4, 0.2) };
       await layer({ stars: false, globe: false });
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
       const diff = { top: Math.round(meanDiff(shown.top, hidden.top) * 10) / 10, centre: Math.round(meanDiff(shown.centre, hidden.centre) * 10) / 10 };
       assert.ok(diff.top < 1.5 && diff.centre > 6, `${profile.name}: the globe draws over a transparent canvas (mean change, canvas shown vs hidden: ${JSON.stringify(diff)})`);
       // One frame timer while on screen; none in a hidden tab, and one again when the tab shows.
