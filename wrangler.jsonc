@@ -29,12 +29,12 @@
       "workers_dev": false,
       "vars": {
         "SITE_ORIGIN": "https://spacegear.tech",
-        "CONTACT_ENABLED": "false",
+        "CONTACT_ENABLED": "true",
         "NOTIFICATIONS_ENABLED": "false",
         "OWNER_EMAIL": "",
         "SENDER_EMAIL": ""
       },
-      "d1_databases": [{ "binding": "DB", "database_name": "spacegear-production", "migrations_dir": "./migrations" }],
+      "d1_databases": [{ "binding": "DB", "database_name": "spacegear-production", "database_id": "b618e082-fb6d-4d78-9b85-c2a5bb350a7d", "migrations_dir": "./migrations" }],
       "send_email": [{ "name": "EMAIL" }],
       "triggers": { "crons": ["*/5 * * * *"] }
     }
