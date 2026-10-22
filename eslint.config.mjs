@@ -16,7 +16,6 @@ const eslintConfig = defineConfig([
     "artifacts/**",
     "assets/**",
     "dist/**",
-    "public/draco/**",
     ".wrangler/**",
     ".superpowers/**",
   ]),
