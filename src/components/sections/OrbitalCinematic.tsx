@@ -3,11 +3,12 @@
 import {
   motion,
   useMotionValue,
+  useScroll,
   useTransform,
   type MotionValue,
   type Variants,
 } from "motion/react";
-import { Component, Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Fragment, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { preload } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -15,8 +16,11 @@ import Starfield from "@/components/Starfield";
 import { ScrollFillText } from "@/components/motion";
 import { Container } from "@/components/ui";
 import { hasWebGL2, readDeviceEnv } from "@/components/globe/device";
+// The device table from its leaf module: the first-load chunk gets neither the globe's constants nor
+// its texture manifest (tiers.ts imports both).
+import { chooseHeroMode } from "@/components/globe/hero-mode";
 import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
-import { chooseHeroMode, type GlobeTier } from "@/components/globe/tiers";
+import type { GlobeTier } from "@/components/globe/tiers";
 import { HOME, type Stat as StatData } from "@/lib/content";
 
 // 3D scene is client-only (WebGL) — load without SSR. Its code chunk fills the first INTRO_CHUNK_SHARE of
@@ -131,33 +135,114 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
   );
 }
 
+/** Runs `callback` once the browser is idle; Safari has no requestIdleCallback, so a short timer stands in. */
+function whenIdle(callback: () => void): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(callback, { timeout: 2000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const timer = window.setTimeout(callback, 300);
+  return () => window.clearTimeout(timer);
+}
+
+/**
+ * The globe mounts only once the page has been still this long: no touch held or ended, no scroll, and
+ * not since the load event. So its script evaluation (about 360 ms on a phone-class CPU) never lands on
+ * a tap or a swipe, and a scroll the browser makes just after load (restoring the position on a reload,
+ * following a #hash, both smooth under `scroll-behavior: smooth`) is over before the hero is judged on
+ * screen.
+ */
+const INPUT_QUIET_MS = 500;
+/** The globe's brightness behind filled statement words: the filled text then keeps a WCAG contrast of
+ *  at least 4.5:1 over the lit crescent and the rim (scripts/globe-mobile.mjs). */
+const FILLED_DIM = 0.55;
+const TOUCH_EVENTS = ["touchstart", "touchend", "touchcancel"] as const;
+
+type MobileSceneProps = {
+  /** The hero section: the globe mounts only while it is on screen. */
+  hero: RefObject<HTMLElement | null>;
+  /** The statement's fill progress (0…1, its own scroll window). */
+  fill: MotionValue<number>;
+  /** The fill progress by which the globe has dimmed to FILLED_DIM: the first word's fill window. */
+  dimBy: number;
+};
+
 /**
  * The phone and tablet globe: a light 1k scene behind the statement (EarthScene's "mobile" variant) on
- * devices that chooseHeroMode() allows after idle (WebGL2, deviceMemory ≥ 4 or unknown, no Save-Data,
- * motion allowed); everyone else keeps the galaxy and fetches nothing. Like HeroScene it exists only in
- * its branch (the static hero), so crossing 1024 px discards it and a return mounts a fresh one. It
- * renders nothing until the device qualifies, so the static markup and first paint stay as they were.
- * A failure (a lost context, a shader or loader error) is final: the canvas goes and the galaxy stays.
+ * devices that chooseHeroMode() allows (WebGL2, deviceMemory ≥ 4 or unknown, no Save-Data, no slow
+ * connection, motion allowed); everyone else keeps the galaxy and fetches nothing. It mounts after the
+ * page's load event, once the page has been still for INPUT_QUIET_MS, when the browser is idle and the
+ * hero is on screen, so the galaxy and the fonts never wait for it and a reload far down the page never
+ * fetches it. Like HeroScene it exists only in its
+ * branch (the static hero), so crossing 1024 px discards it and a return mounts a fresh one. It renders
+ * nothing until the device qualifies, so the static markup and first paint stay as they were. A failure
+ * (a lost context, a shader or loader error) is final: the canvas goes and the galaxy stays.
  */
-function MobileScene() {
+function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [globe, setGlobe] = useState<"idle" | "ready" | "failed">("idle");
   const [active, setActive] = useState(true);
   const fail = () => setGlobe("failed");
+  // Full brightness while the statement is ghost text; dimmed behind it by the time its first word has
+  // filled. Motion writes the style from the scroll progress: no React state per frame.
+  const filter = useTransform(fill, [0, dimBy], ["brightness(1)", `brightness(${FILLED_DIM})`]);
 
-  // When the browser is idle, after the copy and the galaxy have painted.
   useEffect(() => {
-    const enable = () => {
-      if (chooseHeroMode(readDeviceEnv()) === "mobile-globe") setEnabled(true);
+    const section = hero.current;
+    if (enabled || !section) return;
+    let loaded = document.readyState === "complete";
+    let visible = false;
+    let touching = false;
+    // The last touch, scroll or load event: the page must be still for INPUT_QUIET_MS after it.
+    let lastInput = performance.now();
+    let decided = false;
+    let cancel = () => {};
+    const attempt = () => {
+      cancel();
+      cancel = () => {};
+      if (decided || !loaded || !visible) return;
+      const quiet = INPUT_QUIET_MS - (performance.now() - lastInput);
+      if (touching || quiet > 0) {
+        const timer = window.setTimeout(attempt, Math.max(quiet, 100));
+        cancel = () => window.clearTimeout(timer);
+        return;
+      }
+      cancel = whenIdle(() => {
+        cancel = () => {};
+        if (touching || performance.now() - lastInput < INPUT_QUIET_MS) return attempt();
+        decided = true;
+        if (chooseHeroMode(readDeviceEnv()) === "mobile-globe") setEnabled(true);
+      });
     };
-    if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(enable, { timeout: 2000 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const timer = setTimeout(enable, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    const onLoad = () => {
+      loaded = true;
+      lastInput = performance.now();
+      attempt();
+    };
+    const onTouch = (event: TouchEvent) => {
+      touching = event.touches.length > 0;
+      lastInput = performance.now();
+    };
+    const onScroll = () => {
+      lastInput = performance.now();
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      attempt();
+    });
+    observer.observe(section);
+    window.addEventListener("load", onLoad, { once: true });
+    for (const type of TOUCH_EVENTS) window.addEventListener(type, onTouch, { passive: true, capture: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancel();
+      observer.disconnect();
+      window.removeEventListener("load", onLoad);
+      for (const type of TOUCH_EVENTS) window.removeEventListener(type, onTouch, { capture: true });
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [enabled, hero]);
 
   // It renders only while it is on screen and the tab is visible; reduced motion turned on removes it.
   useEffect(() => {
@@ -183,9 +268,10 @@ function MobileScene() {
   // page at the bottom (globals.css). At most the viewport's width and 520 px, so the globe (about 72 %
   // of the box) stays below the stats row at 320–1023 px and the copy above it stays legible.
   return (
-    <div
+    <motion.div
       ref={ref}
       className="hero-mobile-globe pointer-events-none absolute bottom-0 left-1/2 aspect-square w-[min(100vw,520px)] -translate-x-1/2"
+      style={{ filter }}
       data-globe={globe}
       aria-hidden
     >
@@ -194,6 +280,40 @@ function MobileScene() {
           <EarthScene variant="mobile" active={active} onReady={() => setGlobe((g) => (g === "failed" ? g : "ready"))} onLost={fail} />
         </SceneBoundary>
       )}
+    </motion.div>
+  );
+}
+
+const STATEMENT_WORDS = HOME.statement.split(" ").length;
+
+/**
+ * The static hero's layers: the galaxy, the 2D stars, the phone globe, the copy and the statement. The
+ * statement fills word by word as it scrolls through the viewport (the same window ScrollFillText uses on
+ * its own), and that progress also dims the globe behind it, so the filled words stay legible.
+ */
+function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
+  const statement = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress: fill } = useScroll({ target: statement, offset: ["start 0.8", "end 0.4"] });
+  return (
+    <div className="relative overflow-hidden">
+      <div className="hero-backdrop pointer-events-none absolute inset-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/galaxy.webp" alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
+      </div>
+      <Starfield className="opacity-50" />
+      <MobileScene hero={hero} fill={fill} dimBy={1 / STATEMENT_WORDS} />
+
+      <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
+        <HeroCopy />
+      </Container>
+
+      <Container className="relative pb-24">
+        <div ref={statement} className="hero-statement max-w-3xl">
+          <ScrollFillText text={HOME.statement} progress={fill} />
+        </div>
+      </Container>
     </div>
   );
 }
@@ -365,6 +485,7 @@ function HeroCopy() {
 
 export default function OrbitalCinematic() {
   const outerRef = useRef<HTMLElement | null>(null);
+  const staticRef = useRef<HTMLElement | null>(null);
   const cinematic = useSyncExternalStore(subscribe, eligible, () => false);
   const hydrated = useSyncExternalStore(noop, () => true, () => false);
   const [active, setActive] = useState(true);
@@ -419,30 +540,13 @@ export default function OrbitalCinematic() {
   // the cinematic's 300vh (.hero-reserve in globals.css) so deep links and reloads land where they will stay.
   if (!cinematic) {
     // Hero images go first in <head>, one per visitor: the cinematic's poster (high priority) on the
-    // desktops that will show it, the galaxy everywhere else. The galaxy <img> below reuses this
+    // desktops that will show it, the galaxy everywhere else. The galaxy <img> (StaticStage) reuses this
     // media-scoped preload instead of React's automatic one, which every desktop fetched first.
     preload("/images/hero-poster.webp", { as: "image", media: QUERY, fetchPriority: "high" });
     preload("/images/galaxy.webp", { as: "image", media: STATIC_QUERY });
     return (
-      <section id="home" className={hydrated ? "relative" : "hero-reserve relative"}>
-        <div className="relative overflow-hidden">
-          <div className="hero-backdrop pointer-events-none absolute inset-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/galaxy.webp" alt="" aria-hidden width={3840} height={1629} className="h-full w-full object-cover opacity-70" />
-            <div className="absolute inset-0 bg-gradient-to-b from-bg/60 via-bg/35 to-bg" />
-            <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)]" />
-          </div>
-          <Starfield className="opacity-50" />
-          <MobileScene />
-
-          <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20">
-            <HeroCopy />
-          </Container>
-
-          <Container className="relative pb-24">
-            <ScrollFillText text={HOME.statement} className="max-w-3xl" />
-          </Container>
-        </div>
+      <section ref={staticRef} id="home" className={hydrated ? "relative" : "hero-reserve relative"}>
+        <StaticStage hero={staticRef} />
       </section>
     );
   }

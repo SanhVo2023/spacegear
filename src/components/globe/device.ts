@@ -1,4 +1,4 @@
-import type { DeviceEnv } from "./tiers";
+import type { DeviceEnv } from "./hero-mode";
 
 /** True when a WebGL2 context can be created; the test context is released at once. */
 export function hasWebGL2(): boolean {
@@ -34,12 +34,10 @@ export function readNavigatorFacts(): NavigatorFacts {
 
 /** The facts chooseHeroMode() needs, read from the browser. */
 export function readDeviceEnv(): DeviceEnv {
-  const { saveData, deviceMemory } = readNavigatorFacts();
   return {
     width: window.innerWidth,
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    saveData,
-    deviceMemory,
+    ...readNavigatorFacts(),
     webgl2: hasWebGL2(),
   };
 }

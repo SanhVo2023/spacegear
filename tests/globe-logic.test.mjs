@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import fs from "node:fs/promises";
 import vm from "node:vm";
 import { Linter } from "eslint";
 
@@ -248,6 +249,19 @@ test("the hero mode follows the spec's device table", () => {
   assert.equal(tiers.chooseHeroMode({ ...phone, saveData: true }), "galaxy");
   assert.equal(tiers.chooseHeroMode({ ...phone, reducedMotion: true }), "galaxy");
   assert.equal(tiers.chooseHeroMode({ ...phone, webgl2: false }), "galaxy");
+  // Slow connections keep the galaxy on phones and tablets, as they skip the intro and the 4k set.
+  for (const effectiveType of ["slow-2g", "2g", "3g"]) assert.equal(tiers.chooseHeroMode({ ...phone, effectiveType }), "galaxy", effectiveType);
+  assert.equal(tiers.chooseHeroMode({ ...phone, effectiveType: "4g" }), "mobile-globe");
+  assert.equal(tiers.chooseHeroMode({ ...desktop, width: 768, effectiveType: "3g" }), "galaxy");
+  assert.equal(tiers.chooseHeroMode({ ...desktop, effectiveType: "3g" }), "cinematic", "the desktop table is unchanged");
+});
+
+test("the device table is a leaf module, so the hero's first-load chunk stays small", async () => {
+  const source = await fs.readFile(new URL("../src/components/globe/hero-mode.ts", import.meta.url), "utf8");
+  assert.deepEqual(source.match(/^\s*(import|export .* from)\b.*$/gm) ?? [], [], "hero-mode.ts imports nothing");
+  const hero = await fs.readFile(new URL("../src/components/sections/OrbitalCinematic.tsx", import.meta.url), "utf8");
+  const values = [...hero.matchAll(/^import (?!type\b)([^;]+?) from "@\/components\/globe\/([\w-]+)";/gm)].map((m) => m[2]);
+  assert.deepEqual(values.filter((name) => ["tiers", "constants", "texture-manifest", "textures", "materials"].includes(name)), [], `OrbitalCinematic imports no value from the globe's heavier modules (${values})`);
 });
 
 test("the 4k set streams only to capable desktops with a hardware GPU", () => {

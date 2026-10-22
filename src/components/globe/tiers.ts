@@ -1,4 +1,5 @@
 import { REVEAL_END_SECONDS, STREAM_SETTLE_SECONDS } from "./constants";
+import { SLOW_CONNECTION } from "./hero-mode";
 import type { IntroPhase } from "./intro-store";
 import { GLOBE_MAPS, GLOBE_TIERS } from "./texture-manifest";
 
@@ -7,15 +8,8 @@ export { GLOBE_MAPS };
 export type GlobeTier = (typeof GLOBE_TIERS)[number];
 export type GlobeMapName = (typeof GLOBE_MAPS)[number];
 
-/** What the hero shows on this device (the spec's device table). */
-export type HeroMode = "cinematic" | "mobile-globe" | "poster" | "galaxy";
-export type DeviceEnv = { width: number; reducedMotion: boolean; saveData: boolean; webgl2: boolean; deviceMemory?: number };
-
-export function chooseHeroMode(env: DeviceEnv): HeroMode {
-  const animated = !env.reducedMotion && !env.saveData && env.webgl2;
-  if (env.width >= 1024) return animated ? "cinematic" : "poster";
-  return animated && (env.deviceMemory === undefined || env.deviceMemory >= 4) ? "mobile-globe" : "galaxy";
-}
+/** The device table lives in a leaf module, so the hero's first-load chunk can import it alone. */
+export { chooseHeroMode, SLOW_CONNECTION, type DeviceEnv, type HeroMode } from "./hero-mode";
 
 export type GpuEnv = {
   viewportWidth: number;
@@ -40,7 +34,7 @@ export function canStream4k(env: GpuEnv): boolean {
   if (env.viewportWidth < 1024 || !env.finePointer || env.saveData) return false;
   // Written as !(>=) so an unknown (NaN) texture limit fails too.
   if (!(env.maxTextureSize >= 4096) || SOFTWARE_RENDERER.test(env.renderer)) return false;
-  if (env.effectiveType && /^(slow-2g|2g|3g)$/.test(env.effectiveType)) return false;
+  if (env.effectiveType && SLOW_CONNECTION.test(env.effectiveType)) return false;
   return env.deviceMemory === undefined || env.deviceMemory >= 8;
 }
 

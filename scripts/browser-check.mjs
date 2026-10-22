@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
+import { deepReloadCheck, hashLinkCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -33,6 +34,11 @@ const STREAM_SETTLE_MS = 1000 * globeConstant("STREAM_SETTLE_SECONDS");
 // A retried stream would start from a new idle callback, forced after STREAM_IDLE_TIMEOUT_MS: a failed
 // stream is watched that long after its failure, plus a second.
 const RETRY_WATCH_MS = globeConstant("STREAM_IDLE_TIMEOUT_MS") + 1000;
+// The phone globe renders on demand from a setInterval of this delay (EarthScene.tsx), and mounts only
+// once the page has been still this long after a touch, a scroll or the load event (OrbitalCinematic.tsx).
+const MOBILE_FRAME_MS = 1000 / globeConstant("MOBILE_FPS");
+const INPUT_QUIET_MS = Number((await fs.readFile(new URL("../src/components/sections/OrbitalCinematic.tsx", import.meta.url), "utf8")).match(/const INPUT_QUIET_MS = (\d+);/)?.[1]);
+assert.ok(MOBILE_FRAME_MS > 0 && INPUT_QUIET_MS > 0, `the phone globe's frame interval and quiet time are readable (${MOBILE_FRAME_MS} ms, ${INPUT_QUIET_MS} ms)`);
 assert.ok(REVEAL_END_MS > 0 && STREAM_SETTLE_MS > 0 && RETRY_WATCH_MS > 1000, `the globe's reveal and stream timing is readable from constants.ts (${REVEAL_END_MS} ms, ${STREAM_SETTLE_MS} ms, ${RETRY_WATCH_MS} ms)`);
 const failsafeRule = (await fs.readFile(new URL("../src/app/globals.css", import.meta.url), "utf8")).match(/animation: intro-failsafe 0s linear (\d+(?:\.\d+)?)s forwards/);
 INTRO.failsafe = failsafeRule ? Number(failsafeRule[1]) * 1000 : NaN;
@@ -280,6 +286,8 @@ try {
       }).observe({ type: "longtask", buffered: true });
     });
     await page.addInitScript(heroLogScript);
+    await page.addInitScript(mobileProbe);
+    const sceneChunks = watchSceneChunk(page);
     await page.goto(base, { waitUntil: "networkidle" });
     await page.locator("h1").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${profile.name}: overflow`);
@@ -527,10 +535,11 @@ try {
       await slowPage.close();
       report.interactions.push(`desktop slow load (textures +8 s, scripts +1.5 s): reveal at the load cap, globe lit after a late ready (${slowTiming}, ${JSON.stringify(lateGlobe)})`);
     }
-    // Phones and tablets: after idle a light 1k globe fades in behind the statement (EarthScene's "mobile"
-    // variant), after the largest contentful paint. It never takes input, so a touch over it scrolls the
-    // page, and its canvas is transparent around the globe.
-    if (profile.name === "mobile-390" || profile.name === "tablet") {
+    // Phones and tablets: once the page has loaded and the browser is idle, a light 1k globe fades in behind
+    // the statement (EarthScene's "mobile" variant). It never takes input, so a touch over it scrolls the
+    // page, its canvas is transparent around the globe, it renders from one timer only while on screen in
+    // a visible tab, and it dims behind the statement's filled words so they stay legible.
+    if (["mobile-320", "mobile-390", "tablet"].includes(profile.name)) {
       const wrapper = page.locator("#home .hero-mobile-globe");
       await page.waitForSelector('#home .hero-mobile-globe[data-globe="ready"]', { timeout: 45000 });
       assert.deepEqual(shaderErrors, [], `${profile.name}: the globe's shaders compile`);
@@ -542,11 +551,9 @@ try {
         return { ariaHidden: el.getAttribute("aria-hidden"), cursor: el.dataset.cursor ?? null, touchAction: layers.map(n => getComputedStyle(n).touchAction), pointerEvents: layers.map(n => getComputedStyle(n).pointerEvents), takesPresses: Boolean(hit?.closest(".hero-mobile-globe")) };
       });
       assert.deepEqual(inert, { ariaHidden: "true", cursor: null, touchAction: ["auto", "auto", "auto"], pointerEvents: ["none", "none", "none"], takesPresses: false }, `${profile.name}: the phone globe is decorative and takes no input (no drag, touch scrolls the page)`);
-      const order = await page.evaluate(() => ({
-        lcp: Math.round(window.__audit.lcp),
-        textures: Math.round(Math.min(...performance.getEntriesByType("resource").filter(e => e.name.includes("/textures/earth/")).map(e => e.startTime))),
-      }));
-      assert.ok(order.lcp > 0 && order.textures > order.lcp, `${profile.name}: the globe's textures load only after the largest contentful paint (${JSON.stringify(order)})`);
+      // The scene's chunk is requested only after the load event and an idle callback, and the textures after it.
+      const order = { lcp: Math.round(await page.evaluate(() => window.__audit.lcp)), ...(await mountOrder(page, sceneChunks)) };
+      assert.ok(sceneChunks.size === 1 && order.load > 0 && order.idle !== null && order.chunk > order.idle && order.idle >= order.load + INPUT_QUIET_MS && order.textures > order.chunk, `${profile.name}: the globe's code loads only ${INPUT_QUIET_MS} ms after the page's load event and an idle callback, its textures after it (${JSON.stringify(order)})`);
       // With the 2D starfield hidden (it twinkles), the top strip of the globe's box looks the same with the
       // canvas shown and hidden (no dark rectangle), while its centre changes (the globe is drawn).
       const box = await wrapper.boundingBox();
@@ -567,7 +574,32 @@ try {
       await layer({ stars: false, globe: false });
       const diff = { top: Math.round(meanDiff(shown.top, hidden.top) * 10) / 10, centre: Math.round(meanDiff(shown.centre, hidden.centre) * 10) / 10 };
       assert.ok(diff.top < 1.5 && diff.centre > 6, `${profile.name}: the globe draws over a transparent canvas (mean change, canvas shown vs hidden: ${JSON.stringify(diff)})`);
-      report.interactions.push(`${profile.name}: the 1k globe fades in after LCP (${JSON.stringify(order)} ms), takes no input and leaves its canvas transparent (${JSON.stringify(diff)})`);
+      // One frame timer while on screen; none in a hidden tab, and one again when the tab shows.
+      const setHidden = (hidden) => page.evaluate((hidden) => {
+        if (hidden) {
+          Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+        } else {
+          delete document.hidden;
+          delete document.visibilityState;
+        }
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+      const timers = { onScreen: await liveIntervals(page, MOBILE_FRAME_MS) };
+      await setHidden(true);
+      await page.waitForTimeout(200);
+      timers.hidden = await liveIntervals(page, MOBILE_FRAME_MS);
+      await setHidden(false);
+      await page.waitForTimeout(200);
+      timers.shown = await liveIntervals(page, MOBILE_FRAME_MS);
+      assert.deepEqual(timers, { onScreen: 1, hidden: 0, shown: 1 }, `${profile.name}: the globe's ${MOBILE_FRAME_MS} ms frame timer runs only on screen in a visible tab`);
+      // The statement's filled words keep a WCAG contrast of 4.5:1 (10th percentile of each word's pixels)
+      // over the globe, which shows at full brightness behind the unfilled statement and dims as it fills.
+      const contrast = await statementContrast(page, { fills: [0, 0.5, 1] });
+      const summary = contrast.map(({ fill, filter, filled, words, worstP10, worst }) => ({ fill, filter, filled: `${filled}/${words}`, worstP10, worst }));
+      assert.equal(contrast[0].filter, "brightness(1)", `${profile.name}: the globe shows at full brightness behind the unfilled statement (${JSON.stringify(summary)})`);
+      assert.ok(contrast.slice(1).every(state => state.filled > 0 && state.worstP10 >= 4.5), `${profile.name}: the statement's filled words keep a 4.5:1 contrast over the globe (${JSON.stringify(summary)})`);
+      report.interactions.push(`${profile.name}: the 1k globe loads after load and idle (${JSON.stringify(order)} ms), takes no input, leaves its canvas transparent (${JSON.stringify(diff)}), renders from one ${MOBILE_FRAME_MS} ms timer only while visible, and keeps the filled statement legible (${JSON.stringify(summary)})`);
     }
     if (profile.reducedMotion) assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === "running").length), 0);
     if (profile.name === "mobile-390") {
@@ -599,6 +631,7 @@ try {
       await page.waitForTimeout(300);
       const after = await page.evaluate(() => window.__audit.rafRequests);
       assert.ok(after - before <= 2, `${profile.name}: offscreen scene must stop requesting frames`);
+      if (profile.name !== "desktop") assert.equal(await liveIntervals(page, MOBILE_FRAME_MS), 0, `${profile.name}: no frame timer while the globe is off screen`);
       report.interactions.push(`${profile.name} globe stops rendering offscreen`);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -727,6 +760,7 @@ try {
       assert.equal(await page.locator("#home .hero-mobile-globe").count(), 0, "desktop: the phone globe goes once the viewport is back above 1024 px");
       await page.waitForTimeout(1200);
       assert.equal(await liveContexts(page), 1, "desktop: after a resize below 1024 px and back, one WebGL context is left alive");
+      assert.equal(await liveIntervals(page, MOBILE_FRAME_MS), 0, "desktop: the unmounted phone globe leaves no frame timer");
       assert.deepEqual(shaderErrors, [], "desktop /: the remounted globe's shaders compile");
       report.interactions.push("desktop globe hands over to the phone globe below 1024 px and remounts above it, leaving one WebGL context");
     }
@@ -737,6 +771,7 @@ try {
       await page.setViewportSize({ width: profile.height, height: profile.width });
       await page.waitForSelector('#home .hero-scene[data-globe="ready"]', { timeout: 45000 });
       assert.equal(await page.locator("#home .hero-mobile-globe").count(), 0, "tablet landscape: the cinematic hero replaces the phone globe");
+      assert.equal(await liveIntervals(page, MOBILE_FRAME_MS), 0, "tablet landscape: the unmounted phone globe leaves no frame timer");
       await page.setViewportSize({ width: profile.width, height: profile.height });
       await page.waitForSelector('#home .hero-mobile-globe[data-globe="ready"]', { timeout: 45000 });
       assert.equal(await page.locator("#home .hero-scene").count(), 0, "tablet portrait again: the phone globe replaces the cinematic hero");
@@ -771,8 +806,9 @@ try {
   report.interactions.push(`tablet landscape (1024×768, touch, reported as a capable GPU): the cinematic hero keeps 2k and requests no 4k map within ${coarse.watchMs} ms of its first frame`);
 
   // Phones that cannot afford the globe keep the galaxy and fetch no globe texture: too little memory,
-  // Save-Data, no WebGL2, reduced motion, no JavaScript. Each reports a capable GPU otherwise.
+  // Save-Data, no WebGL2, reduced motion, a slow connection, no JavaScript. Each reports a capable GPU otherwise.
   const SAVE_DATA = () => Object.defineProperty(Navigator.prototype, "connection", { configurable: true, get: () => ({ saveData: true, effectiveType: "4g", addEventListener() {}, removeEventListener() {} }) });
+  const SLOW_3G = () => Object.defineProperty(Navigator.prototype, "connection", { configurable: true, get: () => ({ saveData: false, effectiveType: "3g", addEventListener() {}, removeEventListener() {} }) });
   const NO_WEBGL2 = () => {
     const getContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type, ...args) { return type === "webgl2" ? null : getContext.call(this, type, ...args); };
@@ -783,6 +819,7 @@ try {
     ["Save-Data", { gpu: CAPABLE_DESKTOP, init: SAVE_DATA }],
     ["no WebGL2", { gpu: CAPABLE_DESKTOP, init: NO_WEBGL2 }],
     ["reduced motion", { gpu: CAPABLE_DESKTOP, reducedMotion: "reduce" }],
+    ["a 3G connection", { gpu: CAPABLE_DESKTOP, init: SLOW_3G }],
     ["no JavaScript", { javaScriptEnabled: false }],
   ]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: setup.reducedMotion, javaScriptEnabled: setup.javaScriptEnabled });
@@ -808,6 +845,7 @@ try {
   {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     await context.addInitScript(fakeGpu, CAPABLE_DESKTOP);
+    await context.addInitScript(mobileProbe);
     const phone = await context.newPage(), phoneErrors = [], phoneTextures = [];
     phone.on("pageerror", error => phoneErrors.push(error.message));
     phone.on("request", request => { if (request.url().includes("/textures/earth/")) phoneTextures.push(request.url()); });
@@ -839,10 +877,20 @@ try {
       const wrapper = document.querySelector("#home .hero-mobile-globe"), img = document.querySelector("#home .hero-backdrop img");
       return { globe: wrapper.dataset.globe, canvas: wrapper.querySelectorAll("canvas").length, opacity: getComputedStyle(wrapper).opacity, galaxy: Boolean(img?.complete && img.getBoundingClientRect().height > 0) };
     });
-    assert.deepEqual({ ...lost, refetched: phoneTextures.length - fetched, errors: phoneErrors }, { globe: "failed", canvas: 0, opacity: "0", galaxy: true, refetched: 0, errors: [] }, "touch phone: a lost context drops the globe for good and leaves the galaxy");
+    lost.timers = await liveIntervals(phone, MOBILE_FRAME_MS);
+    assert.deepEqual({ ...lost, refetched: phoneTextures.length - fetched, errors: phoneErrors }, { globe: "failed", canvas: 0, opacity: "0", galaxy: true, timers: 0, refetched: 0, errors: [] }, "touch phone: a lost context drops the globe for good, with its frame timer, and leaves the galaxy");
     await context.close();
     report.interactions.push(`touch phone: a swipe over the globe scrolls the page (${swipe} px); a lost context returns to the galaxy for good`);
   }
+  // A phone that reloads far below the hero loads none of the globe until the hero comes into view.
+  const deep = await deepReloadCheck(browser, base);
+  report.interactions.push(`deep reload on a phone (scrollY ${deep.scrollY}): no scene chunk, texture or WebGL context until the hero is back on screen, then the globe mounts`);
+  // A link to #pricing scrolls past the hero just after load: the globe never fetches a map twice.
+  const hash = await hashLinkCheck(browser, base);
+  report.interactions.push(`link to #pricing on a phone: each globe map fetched at most once (${JSON.stringify({ mounted: hash.mounted, counts: hash.counts })})`);
+  // A touch held from before the load event puts the globe's mount off until INPUT_QUIET_MS after it ends.
+  const hold = await touchHoldCheck(browser, base, { quietMs: INPUT_QUIET_MS });
+  report.interactions.push(`touch phone: no globe while a touch is held; its chunk is requested ${hold.chunk - hold.releasedAt} ms after the touch ends (quiet time ${INPUT_QUIET_MS} ms)`);
 
   const page = await browser.newPage({ viewport: { width: 720, height: 500 } });
   await page.goto(`${base}/contact/?service=applied-ai`, { waitUntil: "networkidle" });

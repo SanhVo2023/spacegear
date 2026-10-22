@@ -286,6 +286,9 @@ html { scroll-padding-top: 88px; }
   -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
 }
+/* With the globe behind it, the statement's words keep a dark halo, a backstop to the globe's dimming
+   as they fill (MobileScene). */
+.hero-mobile-globe ~ * .hero-statement [data-scroll-word] { text-shadow: 0 0 18px rgba(8, 8, 11, 0.85), 0 0 4px rgba(8, 8, 11, 0.9); }
 /* Fine pointers can spin the globe (usePointerInput.ts); touch keeps native scrolling. A press on the
    scene never starts a text selection, so the hook can leave the press (and focus) alone. */
 .hero-scene { -webkit-user-select: none; user-select: none; }
