@@ -6,7 +6,7 @@ import { launchBrowser } from "./browser-runtime.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 import { deepReloadCheck, detachedTouchCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
-import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, heroContrastCheck, posterMatchCheck, saveDataDesktopCheck, staticBackdrop, textureFailureCheck } from "./globe-poster.mjs";
+import { POSTER_FILE, STATIC_DESKTOP, backdropSource, boundaryCheck, desktopLayout, heroContrastCheck, posterMatchCheck, saveDataDesktopCheck, staticBackdrop, textureFailureCheck, ultrawideFeatherCheck } from "./globe-poster.mjs";
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]).pathname);
@@ -1037,6 +1037,9 @@ try {
   const match = await posterMatchCheck(browser, base);
   report.posterMatch = match;
   for (const m of match) report.interactions.push(`the poster (${m.source}, ${m.fit}) matches the live opening frame at ${m.viewport.width}×${m.viewport.height}: ${JSON.stringify(m.regions)}`);
+  // On windows wider than 2.4:1 the static hero feathers the pillarboxed poster's sides; the cinematic one does not.
+  const feather = await ultrawideFeatherCheck(browser, base);
+  report.interactions.push(`ultrawide static hero feathers the pillarboxed poster (3440×1300 reduced motion and no-JS ${feather["static-3440x1300"].fit}); the cinematic hero and 2.4:1 windows keep the plain image`);
   // Every word of the hero copy keeps WCAG AA over the poster and over the live opening frame.
   const contrast = await heroContrastCheck(browser, base);
   report.heroContrast = contrast;

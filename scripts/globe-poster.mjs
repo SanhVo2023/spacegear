@@ -311,12 +311,17 @@ async function copySettled(page, timeout = 8000) {
   }), null, { timeout, polling: 100 });
 }
 
+/** Desktop shapes for the contrast check: laptops, a 1080p window, and large and ultrawide screens, where
+ *  the 1240 px container keeps the copy near the centre while the globe grows with the height. */
+export const CONTRAST_VIEWPORTS = [[1422, 745], [1920, 1080], [2560, 1440], [2560, 1300], [3440, 1300]];
+
 /**
- * The hero copy's contrast over the desktop hero at 1422×745 and 1920×1080, in the static hero (reduced
+ * The hero copy's contrast over the desktop hero at CONTRAST_VIEWPORTS, in the static hero (reduced
  * motion: the poster) and the cinematic one (a repeat visit: the live globe on its opening frame). Every
- * word passes WCAG AA: 3:1 for the display headline, 4.5:1 for the smaller text.
+ * word passes WCAG AA: 3:1 for the display headline (the em dash included: it is part of the heading's
+ * name), 4.5:1 for the smaller text.
  */
-export async function heroContrastCheck(browser, base, { viewports = [[1422, 745], [1920, 1080]], css, save } = {}) {
+export async function heroContrastCheck(browser, base, { viewports = CONTRAST_VIEWPORTS, css, save } = {}) {
   const out = {};
   for (const [width, height] of viewports) {
     for (const mode of ["static", "cinematic"]) {
@@ -424,6 +429,40 @@ export async function textureFailureCheck(browser, base) {
   } finally {
     await context.close();
   }
+}
+
+/**
+ * Windows wider than the poster's 2.4:1 show it pillarboxed (object-fit: contain). In the static hero
+ * (reduced motion, no JavaScript) its sides are feathered into the page, so the globe is not cut by a hard
+ * vertical edge; the cinematic hero (where the canvas fades in over the poster) and windows up to 2.4:1
+ * keep the plain image.
+ */
+export async function ultrawideFeatherCheck(browser, base) {
+  const out = {};
+  for (const [label, viewport, options] of [
+    ["static-3440x1300", { width: 3440, height: 1300 }, { reducedMotion: "reduce" }],
+    ["nojs-3440x1300", { width: 3440, height: 1300 }, { javaScriptEnabled: false }],
+    ["cinematic-3440x1300", { width: 3440, height: 1300 }, {}],
+    ["static-2560x1440", { width: 2560, height: 1440 }, { reducedMotion: "reduce" }],
+  ]) {
+    const context = await browser.newContext({ viewport, ...options });
+    try {
+      if (options.javaScriptEnabled !== false) await context.addInitScript(fakeGpu, SOFTWARE_RENDERER);
+      const page = await context.newPage();
+      await page.goto(base, { waitUntil: "networkidle" });
+      if (label.startsWith("cinematic")) await page.waitForSelector("#home .hero-scene", { state: "attached", timeout: 30000 });
+      out[label] = await page.evaluate(() => {
+        const img = document.querySelector("#home .hero-backdrop img"), style = getComputedStyle(img);
+        return { fit: style.objectFit, mask: style.maskImage || style.webkitMaskImage || "none" };
+      });
+    } finally {
+      await context.close();
+    }
+  }
+  const feathered = (facts) => facts.fit === "contain" && /linear-gradient/.test(facts.mask);
+  assert.ok(feathered(out["static-3440x1300"]) && feathered(out["nojs-3440x1300"]), `ultrawide static hero: the pillarboxed poster's sides are feathered (${JSON.stringify(out)})`);
+  assert.deepEqual([out["cinematic-3440x1300"], out["static-2560x1440"]], [{ fit: "contain", mask: "none" }, { fit: "cover", mask: "none" }], `the cinematic hero and windows up to 2.4:1 keep the plain poster (${JSON.stringify(out)})`);
+  return out;
 }
 
 /**

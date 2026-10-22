@@ -295,16 +295,36 @@ html { scroll-padding-top: 88px; }
    the scene, with the sides in the scene's background. */
 @media (min-width: 1024px) and (min-aspect-ratio: 12/5) {
   #home .hero-backdrop img { object-fit: contain; background-color: #08080b; }
+  /* The static hero (reduced motion, no JavaScript) feathers the pillarboxed poster's sides into the page,
+     so the globe is not cut by a hard vertical edge. Not the cinematic one: the canvas fades in over it. */
+  #home .hero-static-backdrop img {
+    -webkit-mask-image: linear-gradient(90deg, transparent calc(50% - 120vh), #000 calc(50% - 120vh + 80px), #000 calc(50% + 120vh - 80px), transparent calc(50% + 120vh));
+    mask-image: linear-gradient(90deg, transparent calc(50% - 120vh), #000 calc(50% - 120vh + 80px), #000 calc(50% + 120vh - 80px), transparent calc(50% + 120vh));
+  }
 }
 /* Hero copy over the globe on desktops (OrbitalCinematic.tsx): a soft scrim from the left (over the poster
-   and the canvas alike, fading with the copy), a dark halo around the headline words and the muted text,
-   and slightly lighter 12 px stat labels. Every word keeps WCAG AA over the opening frame
-   (scripts/globe-poster.mjs heroContrastCheck). */
+   and the canvas alike, fading with the copy), a dark halo around the headline words and the muted text, a
+   soft dark backing behind the two rows of small text (the eyebrow and the stats, which reach the lit limb
+   on large screens, where the 1240 px container keeps the copy near the centre while the globe grows with
+   the height), and lighter muted text. Every word keeps WCAG AA over the opening frame from 1280 to 3440 px
+   (scripts/globe-poster.mjs heroContrastCheck); this keeps more of the limb than a stronger scrim. */
 .hero-scrim { background: linear-gradient(90deg, rgba(8, 8, 11, 0.64) 0, rgba(8, 8, 11, 0.5) 36%, rgba(8, 8, 11, 0.22) 51%, rgba(8, 8, 11, 0) 62%); }
 @media (min-width: 1024px) {
   #home .hero-copy .hero-word,
   #home .hero-copy .text-mut-2 { text-shadow: 0 0 32px rgba(8, 8, 11, 0.92), 0 0 12px rgba(8, 8, 11, 0.85), 0 0 3px rgba(8, 8, 11, 0.75); }
-  #home .hero-copy .hero-stat-sub { color: #9d9da6; }
+  #home .hero-copy .text-mut-2,
+  #home .hero-copy .hero-stat-sub { color: #b4b4bd; }
+  #home .hero-copy .hero-backing { position: relative; width: fit-content; isolation: isolate; }
+  #home .hero-copy .hero-backing::before {
+    content: "";
+    position: absolute;
+    inset: -16px -44px -16px -28px;
+    z-index: -1;
+    border-radius: 9999px;
+    background: rgba(8, 8, 11, 0.55);
+    filter: blur(18px);
+    pointer-events: none;
+  }
 }
 /* Faded hero copy: its links stop taking clicks (focus is handled in JS). */
 #home[data-copy-hidden] a { pointer-events: none; }

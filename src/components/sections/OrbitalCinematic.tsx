@@ -489,7 +489,7 @@ function HeroCopy() {
     // Desktop layout from the same px boundary as the cinematic query (`min-[1024px]:`; Tailwind's `lg` is
     // in rem, so it moves with the browser's default font size).
     <div className="hero-copy mx-auto max-w-2xl text-center min-[1024px]:mx-0 min-[1024px]:text-left">
-      <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="text-[15px] leading-tight">
+      <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="hero-backing text-[15px] leading-tight">
         <span className="text-mut-2">{HOME.eyebrow.muted}</span>{" "}
         <span className="font-medium text-ink">{HOME.eyebrow.strong}</span>
       </motion.p>
@@ -529,7 +529,7 @@ function HeroCopy() {
         </Link>
       </motion.div>
 
-      <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 min-[1024px]:justify-start">
+      <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="hero-backing mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 min-[1024px]:justify-start">
         {HOME.stats.map((stat) => (
           <Stat key={stat.label} {...stat} />
         ))}
