@@ -561,7 +561,10 @@ html:active-view-transition footer#contact { view-transition-name: fx-footer; }
    transition runs it spans the viewport instead, still click-through, and its difference blend carries over. */
 html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset: 0; width: auto; height: auto; }
 ::view-transition-group(.fx-page-in) { z-index: 1; animation: none; }
-::view-transition-group(fx-footer) { z-index: 2; animation: none; }
+/* The footer group keeps the browser's own group animation, which starts from the old footer's box, and holds
+   that first keyframe for the whole curtain: a group's static box is the NEW footer's, which after the scroll to
+   the top sits far below the viewport whenever the footer is in the page flow (phones, short laptops). */
+::view-transition-group(fx-footer) { z-index: 2; animation-duration: 720ms; animation-timing-function: step-end; }
 ::view-transition-group(.fx-page-out) { z-index: 3; animation: none; }
 ::view-transition-group(.fx-curtain) { z-index: 4; animation: none; }
 ::view-transition-group(fx-nav) { z-index: 5; animation: none; }

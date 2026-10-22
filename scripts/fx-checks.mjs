@@ -158,16 +158,15 @@ export function desktop(name, check) { DESKTOP_CHECKS.push([name, check]); }
 /** Registers a check for the coarse-pointer context (1440×1000, touch). It gets (page, ctx). */
 export function touch(name, check) { TOUCH_CHECKS.push([name, check]); }
 
-/** Runs every desktop check in one tab of `context`; returns results the touch checks compare against. */
-export async function checkFxDesktop({ context, base, report }) {
+/** Runs every desktop check in one tab of `context` (or, with `only`, the ones whose names match it: the
+ *  run-alone block's FX_ONLY; browser-check.mjs never passes it, so the full gate always runs every check);
+ *  returns results the touch checks compare against. */
+export async function checkFxDesktop({ context, base, report, only = null }) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(instrument);
   const ctx = { base, deepLinkTop: null };
-  // FX_ONLY=<regex> runs only the desktop checks whose names match (a faster loop while building one effect;
-  // include the checks a precondition needs, such as "deep link"). browser-check.mjs never sets it.
-  const only = process.env.FX_ONLY ? new RegExp(process.env.FX_ONLY, "i") : null;
   for (const [name, check] of DESKTOP_CHECKS) {
     if (only && !only.test(name)) continue;
     await fresh(page, base);
@@ -1076,6 +1075,82 @@ desktop("What We Measure fills its charts without moving a layout box", async (p
   assert.deepEqual(await shifts(), [], "desktop: the growing bars and charts of What We Measure shift no layout");
 });
 
+/**
+ * At `viewport`, from the end of /about/, `press`es the footer's Services link and returns: whether the footer
+ * sits in the page flow (not the pinned curtain footer), where its top was on screen just before, and where the
+ * held old footer (its view-transition group) is drawn 50 ms into the curtain. Restores the viewport after.
+ */
+async function footerHoldAt(page, base, viewport, press) {
+  const restore = page.viewportSize();
+  try {
+    await page.setViewportSize(viewport);
+    await page.goto("about:blank");
+    await page.goto(new URL("/about/", base).href, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.documentElement.hasAttribute("data-fx-motion"), null, { timeout: 10000 });
+    await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
+    await page.waitForTimeout(600);
+    // On a phone the footer is taller than the screen and its links sit above the end of the page.
+    const link = page.locator('#contact nav a[href="/services/"]').first();
+    await link.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await settle(link);
+    const before = await page.evaluate(() => ({
+      inFlow: getComputedStyle(document.querySelector("footer#contact").parentElement).position !== "fixed",
+      top: Math.round(document.querySelector("footer#contact").getBoundingClientRect().top),
+    }));
+    await press(link);
+    await waitForCurtain(page);
+    await page.waitForTimeout(50);
+    const held = await page.evaluate(() => {
+      const group = getComputedStyle(document.documentElement, "::view-transition-group(fx-footer)");
+      return Math.round(new DOMMatrixReadOnly(group.transform === "none" ? undefined : group.transform).m42);
+    });
+    await page.waitForURL("**/services/");
+    await transitionsDone(page);
+    return { inFlow: before.inFlow, before: before.top, held };
+  } finally {
+    await page.setViewportSize(restore);
+  }
+}
+
+desktop("a footer link on a laptop too short for the pinned footer holds the old footer in place", async (page, ctx) => {
+  const hold = await footerHoldAt(page, ctx.base, { width: 1280, height: 600 }, async (link) => {
+    const box = await link.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
+    await page.mouse.down();
+    await page.mouse.up();
+  });
+  assert.equal(hold.inFlow, true, "desktop 1280×600: the footer is in the page flow (precondition)");
+  assert.ok(Math.abs(hold.held - hold.before) <= 2, `desktop 1280×600: the held old footer stays where the footer was until the curtain covers it (${JSON.stringify(hold)})`);
+});
+
+touch("a footer link on a phone holds the old footer in place", async (page, ctx) => {
+  const hold = await footerHoldAt(page, ctx.base, { width: 390, height: 844 }, (link) => link.tap());
+  assert.equal(hold.inFlow, true, "touch 390×844: the footer is in the page flow (precondition)");
+  assert.ok(Math.abs(hold.held - hold.before) <= 2, `touch 390×844: the held old footer stays where the footer was until the curtain covers it (${JSON.stringify(hold)})`);
+});
+
+touch("a route change from outside the open phone menu shuts the menu before the curtain plays", async (page, ctx) => {
+  const restore = page.viewportSize();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("about:blank");
+    await page.goto(new URL("/about/", ctx.base).href, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.documentElement.hasAttribute("data-fx-motion"), null, { timeout: 10000 });
+    await page.locator(".mobile-menu summary").tap();
+    assert.equal(await page.evaluate(() => document.querySelector(".mobile-menu").open), true, "touch 390×844: the menu is open (precondition)");
+    // The header's home link sits outside the menu, so nothing closes the menu on the press itself (as with a
+    // Back or Forward that animates): the route change must, in its own commit.
+    await page.locator('header a[aria-label="spacegear home"]').tap();
+    await waitForCurtain(page);
+    assert.equal(await page.evaluate(() => document.querySelector(".mobile-menu").open), false, "touch 390×844: the menu is shut while the curtain plays, not riding above it");
+    await page.waitForURL((url) => url.pathname === "/");
+    await transitionsDone(page);
+  } finally {
+    await page.setViewportSize(restore);
+  }
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -1084,12 +1159,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error("usage: node scripts/fx-checks.mjs <base URL of the preview, e.g. http://127.0.0.1:8791>");
     process.exit(2);
   }
+  // FX_ONLY=<regex> runs only the desktop checks whose names match (a faster loop while building one effect;
+  // include the checks a precondition needs, such as "deep link"). Read here only, so it never narrows the
+  // checks browser-check.mjs runs.
+  const only = process.env.FX_ONLY ? new RegExp(process.env.FX_ONLY, "i") : null;
   const { launchBrowser } = await import("./browser-runtime.mjs");
   const browser = await launchBrowser();
   const report = { interactions: [] };
   try {
     const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-    const desktopResults = await checkFxDesktop({ context: desktopContext, base, report });
+    const desktopResults = await checkFxDesktop({ context: desktopContext, base, report, only });
     await desktopContext.close();
     for (const [label, options, flags] of [
       ["reduced-motion", { viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" }, { motionOff: true }],

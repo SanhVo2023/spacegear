@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import Brand from "@/components/Brand";
 import { MagneticLink } from "@/components/fx/Magnetic";
 import { SERVICES } from "@/lib/content";
@@ -156,7 +156,9 @@ export default function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
+  // A layout effect, so the menu is shut in the route change's own commit: during the page curtain React runs
+  // passive effects only once the transition has finished, and the open menu would ride above the curtain.
+  useLayoutEffect(() => {
     if (menu.current) menu.current.open = false;
   }, [pathname]);
 
