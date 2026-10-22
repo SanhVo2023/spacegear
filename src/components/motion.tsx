@@ -133,7 +133,9 @@ export function FillBar({
   );
 }
 
-/** Vertical bar that grows into view (final height without JS or motion). */
+/** Vertical bar that grows into view from its foot. It always has its final height and grows by `scaleY`
+ *  (from the bottom), so growing moves no layout box. Without JS or motion it shows at full height: the
+ *  data-reveal hook drops the transform (globals.css, NoScriptStyles.tsx), and data-fill-h keeps the height. */
 export function FillColumn({
   value,
   className = "",
@@ -149,10 +151,11 @@ export function FillColumn({
   return (
     <motion.div
       data-fill-h=""
-      className={className}
-      style={{ "--fill": target } as MotionStyle}
-      initial={{ height: 0 }}
-      whileInView={{ height: target }}
+      data-reveal=""
+      className={`origin-bottom ${className}`}
+      style={{ "--fill": target, height: target } as MotionStyle}
+      initial={{ scaleY: 0 }}
+      whileInView={{ scaleY: 1 }}
       viewport={{ once: true }}
       transition={{ duration, ease: FILL_EASE, delay }}
     />

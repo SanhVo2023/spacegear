@@ -9,6 +9,8 @@ import { pathToFileURL } from "node:url";
 // Section titles that editors can change in the CMS (content/sections.json), read once so the checks follow
 // an edit instead of hard-coding the copy (browser-check.mjs reads content/home.json the same way).
 const SECTION_COPY = JSON.parse(readFileSync(new URL("../content/sections.json", import.meta.url), "utf8"));
+// What We Measure's chart figures (content/measure.json), for the donut check.
+const MEASURE_COPY = JSON.parse(readFileSync(new URL("../content/measure.json", import.meta.url), "utf8"));
 
 /** Page instrumentation, installed before any page script: counts animation frames and view transitions, and
  *  records the window's scroll positions (a scroll the browser animates fires dozens of scroll events). */
@@ -1021,6 +1023,57 @@ desktop("Process: the timeline draws with the scroll, dots ignite and cards lift
   assert.ok(Math.abs(back.scale - mid.scale) < 0.02, "desktop: scrolling back retracts the line");
   assert.ok(mid.lit[0] > 0.99 && mid.lit.at(-1) < 0.01, `desktop: dots ignite in order (${mid.lit.join(", ")})`);
   assert.ok(end.lit.every((opacity) => opacity > 0.99), "desktop: every dot is lit at the end");
+});
+
+desktop("What We Measure draws in, and the ticker follows the scroll but stops on hover and focus", async (page) => {
+  await jumpTo(page, (await sectionTop(page, "analytics")) + 300);
+  await page.waitForTimeout(1800);
+  const drawn = await page.evaluate(() => ({
+    donut: document.querySelector("#analytics .fx-donut")?.hasAttribute("data-in") ?? false,
+    dials: document.querySelector("#analytics .fx-dial")?.hasAttribute("data-in") ?? false,
+    dash: getComputedStyle(document.querySelector("#analytics .fx-donut circle") ?? document.body).strokeDasharray,
+  }));
+  assert.ok(drawn.donut && drawn.dials, "desktop: the donut and the dials start drawing in view");
+  const first = MEASURE_COPY.workflow.segments[0].value;
+  assert.match(drawn.dash, new RegExp(`^${first}(px)?,?\\s+${100 - first}`), `desktop: the first donut segment is fully drawn (${drawn.dash})`);
+  const box = page.locator('#analytics [role="marquee"]');
+  await box.scrollIntoViewIfNeeded();
+  await page.mouse.move(6, 300);
+  await page.waitForTimeout(500);
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(150);
+  const ticker = () => box.evaluate((el) => {
+    const marquee = el.querySelector(".marquee-track").getAnimations()[0];
+    return { rate: marquee?.playbackRate, state: marquee?.playState, skew: el.querySelector(".fx-ticker-skew").style.transform };
+  });
+  const moving = await ticker();
+  assert.ok(moving.rate > 1.05, `desktop: the ticker speeds up with the scroll (rate ${moving.rate})`);
+  assert.match(moving.skew, /^skewX\(/, "desktop: the ticker leans with the scroll");
+  await page.waitForTimeout(2400);
+  const rest = await ticker();
+  assert.deepEqual({ rate: rest.rate, skew: rest.skew }, { rate: 1, skew: "" }, "desktop: the ticker settles back at rest");
+  await box.focus();
+  await page.mouse.wheel(0, 120);
+  await page.waitForTimeout(150);
+  const focused = await ticker();
+  assert.deepEqual({ state: focused.state, skew: focused.skew }, { state: "paused", skew: "" }, "desktop: focus stops the ticker even while the page scrolls (WCAG 2.2.2)");
+  await box.hover();
+  await page.waitForTimeout(150);
+  assert.equal((await ticker()).state, "paused", "desktop: hovering stops the ticker");
+});
+
+desktop("What We Measure fills its charts without moving a layout box", async (page) => {
+  const shifts = await recordShifts(page, "#analytics");
+  const top = await sectionTop(page, "analytics");
+  await page.mouse.move(6, 500);
+  // A first visit to the section (the bars have not grown yet), stepping through it.
+  for (const dy of [-700, -400, -100, 200, 500, 800]) {
+    await jumpTo(page, top + dy);
+    await page.waitForTimeout(400);
+  }
+  await page.waitForTimeout(1500);
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll("#analytics [data-fill-h]")].every((bar) => new DOMMatrixReadOnly(getComputedStyle(bar).transform === "none" ? undefined : getComputedStyle(bar).transform).d > 0.99)), "desktop: every bar has grown to its value (precondition)");
+  assert.deepEqual(await shifts(), [], "desktop: the growing bars and charts of What We Measure shift no layout");
 });
 
 // --- Run alone ---
