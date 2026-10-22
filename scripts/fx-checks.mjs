@@ -928,6 +928,101 @@ desktop("a footer link at the end of a page holds the old footer until the curta
   assert.deepEqual(await page.evaluate(() => ({ y: window.scrollY, footer: getComputedStyle(document.querySelector("footer#contact")).viewTransitionName })), { y: 0, footer: "none" }, "desktop: /services/ opens at its top and the footer is plain again");
 });
 
+/** Starts recording every layout shift (with or without recent input) that moves a box inside `selector`, with
+ *  the boxes it moved; the returned function reads the record. */
+async function recordShifts(page, selector) {
+  await page.evaluate((scope) => {
+    const log = (window.__fxShiftLog ??= {});
+    log[scope] = [];
+    const element = (node) => (node?.nodeType === 3 ? node.parentElement : node);
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const moved = (entry.sources ?? []).map((source) => element(source.node)).filter((el) => el?.closest?.(scope));
+        if (moved.length) log[scope].push({ value: +entry.value.toFixed(5), moved: moved.map((el) => `${el.nodeName}.${String(el.className).slice(0, 48)}`) });
+      }
+    }).observe({ type: "layout-shift" });
+  }, selector);
+  return () => page.evaluate((scope) => window.__fxShiftLog[scope].slice(), selector);
+}
+
+desktop("Services: an opening column wipes its image in and the dot matrix ripples", async (page) => {
+  await jumpTo(page, await sectionTop(page, "services"));
+  await page.waitForTimeout(900);
+  const column = page.locator('#services a[data-cursor="Open"]').nth(1);
+  await column.hover();
+  await page.waitForTimeout(1300);
+  const opened = await column.evaluate((el) => ({
+    active: el.dataset.active,
+    wipe: new DOMMatrixReadOnly(getComputedStyle(el.querySelector(".fx-reveal-wipe")).transform).a,
+  }));
+  assert.deepEqual(opened, { active: "true", wipe: 0 }, "desktop: the opened column's wipe has cleared its image");
+  const field = page.locator("#services [data-ripple]").first(); // the desktop core panel (the mobile copy is hidden)
+  const box = await field.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
+  await page.waitForTimeout(80);
+  const rippling = await field.evaluate((el) => [...el.querySelectorAll(".dot-pulse")].filter((dot) => dot.getAnimations().some((a) => !(a instanceof CSSAnimation))).length);
+  assert.ok(rippling >= 20, `desktop: the dot matrix ripples from the pointer (${rippling} dots)`);
+});
+
+desktop("Services: opening the columns moves no layout box, even with the pointer resting on them through a scroll", async (page) => {
+  const shifts = await recordShifts(page, "#services");
+  const top = await sectionTop(page, "services");
+  await jumpTo(page, top);
+  await page.mouse.move(6, 500);
+  await page.waitForTimeout(900);
+  const columns = page.locator('#services a[data-cursor="Open"]');
+  const centre = async (i) => {
+    const box = await columns.nth(i).boundingBox();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  for (const i of [1, 3, 0, 2]) {
+    const at = await centre(i);
+    await page.mouse.move(at.x, at.y, { steps: 4 });
+    await page.waitForTimeout(700);
+  }
+  // A quick sweep back across the columns interrupts each opening half-way.
+  const from = await centre(2);
+  const to = await centre(0);
+  await page.mouse.move(to.x, from.y, { steps: 12 });
+  await page.waitForTimeout(900);
+  assert.deepEqual(await shifts(), [], "desktop: opening the Services columns, and sweeping across them, shifts no layout");
+  // The pointer rests over the columns while a wheel glide carries the section up under it.
+  const rest = await centre(2);
+  await page.mouse.move(6, rest.y, { steps: 3 });
+  await jumpTo(page, top - 500);
+  await page.waitForTimeout(400);
+  await page.mouse.move(rest.x, rest.y, { steps: 3 });
+  for (let k = 0; k < 6; k++) {
+    await page.mouse.wheel(0, 200);
+    await page.waitForTimeout(250);
+  }
+  await page.waitForTimeout(1500);
+  assert.deepEqual(await shifts(), [], "desktop: a pointer resting on the Services columns through a scroll shifts no layout");
+});
+
+desktop("Process: the timeline draws with the scroll, dots ignite and cards lift in turn", async (page) => {
+  const read = () => page.evaluate(() => ({
+    scale: new DOMMatrixReadOnly(getComputedStyle(document.querySelector("#process [data-timeline]")).transform).a,
+    lit: [...document.querySelectorAll("#process [data-timeline-dot]")].map((dot) => parseFloat(getComputedStyle(dot).opacity)),
+  }));
+  const top = await page.evaluate(() => window.scrollY + document.querySelector("#process [data-timeline]").getBoundingClientRect().top);
+  const at = async (dy) => {
+    await page.evaluate(({ y, dy }) => window.scrollTo({ top: y - innerHeight * 0.8 + dy, behavior: "instant" }), { y: top, dy });
+    await page.waitForTimeout(300);
+    return read();
+  };
+  const start = await at(0);
+  const mid = await at(200);
+  const end = await at(600);
+  const back = await at(200);
+  assert.ok(start.scale < 0.05, `desktop: the line starts undrawn (${start.scale})`);
+  assert.ok(mid.scale > 0.2 && mid.scale < 0.8, `desktop: the line is part-drawn mid-scroll (${mid.scale})`);
+  assert.ok(end.scale > 0.99, `desktop: the line is fully drawn (${end.scale})`);
+  assert.ok(Math.abs(back.scale - mid.scale) < 0.02, "desktop: scrolling back retracts the line");
+  assert.ok(mid.lit[0] > 0.99 && mid.lit.at(-1) < 0.01, `desktop: dots ignite in order (${mid.lit.join(", ")})`);
+  assert.ok(end.lit.every((opacity) => opacity > 0.99), "desktop: every dot is lit at the end");
+});
+
 // --- Run alone ---
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

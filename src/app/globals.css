@@ -588,4 +588,33 @@ html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset:
   ::view-transition-new(*) { animation-duration: 0s !important; animation-delay: 0s !important; }
 }
 
+/* Services (Services.tsx). The desktop accordion's columns keep fixed layout boxes: the row sets each column's
+   opening amount (--fx-sv-<i>, 0 closed to 1 open; registered here, up to the CMS limit of 12 columns, so the
+   amounts transition together) and every column's width and translate follow from them, in units of the row
+   (a size container). Opening a column therefore moves no box. Without @property the amounts jump, and the
+   columns snap open. As a column opens, an orange panel wipes off its image while the image settles. */
+@property --fx-sv-0 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-1 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-2 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-3 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-4 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-5 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-6 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-7 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-8 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-9 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-10 { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --fx-sv-11 { syntax: "<number>"; inherits: true; initial-value: 0; }
+.fx-svc {
+  container-type: inline-size;
+  transition-property: --fx-sv-0, --fx-sv-1, --fx-sv-2, --fx-sv-3, --fx-sv-4, --fx-sv-5, --fx-sv-6, --fx-sv-7, --fx-sv-8, --fx-sv-9, --fx-sv-10, --fx-sv-11;
+  transition-duration: 0.5s;
+  transition-timing-function: var(--fx-ease);
+}
+.fx-reveal-wipe { position: absolute; inset: 0; background: #fa6e43; pointer-events: none; transform: scaleX(0); transform-origin: right; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-wipe { transform: scaleX(1); }
+html[data-fx-motion] [data-active="true"] .fx-reveal-wipe { transition: transform 0.8s var(--fx-ease-io) 0.12s; }
+html[data-fx-motion] .fx-reveal-img { transition: scale 1.2s var(--fx-ease) 0.12s; }
+html[data-fx-motion] [data-active="false"] .fx-reveal-img { scale: 1.12; }
+
 /* === /FX === */
