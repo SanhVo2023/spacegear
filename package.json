@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node --experimental-strip-types scripts/check-content.mjs && next build",
+    "build": "node scripts/build-content-index.mjs && node scripts/build-upload-variants.mjs && node --experimental-strip-types scripts/check-content.mjs && next build",
     "start": "wrangler dev --local --port 8787",
     "lint": "eslint src worker scripts tests \"*.mjs\" \"*.ts\"",
     "build:cf": "npm run build && node scripts/package-site.mjs && node scripts/check-export.mjs",
@@ -18,7 +18,10 @@
     "check:export": "node scripts/check-export.mjs",
     "check:seo": "node scripts/check-seo.mjs",
     "test:browser": "node scripts/browser-check.mjs",
-    "check:fidelity": "node scripts/fidelity-compare.mjs"
+    "check:fidelity": "node scripts/fidelity-compare.mjs",
+    "content:index": "node scripts/build-content-index.mjs",
+    "uploads:variants": "node scripts/build-upload-variants.mjs",
+    "cms:vendor": "node scripts/vendor-sveltia.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -35,8 +38,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ajv": "6.15.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
+    "js-yaml": "4.2.0",
     "miniflare": "5.20261019.0-beta",
     "playwright": "1.64.0-alpha-1790635538000",
     "sharp": "^0.34.5",

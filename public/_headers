@@ -10,3 +10,21 @@
 
 /api/*
   Cache-Control: no-store
+
+# >>> CMS (showcase Part 3): /admin/ runs the vendored Sveltia CMS. It swaps the site CSP for its own
+# and is never indexed. Each directive is explained in README.md, "The admin Content-Security-Policy".
+/admin/*
+  ! Content-Security-Policy
+  ! X-Robots-Tag
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2 https://cdn.jsdelivr.net/fontsource/fonts/noto-mono@5.3.0/latin-400-normal.woff2 https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:vf@5.3.0/latin-wght-normal.woff2; connect-src 'self' blob: data:; media-src 'self' blob:; frame-src blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Robots-Tag: noindex, nofollow
+
+# CMS uploads and their variants. Site pages show them with <img>, which ignores these headers; opened
+# on its own, an upload is a sandboxed document that runs nothing and loads nothing but images from
+# this site, and nosniff (set once, not doubled) keeps a browser from reading it as another type.
+/uploads/*
+  ! Content-Security-Policy
+  ! X-Content-Type-Options
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox
+  X-Content-Type-Options: nosniff
+# <<< CMS

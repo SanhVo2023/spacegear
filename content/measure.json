@@ -1,0 +1,140 @@
+{
+  "illustrative": true,
+  "imageCard": {
+    "img": "/images/suite/shield-core.webp",
+    "accent": "Illustrative",
+    "label": "Example"
+  },
+  "workflow": {
+    "title": "Document Workflow",
+    "sub": "Sample run · illustrative",
+    "center": "62%",
+    "segments": [
+      {
+        "label": "Auto-processed",
+        "value": 62,
+        "color": "#fa6e43"
+      },
+      {
+        "label": "Human review",
+        "value": 29,
+        "color": "#888891"
+      },
+      {
+        "label": "Exceptions",
+        "value": 9,
+        "color": "#434346"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "Intake",
+      "note": "Step 01",
+      "status": "Automated",
+      "detail": "12m → 2m",
+      "hands": [
+        300,
+        65
+      ]
+    },
+    {
+      "name": "Extraction",
+      "note": "Step 02",
+      "status": "Assisted",
+      "detail": "9m → 3m",
+      "hands": [
+        210,
+        150
+      ]
+    },
+    {
+      "name": "Review",
+      "note": "Step 03",
+      "status": "Human-led",
+      "detail": "Kept in control",
+      "hands": [
+        120,
+        20
+      ]
+    }
+  ],
+  "stagesFooter": "Time per case · illustrative",
+  "accuracy": {
+    "label": "Accuracy vs. baseline",
+    "value": "94.6",
+    "unit": "%",
+    "sub": "Example target"
+  },
+  "throughput": {
+    "title": "Cases Handled",
+    "sub": "Assisted vs. manual · example",
+    "legend": [
+      {
+        "value": "+68%",
+        "label": "Assisted"
+      },
+      {
+        "value": "Base",
+        "label": "Manual"
+      }
+    ]
+  },
+  "readiness": {
+    "title": "Rollout Readiness",
+    "sub": "Where a pilot might stand · example",
+    "score": "82",
+    "scoreLabel": "Readiness score",
+    "bars": [
+      {
+        "label": "Data",
+        "v": 38
+      },
+      {
+        "label": "Integration",
+        "v": 79
+      },
+      {
+        "label": "Review",
+        "v": 92
+      },
+      {
+        "label": "Training",
+        "v": 84
+      },
+      {
+        "label": "Monitoring",
+        "v": 96
+      }
+    ]
+  },
+  "coverage": {
+    "tag": "Example evaluation set",
+    "value": "99.1%",
+    "label": "Test-case coverage",
+    "progress": 99.1
+  },
+  "connectors": {
+    "tag": "Connects with your stack",
+    "glyphs": [
+      "◇",
+      "◎",
+      "△",
+      "⬡"
+    ]
+  },
+  "ticker": [
+    "Workflow mapping",
+    "Data readiness review",
+    "AI evaluation",
+    "Human-in-the-loop review",
+    "Systems integration",
+    "Rollout & training",
+    "Monitoring & improvement",
+    "Product delivery"
+  ],
+  "cta": {
+    "label": "See how we evaluate AI",
+    "href": "/services/applied-ai/"
+  }
+}

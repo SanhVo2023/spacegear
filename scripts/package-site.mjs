@@ -17,6 +17,19 @@ for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});
   await fs.cp(path.join(source,name),dest,{recursive:true});
 }
+// >>> CMS (showcase Part 3): ship the CMS uploads, and next to each the variants that the variant
+// step cached for its current bytes: only regular .webp, .png, .jpg, .jpeg, .avif and .gif files with
+// names the site can show, never a dotfile (.gitkeep, the CMS's .sveltia-tmp-*), an SVG, HTML or
+// other file, or a link (scripts/lib/uploads.mjs). They come from public/uploads/, not out/, because
+// next build follows links when it copies public/; the variants come from .cache/upload-variants/.
+const {shipUploads}=await import("./lib/uploads.mjs");
+console.log(`Uploads shipped: ${(await shipUploads("public/uploads",path.join(target,"uploads"),".cache/upload-variants")).length} files.`);
+// Then /admin/ (Task 10): exactly the editor page, config.yml and the pinned Sveltia files, also from
+// public/ for the same reason; a link, an extra file or a changed vendored byte stops packaging
+// (scripts/lib/admin.mjs). public/_headers gives /admin/* and /uploads/* their own policies.
+const {shipAdmin}=await import("./lib/admin.mjs");
+console.log(`Admin shipped: ${(await shipAdmin("public/admin",path.join(target,"admin"),{label:"public/admin"})).length} files.`);
+// <<< CMS
 let headers=await fs.readFile("public/_headers","utf8");
 // Previews add X-Robots-Tag inside the existing /* rule: a second /* rule replaces the first one's
 // headers in the local preview, which then served no CSP or other security headers at all.

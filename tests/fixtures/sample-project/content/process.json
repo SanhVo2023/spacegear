@@ -1,0 +1,48 @@
+{
+  "steps": [
+    {
+      "step": "Step 1",
+      "name": "Assess",
+      "desc": "We map the current workflow, systems, constraints and people involved, and agree the problem before choosing a solution.",
+      "outputs": [
+        "Current-state map",
+        "Problem definition"
+      ]
+    },
+    {
+      "step": "Step 2",
+      "name": "Prioritize",
+      "desc": "We compare opportunities by value, feasibility and dependencies, then agree a baseline and what success means.",
+      "outputs": [
+        "Opportunity shortlist",
+        "Success criteria",
+        "Roadmap"
+      ]
+    },
+    {
+      "step": "Step 3",
+      "name": "Build",
+      "desc": "We test the riskiest assumptions first, then design and engineer in reviewable increments around the real workflow.",
+      "outputs": [
+        "Evaluated prototype",
+        "Tested implementation"
+      ]
+    },
+    {
+      "step": "Step 4",
+      "name": "Adopt",
+      "desc": "We support rollout and handover, document how the system runs, and agree how to measure and improve it.",
+      "outputs": [
+        "Rollout plan",
+        "Operating guide",
+        "Improvement backlog"
+      ]
+    }
+  ],
+  "cta": {
+    "title": "Want to see how this applies to your work?",
+    "text": "Questions about our process? We’re happy to talk it through.",
+    "cta": "Discuss a project",
+    "href": "/contact/"
+  }
+}
