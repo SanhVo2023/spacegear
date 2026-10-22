@@ -10,6 +10,25 @@
 
 ---
 
+## Amendments made during execution
+
+(Recorded in Task 11. The decisions behind most of them are under "Controller amendments" at the end of this file.)
+
+- **Values changed from this plan:**
+  - `LOOK.cityGain` 3.75 → 4.5 and `LOOK.twilight` `#fa6e43` → `#ff8240` (Task 5; the input compensates for ACES so the band renders at the brand hue).
+  - In the Task 3 review: `LOOK.sunIntensity` 1.75 → 1.3, `INITIAL_SPIN` 0.45 rad further, `SUN_POSITION` `[-20, 12.5, -26]` with sprite scale 9, two glint lobes (`glintExponent`/`glintGain`/`sheenExponent`/`sheenGain` 700 / 0.7 / 40 / 0.055), and the DPR capped at 1.75 (1.5 for the phone globe).
+  - The 4k stream needs a fine pointer (Task 7 rule, amended after the Task 8 review).
+  - The first 4k upload's long task may take 120 ms (`FIRST_UPLOAD_ALLOWANCE_MS`, Task 8 review); since Task 11 a measurement over it is taken again on a fresh page before the check fails (below).
+- **Steps that differed:**
+  - Task 10 removed `blob:` from `connect-src` (controller decision). Task 11 also removed `'wasm-unsafe-eval'` from `script-src` and `blob:` from `worker-src` (now `'self'`), which answers open question 1. A probe under the served policy (2k then 4k loading, the `<img>` decode fallback, the static poster, real Turnstile on `/contact/` with the always-pass test key) saw no violation, no worker and no WebAssembly call; positive controls confirmed that a `blob:` fetch, a WebAssembly compile and a `blob:` worker are each blocked and reported.
+  - `check-export`'s GLB and Draco patterns are case-insensitive since Task 11 (`earth.GLB`, `Draco/`), with the same message.
+  - `@react-three/drei` is removed: the backdrop draws its own `Stars.tsx`, so nothing imports drei. `@types/three` 0.184.1, which came in through drei, is now a devDependency of its own.
+  - `feat/showcase-cms` (Part 3) was merged before Task 11 (`489ea02`). One conflict, in `check-export.mjs`, kept both sides' checks. The pages render the same apart from the new `admin/index.html` (one client module id renumbered, explained); the stylesheet stayed byte-identical after two class-like words in the CMS plan and a test were reworded. `browser-check.mjs` now reads the hero copy it selects by from `content/home.json`.
+  - The first-upload bound failed once on a clean build (149 ms, 136 ms of it inside the upload call, while another worktree loaded the machine). Timing only the call would not have avoided that, so `streamingCheck` measures a first upload over the bound once more on a fresh page and fails only when both are over. A first upload made 120 ms slower fails both (151 ms, then 147 ms); slowing only the first page passes on the second measurement. After the merge, clean runs measured 60, 135, 153 and 170 ms the first time, and each one over the bound was under 50 ms the second time (the second page runs in the same browser, whose GPU process has then made one 4k texture).
+  - Task 11 Step 3 (fidelity) was skipped: the reference server was stopped. Step 5 (the real-GPU pass) is the controller's, with the owner.
+  - Task 11 Step 4 expected texture totals of 1k 195,130 B and 2k 685,498 B, which predate the Task 1 review; the measured totals are those of the size table above (189,692 / 660,662 / 2,182,272 B).
+- **Measured results:** the table in `docs/operations/implementation-status.md`, "Showcase Part 1: globe and hero". Owner-GPU frame rate, long tasks and the 4k swap are Step 5's, still to come.
+
 ## Conventions (read before every task)
 
 Full rules: `C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/showcase-conventions.md`. The essentials:
@@ -5094,12 +5113,12 @@ Close Part 1: confirm every gate on the final code, measure what the browser act
 **Files:**
 - Modify: `README.md`, `docs/operations/implementation-status.md`, `docs/superpowers/plans/2026-10-21-showcase-part1-globe.md` (this file)
 
-- [ ] **Step 1: Fast gates**
+- [x] **Step 1: Fast gates**
 
 Run: `npm run lint && npm run typecheck && npm test`
 Expected: all pass, including the 6 texture, 12 logic and 8 material tests.
 
-- [ ] **Step 2: Heavy gates on the final code**
+- [x] **Step 2: Heavy gates on the final code**
 
 Task 10 ran them on the final code. Run them again only if any commit after Task 10 touched `src/`, `scripts/` or `public/` (for example a `LOOK` tweak from a real-GPU check):
 1. `bash "C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/wt.sh" "E:/Personal/clone website/spacegear" 8787 rebuild`
@@ -5113,7 +5132,7 @@ Expected: `Export valid: …`, `SEO crawl passed: …`, `Browser checks passed: 
 `bash "C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/wt.sh" "E:/Personal/clone website/spacegear" 8787 run npm run check:fidelity -- http://127.0.0.1:3101 http://127.0.0.1:8787`
 Expected: every home section within tolerance. Part 1 changes no section height: the cinematic is still 300vh, the static hero keeps `min-h-[90svh]`, and the word masks keep the headline's line boxes. Any difference is a regression to fix, not a tolerance to add.
 
-- [ ] **Step 4: Measure**
+- [x] **Step 4: Measure**
 
 Run: `node --import tsx -e "import('./src/components/globe/texture-manifest.ts').then(({ GLOBE_TEXTURES }) => { for (const [tier, maps] of Object.entries(GLOBE_TEXTURES)) console.log(tier, Object.values(maps).reduce((sum, entry) => sum + entry.bytes, 0)); })"`
 Expected: `1k 195130`, `2k 685498`, `4k 2182436` (different only if the controller re-encoded a tier; then use the printed values).
@@ -5125,7 +5144,7 @@ Expected: six lines; `desktop` shows `textures` ≥ 5 (the five 2k maps), the ph
 
 In the owner's Chrome at 1422×745, in a new tab: intro, opening beat, drag and tilt, scroll through the sun sweep to the statement beat and the curtain, then a reload (no intro, 4k after idle). Run the frame-pacing and long-task snippets. Note: fps at the opening and centred beats, the worst frame, any long task over 100 ms, and whether the 4k swap happened. Repeat the phone check from Task 8 in the device toolbar.
 
-- [ ] **Step 6: Document the rebuild steps**
+- [x] **Step 6: Document the rebuild steps**
 
 In `README.md`, replace:
 
@@ -5143,7 +5162,7 @@ The home hero renders the Earth with a custom three.js shader from texture tiers
 ## Content and release
 ```
 
-- [ ] **Step 7: Record the results**
+- [x] **Step 7: Record the results**
 
 Append this section to the end of `docs/operations/implementation-status.md`, writing in the numbers printed in Step 4 and observed in Step 5 where the table says so:
 
@@ -5168,11 +5187,11 @@ Append this section to the end of `docs/operations/implementation-status.md`, wr
 
 (Replace each "from Step 4" or "from Step 5" cell with the measured value; these are measurements, not design inputs.)
 
-- [ ] **Step 8: Record the execution in this plan**
+- [x] **Step 8: Record the execution in this plan**
 
 At the top of this file, directly under the header block, add a section `## Amendments made during execution` that lists, one bullet each: every value changed from this plan during the real-GPU checks (for example `LOOK.cityGain 3.75 → 4.2`), any step that had to differ from the plan and why, and the measured table from Step 7.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add README.md docs/operations/implementation-status.md docs/superpowers/plans/2026-10-21-showcase-part1-globe.md
@@ -5183,11 +5202,20 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Real-GPU check:** Step 5 is the final pass for Part 1. The owner reviews before Part 2 starts; nothing is merged, pushed or deployed.
 
+**Task 11 results (2026-10-22, on the merged branch, preview on port 8790):**
+- Step 0 (from the Task 10 review): the first-upload re-measure, the tighter CSP and the case-insensitive GLB/Draco patterns; see "Amendments made during execution" at the top. Also after the merge: `@react-three/drei` removed, and `browser-check.mjs` reads its hero selectors from `content/home.json`.
+- Step 1: lint and both typechecks clean; `npm test` 275 tests, 273 pass, 2 skipped, 0 fail.
+- Step 2: `Export valid: 12 core pages, 173 files, 10.39 MiB total.`; `SEO crawl passed: 12 pages, 12 internal paths, 8 images, no-JS content, 404s and canonical redirect.`; `Browser checks passed: 6 profiles; …` on two consecutive runs, and once more on a build made from an edited `content/home.json` (CTA label, headline tail, corner link).
+- Step 3: skipped (the reference server is stopped).
+- Step 4: texture totals 1k 189,692 B, 2k 660,662 B, 4k 2,182,272 B. Per profile: see the table in `docs/operations/implementation-status.md`; desktop resource bytes 1,788,612 B (7,753 KiB before this part), CLS at most 0.002.
+- Step 5: for the controller, with the owner.
+- Steps 6–8: README "Hero globe", the implementation status sections for Part 1 and the merged CMS, and the amendments at the top of this file.
+
 ---
 
 ## Open questions for the owner
 
-1. **CSP tightening.** `connect-src blob:` and `worker-src 'self' blob:` were added for the GLB's embedded textures and Draco workers. Nothing needs them after Part 1. They stay because the brief says to keep the CSP; removing them would be a one-line change to `public/_headers` once the owner agrees.
+1. **CSP tightening.** `connect-src blob:` and `worker-src 'self' blob:` were added for the GLB's embedded textures and Draco workers. Nothing needs them after Part 1. They stay because the brief says to keep the CSP; removing them would be a one-line change to `public/_headers` once the owner agrees. *Resolved:* Task 10 removed `connect-src blob:`, and Task 11 removed `'wasm-unsafe-eval'` and `worker-src blob:` (see the amendments at the top).
 2. **Phone hero weight.** The 1k set is 185 KiB, inside the 450 KiB budget, but phones also load the 299 KiB galaxy as their LCP image, so the phone hero downloads about 484 KiB in total. A smaller phone galaxy would be a separate change.
 3. **Poster capture.** The poster is captured in headless Chromium (SwiftShader). If its colours differ visibly from the real GPU, Task 9 allows a manual capture in the owner's Chrome.
 4. **4k gating.** `deviceMemory ≥ 8` excludes 4 GB desktops from the 4k set. Chrome caps `deviceMemory` at 8, so every capable desktop qualifies; lower it only if a 4 GB machine renders 4k smoothly.

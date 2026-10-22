@@ -175,7 +175,7 @@ Two optional requests are blocked on purpose, and both fail quietly:
 
 DevTools shows them as CSP errors. `npm run test:browser` accepts exactly these two and fails on any other blocked request.
 
-Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The site's own CSP is unchanged: `public/_headers` removes it for `/admin/*` only. The admin policy is pinned twice, in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the export check in the build fail when the two differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
+Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The CMS leaves the site's own CSP alone: `public/_headers` removes it for `/admin/*` only. The admin policy is pinned twice, in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the export check in the build fail when the two differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
 
 ### Uploads are sandboxed
 
@@ -285,7 +285,7 @@ No formal budget is set. Measured on this repository's build:
 
 - **Browser.** The copy and its validation ship in one shared chunk of 35.8 KB (12.0 KB gzipped). The validation added about 13.6 KB (4.8 KB gzipped) and about 6 ms of script evaluation per full page load when the loader replaced the hand-written module.
 - **Worker.** The Worker bundle includes the copy and validates it when it starts. Bundled with esbuild and not minified, it is about 62 KB (17 KB gzipped), against 19 KB before the CMS. Validation takes 6 to 7 ms per cold start.
-- **Export.** `/admin/` adds 5 files and 2.39 MiB, nearly all of it the Sveltia bundle, which only `/admin/` loads. The export is 161 files and 13.92 MiB.
+- **Export.** `/admin/` adds 5 files and 2.39 MiB, nearly all of it the Sveltia bundle, which only `/admin/` loads. The export was 161 files and 13.92 MiB on the CMS branch; merged with the Part 1 globe, which removed the GLB and the Draco decoder, it is 173 files and 10.39 MiB.
 - **Build time.** The upload variant step takes about 65 ms when there are no uploads. With twenty 12-megapixel JPEGs it took 9 s the first time and about 0.15 s when nothing had changed.
 
 If a JavaScript budget is set later, the browser could load a pre-validated data module generated at build time instead.
@@ -293,6 +293,12 @@ If a JavaScript budget is set later, the browser could load a pre-validated data
 ### Tailwind and the docs
 
 Tailwind CSS builds the site stylesheet from class names it finds in any file that Git does not ignore. `content/`, `public/admin/` and the vendored configuration schema are excluded (in `src/app/globals.css`), but `docs/`, the tests and this README are still scanned, so a utility class name written in prose, even inside backticks, adds a rule to the site stylesheet. Do not write class names in documentation, and after editing it, rebuild and compare the stylesheet. Limiting the scan to `src/` is recommended. It is not done yet: excluding `docs/` alone removed 27 rules (old class names quoted in earlier plans), and proving that none of them is used is a separate task.
+
+## Hero globe
+
+The home hero renders the Earth with a custom three.js shader from texture tiers in `public/textures/earth/`: 1k for phones and tablets, 2k for the desktop first frame, and 4k streamed after the intro and an idle moment on desktops with a hardware GPU, a mouse or trackpad, 8 GB of memory (or none reported) and no slow connection. Rebuild the tiers from the preserved model with `node scripts/build-globe-textures.mjs`. It reads `assets/source/earth-4k.glb` (or `public/models/earth-4k.glb` when the local copy is absent) and rewrites `src/components/globe/texture-manifest.ts`. Look-and-feel tunables live in `src/components/globe/constants.ts` and `LOOK` in `src/components/globe/materials.ts`. After a visual change, re-capture the desktop poster with the preview running: `node scripts/capture-hero-poster.mjs http://127.0.0.1:8787` (use your preview's port).
+
+No model, decoder or WebAssembly ships: the export check refuses any `.glb` file and anything under `draco/`, in any letter case, and the site CSP has no `'wasm-unsafe-eval'` and allows workers from the site only.
 
 ## Content and release
 
