@@ -10,7 +10,8 @@ import { contentImage } from "@/lib/content-images";
 import { dictionary, format } from "@/lib/i18n/dictionary";
 import { localizedHref, type Locale } from "@/lib/i18n/locales";
 import { SITE } from "@/lib/site";
-import { breadcrumbData, canonicalUrl } from "@/lib/seo";
+import { breadcrumbData, canonicalUrl, webPageData } from "@/lib/seo";
+import { serviceMetadata } from "@/views/metadata";
 
 export default function ServiceView({ locale, slug }: { locale: Locale; slug: string }) {
   const { PILLARS, SERVICES } = getContent(locale);
@@ -86,6 +87,7 @@ export default function ServiceView({ locale, slug }: { locale: Locale; slug: st
       </section>
       <StructuredData data={{ "@context": "https://schema.org", "@type": "Service", name: service.name, description: service.summary, url: canonicalUrl(localizedHref(`/services/${slug}/`, locale)), provider: { "@id": `${SITE.origin}/#organization` } }} />
       <StructuredData data={breadcrumbData([{ name: t.nav.home, path: "/" }, { name: t.nav.services, path: "/services/" }, { name: service.name, path: `/services/${slug}/` }], locale)} />
+      <StructuredData data={webPageData(serviceMetadata(locale, slug), locale)} />
     </main>
   );
 }

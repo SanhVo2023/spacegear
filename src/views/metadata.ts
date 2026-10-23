@@ -34,7 +34,11 @@ export function serviceMetadata(locale: Locale, slug: string) {
   if (!service) notFound();
   return buildMetadata({ title: service.name, description: service.summary, path: `/services/${slug}/`, locale });
 }
-/** The one 404 page says it in both languages. */
+/**
+ * The one 404 page says it in both languages. Next writes `<meta name="robots" content="noindex">` on every 404
+ * itself, so the layout's robots default is dropped here (two robots tags otherwise; in production they would
+ * disagree). Previews still send X-Robots-Tag: noindex, nofollow (scripts/package-site.mjs).
+ */
 export function notFoundMetadata(): Metadata {
-  return { title: { absolute: `${dictionary("en").notFound.title} · ${dictionary("vi").notFound.title} | ${SITE.name}` } };
+  return { title: { absolute: `${dictionary("en").notFound.title} · ${dictionary("vi").notFound.title} | ${SITE.name}` }, robots: null };
 }

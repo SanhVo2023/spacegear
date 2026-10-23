@@ -1,4 +1,5 @@
 import PageIntro from "@/components/PageIntro";
+import StructuredData from "@/components/StructuredData";
 import ContactForm from "@/components/ContactForm";
 import ContactDetails from "@/components/ContactDetails";
 import { CircleBadge } from "@/components/sections/Faq";
@@ -8,6 +9,8 @@ import { contentImage } from "@/lib/content-images";
 import { dictionary } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/lib/i18n/locales";
 import { SITE } from "@/lib/site";
+import { webPageData } from "@/lib/seo";
+import { contactMetadata } from "@/views/metadata";
 
 export default function ContactView({ locale }: { locale: Locale }) {
   const t = dictionary(locale).contact;
@@ -40,6 +43,7 @@ export default function ContactView({ locale }: { locale: Locale }) {
           </div>
         </Container>
       </section>
+      <StructuredData data={webPageData(contactMetadata(locale), locale)} />
     </main>
   );
 }

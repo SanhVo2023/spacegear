@@ -9,8 +9,11 @@ import Team from "@/components/sections/Team";
 import Testimonials, { hasTestimonials } from "@/components/sections/Testimonials";
 import Labs, { hasLabs } from "@/components/sections/Labs";
 import ScrollProgressRail, { type RailItem } from "@/components/fx/ScrollProgressRail";
+import StructuredData from "@/components/StructuredData";
 import { getContent } from "@/lib/content";
 import type { Locale } from "@/lib/i18n/locales";
+import { webPageData } from "@/lib/seo";
+import { homeMetadata } from "@/views/metadata";
 
 export default function HomeView({ locale }: { locale: Locale }) {
   const { SECTIONS } = getContent(locale);
@@ -44,6 +47,7 @@ export default function HomeView({ locale }: { locale: Locale }) {
           <Testimonials locale={locale} />
           <Labs locale={locale} />
         </div>
+        <StructuredData data={webPageData(homeMetadata(locale), locale)} />
       </main>
     </>
   );

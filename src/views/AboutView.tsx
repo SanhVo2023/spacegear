@@ -1,9 +1,12 @@
 import PageIntro from "@/components/PageIntro";
+import StructuredData from "@/components/StructuredData";
 import DotField from "@/components/DotField";
 import Team from "@/components/sections/Team";
 import { Container, CtaBand } from "@/components/ui";
 import { dictionary } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/lib/i18n/locales";
+import { webPageData } from "@/lib/seo";
+import { aboutMetadata } from "@/views/metadata";
 
 export default function AboutView({ locale }: { locale: Locale }) {
   const t = dictionary(locale).about;
@@ -42,6 +45,7 @@ export default function AboutView({ locale }: { locale: Locale }) {
           <CtaBand title={t.ctaTitle} text={t.ctaText} cta={t.ctaButton} href="/approach/" locale={locale} />
         </Container>
       </section>
+      <StructuredData data={webPageData(aboutMetadata(locale), locale)} />
     </main>
   );
 }

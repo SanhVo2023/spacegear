@@ -6,7 +6,8 @@ import { getContent, serviceFor } from "@/lib/content";
 import { contentImage } from "@/lib/content-images";
 import { dictionary } from "@/lib/i18n/dictionary";
 import { localizedHref, type Locale } from "@/lib/i18n/locales";
-import { breadcrumbData } from "@/lib/seo";
+import { breadcrumbData, webPageData } from "@/lib/seo";
+import { servicesMetadata } from "@/views/metadata";
 
 export default function ServicesView({ locale }: { locale: Locale }) {
   const t = dictionary(locale);
@@ -60,6 +61,7 @@ export default function ServicesView({ locale }: { locale: Locale }) {
         </Container>
       </section>
       <StructuredData data={breadcrumbData([{ name: t.nav.home, path: "/" }, { name: t.nav.services, path: "/services/" }], locale)} />
+      <StructuredData data={webPageData(servicesMetadata(locale), locale)} />
     </main>
   );
 }
