@@ -28,6 +28,8 @@ const TEXT_FIELDS = ["title", "summary", "coverAlt", "body"] as const;
 const SHARED_FIELDS = ["cover", "date", "updated", "author"] as const;
 // The original site's stock art: its Labs article images and its review portraits. An article shows its own image.
 const STOCK_COVER = /^\/images\/(?:labs|reviews|team)\//;
+/** The summary is the article page's description (search results, link previews), and check-seo wants at least this. */
+export const SUMMARY_MIN = 50;
 
 /** The front matter, in the order the CMS writes it. Text may be empty in a language the article is not written in. */
 export const articleSchema = object({
@@ -101,6 +103,8 @@ export function labsProblems(files: ArticleFile[], { production = false }: { pro
       const empty = TEXT_FIELDS.filter((field) => item.data[field] === "");
       if (item.filled && empty.length) problems.push(`${item.file}: ${empty.join(", ")} ${empty.length === 1 ? "is" : "are"} empty; an article needs a title, a summary, a cover description and its text`);
       if (!item.filled && empty.length < TEXT_FIELDS.length) problems.push(`${item.file}: the title is empty but other text is filled in; give the article a title, or empty its text in this language`);
+      const summaryLength = [...item.data.summary.trim()].length;
+      if (item.filled && summaryLength > 0 && summaryLength < SUMMARY_MIN) problems.push(`${item.file}: summary has ${summaryLength} characters; write at least ${SUMMARY_MIN} (one or two sentences): it is the page's description in search results and link previews`);
       if (DATE.test(item.data.date) && !realDate(item.data.date)) problems.push(`${item.file}: date ${item.data.date} is not a real date`);
       if (item.data.updated && DATE.test(item.data.updated) && !realDate(item.data.updated)) problems.push(`${item.file}: updated ${item.data.updated} is not a real date`);
       if (item.data.updated && item.data.updated < item.data.date) problems.push(`${item.file}: updated (${item.data.updated}) is before the publication date (${item.data.date})`);

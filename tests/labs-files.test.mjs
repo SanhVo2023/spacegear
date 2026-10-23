@@ -19,12 +19,12 @@ function project(files) {
   }
   return root;
 }
-const article = ({ title = "Measuring a document workflow", summary = "How we agree on the measures before we build.", cover = "/images/suite/neural-net.webp", coverAlt = "A neural network diagram", date = "2026-10-20", updated = "", author = "Lan Nguyen", body = "## Why measure\n\nA pilot needs a baseline." } = {}) =>
+const article = ({ title = "Measuring a document workflow", summary = "How we agree on the measures with a client before we build anything.", cover = "/images/suite/neural-net.webp", coverAlt = "A neural network diagram", date = "2026-10-20", updated = "", author = "Lan Nguyen", body = "## Why measure\n\nA pilot needs a baseline." } = {}) =>
   `---\ntitle: ${JSON.stringify(title)}\nsummary: ${JSON.stringify(summary)}\ncover: ${cover}\ncoverAlt: ${JSON.stringify(coverAlt)}\ndate: ${date}\nupdated: ${JSON.stringify(updated)}\nauthor: ${JSON.stringify(author)}\n---\n\n${body}\n`;
 const blank = (fields = {}) => article({ title: "", summary: "", coverAlt: "", body: "", ...fields });
 
 test("reads both languages; the slug is the file name; dates stay text", () => {
-  const root = project({ "content/articles/measuring.md": article(), "content/vi/articles/measuring.md": article({ title: "Đo lường một quy trình hồ sơ", summary: "Cách hai bên thống nhất chỉ số trước khi xây dựng.", coverAlt: "Sơ đồ mạng nơ-ron", body: "## Vì sao cần đo\n\nMột dự án thí điểm cần mốc cơ sở." }) });
+  const root = project({ "content/articles/measuring.md": article(), "content/vi/articles/measuring.md": article({ title: "Đo lường một quy trình hồ sơ", summary: "Cách hai bên thống nhất các chỉ số đo lường trước khi bắt đầu xây dựng.", coverAlt: "Sơ đồ mạng nơ-ron", body: "## Vì sao cần đo\n\nMột dự án thí điểm cần mốc cơ sở." }) });
   try {
     const { files, issues } = readArticleFiles(root);
     assert.deepEqual(issues, []);
@@ -48,7 +48,7 @@ test("a Windows checkout (CRLF line ends, a byte order mark) reads the same; dot
 
 test("an article may exist in one language: English only, or Vietnamese only (the CMS keeps an empty English file)", () => {
   const english = project({ "content/articles/only-en.md": article() });
-  const vietnamese = project({ "content/articles/only-vi.md": blank(), "content/vi/articles/only-vi.md": article({ title: "Chỉ có tiếng Việt", summary: "Một bài viết chỉ có bản tiếng Việt.", coverAlt: "Sơ đồ", body: "## Mở đầu\n\nNội dung." }) });
+  const vietnamese = project({ "content/articles/only-vi.md": blank(), "content/vi/articles/only-vi.md": article({ title: "Chỉ có tiếng Việt", summary: "Một bài viết chỉ có bản tiếng Việt, không kèm bản tiếng Anh nào cả.", coverAlt: "Sơ đồ", body: "## Mở đầu\n\nNội dung." }) });
   try {
     assert.deepEqual(labsLocales(english), ["en"]);
     assert.deepEqual(labsLocales(vietnamese), ["vi"]);
@@ -73,9 +73,10 @@ test("newest first, then by slug", () => {
   try { assert.deepEqual(publishedArticles(readArticleFiles(root).files, "en").map((f) => f.slug), ["a", "c", "b"]); } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("refuses half-filled languages, empty articles, a missing English file, shared fields that differ, bad dates, stock covers and bad names", () => {
+test("refuses half-filled languages, short summaries, empty articles, a missing English file, shared fields that differ, bad dates, stock covers and bad names", () => {
   const root = project({
     "content/articles/half.md": article({ summary: "" }),
+    "content/articles/short.md": article({ summary: "Too short for a search snippet." }),
     "content/articles/empty.md": blank(),
     "content/vi/articles/vi-off.md": blank(),
     "content/articles/vi-off.md": article(),
@@ -95,6 +96,7 @@ test("refuses half-filled languages, empty articles, a missing English file, sha
     const problems = [...issues, ...labsProblems(files, { production: true })];
     for (const expected of [
       "content/articles/half.md: summary is empty",
+      "content/articles/short.md: summary has 31 characters; write at least 50",
       "content/articles/empty.md: has no text in either language",
       "content/vi/articles/vi-off.md: has no Vietnamese text",
       "content/articles/no-english.md is missing",
@@ -162,7 +164,7 @@ test("check-content checks the articles: front matter, the language rules, cover
     const listed = (result) => result.stderr.split(/\r?\n/).filter((line) => line.startsWith("  - ")).map((line) => line.slice(4));
 
     write("content/articles/measuring.md", article());
-    write("content/vi/articles/measuring.md", article({ title: "Đo lường một quy trình hồ sơ", summary: "Cách hai bên thống nhất chỉ số trước khi xây dựng.", coverAlt: "Sơ đồ mạng nơ-ron", body: "## Vì sao cần đo\n\nMột dự án thí điểm cần mốc cơ sở." }));
+    write("content/vi/articles/measuring.md", article({ title: "Đo lường một quy trình hồ sơ", summary: "Cách hai bên thống nhất các chỉ số đo lường trước khi bắt đầu xây dựng.", coverAlt: "Sơ đồ mạng nơ-ron", body: "## Vì sao cần đo\n\nMột dự án thí điểm cần mốc cơ sở." }));
     let result = run();
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Content valid: 12 routes; preview mode\./);

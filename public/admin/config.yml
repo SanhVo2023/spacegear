@@ -749,7 +749,7 @@ collections:
     sortable_fields: { fields: [date, title], default: { field: date, direction: descending } }
     fields:
       - { name: title, label: Title, widget: string, maxlength: 120, required: false, i18n: true, use_emoji_autocomplete: false }
-      - { name: summary, label: Summary, widget: text, maxlength: 200, required: false, i18n: true, hint: "One or two sentences for the index, the home page and search results.", use_emoji_autocomplete: false }
+      - { name: summary, label: Summary, widget: text, maxlength: 200, required: false, i18n: true, hint: "One or two sentences, at least 50 characters, for the index, the home page and search results (it is the page's description).", use_emoji_autocomplete: false }
       # The shared image pattern (&image_pattern, at "Home: What We Measure"): it also accepts a file being uploaded.
       - { name: cover, label: Cover image, widget: image, choose_url: true, i18n: duplicate, hint: "The article's own image, uploaded here; it is also the social preview.", pattern: *image_pattern }
       - { name: coverAlt, label: Cover description, widget: string, maxlength: 160, required: false, i18n: true, hint: "Describe the cover for screen readers.", use_emoji_autocomplete: false }

@@ -9,6 +9,7 @@ const { blogPostingData } = await import("../src/lib/seo.ts");
 const { imageSizeOf, siteImageSize } = await import("../src/lib/image-size.ts");
 const meta = await import("../src/views/metadata.ts");
 const { default: nextConfig } = await import("../next.config.ts");
+const { labsLocales } = await import("../src/lib/labs-files.ts");
 
 function project(files) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-labs-pages-"));
@@ -139,7 +140,10 @@ test("the Labs index: the section's copy as its description, its feed linked, a 
 });
 
 test("the Labs routes exist only for languages with articles (pageExtensions), and the route files are twins", () => {
-  assert.deepEqual(nextConfig.pageExtensions, ["tsx", "ts", "jsx", "js"], "no article is committed, so no Labs route");
+  // The committed articles decide it (labs-files.test.mjs proves labsLocales on temporary projects): a language
+  // without a published article adds no Labs extension, so it has no Labs route.
+  const languages = labsLocales();
+  assert.deepEqual(nextConfig.pageExtensions, ["tsx", "ts", "jsx", "js", ...languages.flatMap((locale) => [`${locale}-labs.tsx`, `${locale}-labs.ts`])], `Labs routes for ${languages.join(" and ") || "no language"}`);
   for (const page of ["labs/page", "labs/[slug]/page"]) {
     const english = fs.readFileSync(`src/app/(en)/${page}.en-labs.tsx`, "utf8");
     assert.equal(fs.readFileSync(`src/app/(vi)/vi/${page}.vi-labs.tsx`, "utf8"), english.replaceAll('"en"', '"vi"').replace("English has", "Vietnamese has").replace("en-labs", "vi-labs"), page);

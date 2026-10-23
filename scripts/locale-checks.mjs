@@ -21,6 +21,9 @@
 //   with and without JavaScript (and from the phone menu) through ?lang= and the sg_lang cookie;
 // - the redirect: a visitor from Vietnam (x-sg-test-country, which only the local preview honours) or with a
 //   Vietnamese browser lands on the /vi/ twin when it exists; the cookie wins; a /vi/ URL is never moved.
+// Labs pages (Part 3) are in the sitemap only for a language with articles, and an article may exist in one
+// language only: the Vietnamese Labs pages go through every check above, and an English-only article keeps a
+// visitor from Vietnam on it (it has no twin to land on).
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -463,11 +466,21 @@ function englishStrings() {
   return [...new Set(out)];
 }
 
-/** The sitemap's routes, by language. */
+const LABS = /^\/(?:vi\/)?labs\//;
+
+/** The sitemap's routes, by language, and the English Labs articles that have no Vietnamese version. */
 async function sitemapRoutes(base) {
   const xml = await (await fetch(new URL("/sitemap.xml", base))).text();
-  const paths = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => new URL(match[1]).pathname);
-  return { vi: paths.filter((path) => path.startsWith("/vi/")), en: paths.filter((path) => !path.startsWith("/vi/")) };
+  const entries = xml.split("<url>").slice(1).map((entry) => ({
+    path: new URL(entry.match(/<loc>([^<]+)<\/loc>/)[1]).pathname,
+    languages: [...entry.matchAll(/<xhtml:link rel="alternate" hreflang="([^"]+)"/g)].map((match) => match[1]),
+  }));
+  const paths = entries.map((entry) => entry.path);
+  return {
+    vi: paths.filter((path) => path.startsWith("/vi/")),
+    en: paths.filter((path) => !path.startsWith("/vi/")),
+    englishOnly: entries.filter((entry) => /^\/labs\/[^/]+\/$/.test(entry.path) && !entry.languages.includes("vi")).map((entry) => entry.path),
+  };
 }
 
 /** Steps through the page so in-view effects run, then back to the top, and waits for the last ones to land. */
@@ -525,7 +538,10 @@ export async function localeChecks(browser, base, { log = () => {} } = {}) {
   done.push = (...lines) => { lines.forEach((line) => log(line)); return Array.prototype.push.apply(done, lines); };
   const leaks = englishStrings();
   const routes = await sitemapRoutes(base);
-  assert.ok(routes.vi.length >= 12 && routes.vi.length === routes.en.length, `the sitemap lists every page in both languages (${routes.en.length} English, ${routes.vi.length} Vietnamese)`);
+  const core = { vi: routes.vi.filter((path) => !LABS.test(path)), en: routes.en.filter((path) => !LABS.test(path)) };
+  assert.ok(core.vi.length >= 12 && core.vi.length === core.en.length, `the sitemap lists every core page in both languages (${core.en.length} English, ${core.vi.length} Vietnamese)`);
+  const viLabs = routes.vi.filter((path) => LABS.test(path)).length;
+  if (viLabs) done.push(`locale: the Vietnamese pages include ${viLabs} Labs page${viLabs === 1 ? "" : "s"} (the index and ${viLabs - 1} article${viLabs === 2 ? "" : "s"})`);
   const t = dictionary("vi");
 
   // 1. The fine-pointer desktop with motion (split titles, the pinned hero, the cursor), after every reveal has
@@ -724,6 +740,11 @@ export async function localeChecks(browser, base, { log = () => {} } = {}) {
     assert.equal((await get("/no-such-page/", { "x-sg-test-country": "VN" })).status, 404, "no twin, no redirect");
     assert.equal((await get("/about/", { "x-sg-test-country": "US" })).status, 200, "a visitor from elsewhere stays on English");
     assert.equal((await get("/about/")).status, 200, "the preview ignores its cached request.cf");
+    for (const article of routes.englishOnly) {
+      assert.equal((await get(article, { "x-sg-test-country": "VN" })).status, 200, `${article}: a visitor from Vietnam stays on an English-only article (no twin)`);
+      assert.equal((await get(article, { "accept-language": "vi-VN,vi;q=0.9" })).status, 200, `${article}: so does a Vietnamese browser`);
+    }
+    if (routes.englishOnly.length) done.push(`locale: ${routes.englishOnly.length} English-only Labs article(s) keep a visitor from Vietnam or with a Vietnamese browser on them`);
     done.push(`locale: ?lang= stores sg_lang for a year${secure ? "" : " (not Secure on the plain-http loopback preview)"} and lands on the twin or the language's home; VN or a Vietnamese first language lands on an existing /vi/ twin (no-store, Vary); the cookie wins; /vi/ URLs are never moved`);
   }
 
