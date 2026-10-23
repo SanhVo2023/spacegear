@@ -9,10 +9,15 @@ if(process.env.SITE_MODE==="production") {
 }
 await fs.mkdir(target,{recursive:true});
 const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms","vi"];
+// Labs (Part 3): out/labs/ exists only when English has a published article (next.config.ts), and then ships as a
+// whole: its index, its articles and its feed (labs/rss.xml). /vi/labs/ ships inside "vi". check-export compares
+// what shipped with the published articles (scripts/lib/labs-export.mjs).
+const {labsPages}=await import("./lib/labs-export.mjs");
+if(await fs.stat(path.join(source,"labs")).then(stat=>stat.isDirectory(),()=>false))roots.push("labs");
 // The hero globe's texture tiers (scripts/build-globe-textures.mjs): 1k phones, 2k desktop first frame, 4k streamed.
 const globeTextures=["1k","2k","4k"].flatMap(tier=>["day","night","normal","spec","clouds"].map(map=>`textures/earth/${tier}/${map}.webp`));
 const assets=["apple-icon.png","icon.svg","favicon.ico","icon-192.png","icon-512.png","icon-maskable-512.png","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/hero-poster-3840w.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","seo/og.png",...globeTextures];
-const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|manifest\.webmanifest|__next\..*\.txt)$/.test(name));
+const files=(await fs.readdir(source)).filter(name=>/^(index\.(html|txt)|404\.html|robots\.txt|sitemap\.xml|llms\.txt|manifest\.webmanifest|__next\..*\.txt)$/.test(name));
 for(const name of [...roots,...assets,...files]) {
   const dest=path.join(target,name);await fs.mkdir(path.dirname(dest),{recursive:true});
   await fs.cp(path.join(source,name),dest,{recursive:true});
@@ -40,8 +45,8 @@ if(process.env.SITE_MODE!=="production"){
 }
 await fs.writeFile(path.join(target,"_headers"),headers);
 const pages=["services","services/digital-transformation","services/ai-strategy","services/applied-ai","services/automation-integration","services/product-delivery","about","approach","contact","privacy","terms"];
-// Both languages: /vi/ mirrors every English page.
-const routes=[...pages,"vi",...pages.map(route=>`vi/${route}`)];
+// Both languages: /vi/ mirrors every English page. Then the Labs pages that were exported, in each language.
+const routes=[...pages,"vi",...pages.map(route=>`vi/${route}`),...labsPages(source)];
 const redirects=["/index.html / 301",...routes.flatMap(route=>[`/${route} /${route}/ 301`,`/${route}/index.html /${route}/ 301`])];
 await fs.writeFile(path.join(target,"_redirects"),redirects.join("\n")+"\n");
 await fs.mkdir("artifacts",{recursive:true});

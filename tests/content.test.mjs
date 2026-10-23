@@ -8,13 +8,14 @@ import { contentFiles, findForbidden, scanContentTree, scanExports, scanFile } f
 import { pathsFromRoot } from "../scripts/lib/project-path.mjs";
 import { COLLECTIONS, listEntries } from "../scripts/build-content-index.mjs";
 import { SAMPLE_ROOT, copySampleContent, readContentInput } from "./helpers/content.mjs";
+import { projectTempDir, removeProjectTemp } from "./helpers/project-temp.mjs";
 
 const content = await import("../src/lib/content.ts");
 const { buildContent, SINGLETON_FILES } = await import("../src/lib/content-model.ts");
 // Tests that change entries by name work on the frozen sample, never on the live copy.
 const SAMPLE_CONTENT = path.join(SAMPLE_ROOT, "content");
 
-const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "ARTICLES", "FOOTER", "SERVICES", "serviceBySlug"];
+const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "FOOTER", "SERVICES", "serviceBySlug"];
 
 test("every public content export exists", () => {
   for (const key of PUBLIC_KEYS) assert.ok(key in content, `${key} is exported`);
@@ -216,9 +217,11 @@ test("a price written into a legal page fails the file scan (temporary copy)", (
 
 // scripts/check-content.mjs runs before every build. It is run here on a temporary copy of the
 // files it needs, from a folder without content/, so it must find the project from its own location.
-// It checks that every image the content names exists, so public/images/ is copied too.
+// It checks that every image the content names exists, so public/images/ is copied too. It reads the
+// Labs articles with js-yaml, so the copy sits inside the repository, where packages resolve from
+// node_modules (tests/helpers/project-temp.mjs).
 test("check-content passes the committed content and lists every problem by file, field and fix, without a stack trace", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "spacegear-check-"));
+  const root = projectTempDir("spacegear-check-");
   try {
     for (const dir of ["src/lib", "scripts/lib", "public/images"]) fs.cpSync(dir, path.join(root, dir), { recursive: true });
     for (const file of ["scripts/check-content.mjs", "scripts/build-content-index.mjs"]) fs.copyFileSync(file, path.join(root, file));
@@ -318,7 +321,7 @@ test("check-content passes the committed content and lists every problem by file
     assert.equal(result.status, 1);
     assert.ok(listed(result).some((problem) => problem.startsWith("SyntaxError: ")), result.stderr);
     assert.match(result.stderr, /^\s+at .*src\/lib\/content\.ts:\d+/m, "the stack names the file");
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally { removeProjectTemp(root); }
 });
 
 test("paths under the project print from it, case-insensitively on Windows only", () => {
@@ -385,14 +388,15 @@ test("the team section shows roles, not invented people", () => {
   if (content.FOUNDER) assert.ok(content.FOUNDER.name && content.FOUNDER.img && content.FOUNDER.bio, "founder card needs a real name, photo and bio");
 });
 
-test("testimonials and articles only hold publishable entries", () => {
+test("testimonials only hold publishable entries", () => {
   for (const item of content.TESTIMONIALS) {
     assert.equal(item.permissionConfirmed, true);
     assert.ok(item.name && item.company && item.quote && item.img);
   }
-  for (const article of content.ARTICLES) {
-    assert.ok(article.href && article.title && article.author);
-  }
+});
+
+test("the old link-card articles collection is gone (Labs articles are Markdown files)", () => {
+  assert.equal("ARTICLES" in content, false);
 });
 
 test("sample preview data is not part of public content", () => {

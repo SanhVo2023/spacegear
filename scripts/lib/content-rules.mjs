@@ -115,14 +115,11 @@ export function illustrativeProblems({ SECTIONS, MEASURE }, locale = "en") {
 }
 
 /**
- * Testimonials and articles use their own images, not the original site's stock reviews and labs
- * art. Only the testimonials the site shows (permission confirmed) are in the export.
+ * Testimonials use their own photos, not the original site's stock reviews. Only the testimonials
+ * the site shows (permission confirmed) are in the export.
  */
-export function stockImageProblems({ TESTIMONIALS, ARTICLES }) {
-  return [
-    ...TESTIMONIALS.filter((item) => /images\/reviews\//.test(item.img)).map((item) => `content/testimonials: the testimonial by ${quote(item.name)} uses a stock portrait (${item.img}); use the client's own approved photo`),
-    ...ARTICLES.filter((article) => /images\/labs\//.test(article.img)).map((article) => `content/articles: ${quote(article.title)} uses a stock image (${article.img}); use the article's own image`),
-  ];
+export function stockImageProblems({ TESTIMONIALS }) {
+  return TESTIMONIALS.filter((item) => /images\/reviews\//.test(item.img)).map((item) => `content/testimonials: the testimonial by ${quote(item.name)} uses a stock portrait (${item.img}); use the client's own approved photo`);
 }
 
 /**

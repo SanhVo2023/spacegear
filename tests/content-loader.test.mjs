@@ -116,19 +116,13 @@ test("service art and pillar summaries are derived from the service entry", () =
   assert.equal(PILLARS.find((pillar) => pillar.slug === "applied-ai").desc, "A changed summary.");
 });
 
-test("FAQ questions, engagement names and article slugs are unique, naming the file and the duplicate", () => {
+test("FAQ questions and engagement names are unique, naming the file and the duplicate", () => {
   const input = fresh();
   const question = entry(input, "faqs", "what-we-do.json").question;
   entry(input, "faqs", "where-to-start.json").question = question;
   const name = entry(input, "engagements", "assess.json").name;
   entry(input, "engagements", "build.json").name = name;
-  const article = { slug: "first-note", author: "Ada Writer", title: "A first note", sub: "What we learned.", img: "/uploads/note.webp", href: "/insights/first-note/", order: 1 };
-  input.collections.articles = [
-    { file: "first-note.json", data: article },
-    { file: "second-note.json", data: { ...article, title: "A second note", order: 2 } },
-  ];
   assert.deepEqual(issuesOf(input).sort(), [
-    'content/articles/second-note.json: slug "first-note" is already used by first-note.json; give every entry its own slug',
     `content/engagements/build.json: name ${JSON.stringify(name)} is already used by assess.json; give every entry its own name`,
     `content/faqs/where-to-start.json: question ${JSON.stringify(question)} is already used by what-we-do.json; give every entry its own question`,
   ]);

@@ -9,6 +9,9 @@ import { validatePublication } from "../src/lib/publication.ts";
 import { parseContent } from "../src/lib/content-schema.ts";
 import { siteSchema } from "../src/lib/content-model.ts";
 import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
+import { labsProblems, readArticleFiles } from "../src/lib/labs-files.ts";
+import { markdownProblems } from "../src/lib/markdown.ts";
+import { siteImageSize } from "../src/lib/image-size.ts";
 import { contentParityProblems } from "../src/lib/content-parity.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
@@ -83,6 +86,26 @@ for (const page of LEGAL_PAGES) {
   const translated = await attempt(() => legalSections(page, ROOT, "vi"));
   if (english && translated && english.length !== translated.length) errors.push(`content/vi/legal/${page}.md has ${translated.length} sections, but content/legal/${page}.md has ${english.length}: translate every section`);
 }
+// Labs articles (content/articles, content/vi/articles; src/lib/labs-files.ts): front matter, the per-language
+// rules, their bodies (src/lib/markdown.ts) and their images, named by file. Their text in both languages goes
+// through the honesty scan below. Links in a body to unknown site pages are not refused here (a path in the other
+// language's Labs may not exist yet): check-seo's crawl finds any broken link.
+await attempt(() => {
+  const { files, issues } = readArticleFiles(ROOT);
+  errors.push(...issues, ...labsProblems(files, { production: mode === "production" }));
+  for (const item of files) errors.push(...markdownProblems(item.data.body, item.file));
+  const covers = Object.fromEntries(files.map((item) => [item.file, item.data.cover]));
+  for (const problem of imageReferenceProblems(covers)) errors.push(`image path in a Labs article ${problem}`);
+  const bodyImages = Object.fromEntries(files.map((item) => [item.file, [...item.data.body.matchAll(/!\[[^\]]*\]\(([^)\s]+)/g)].map((match) => match[1])]));
+  for (const missing of missingImageFiles({ covers, bodyImages }, path.join(ROOT, "public"), CACHE_DIR)) errors.push(missing.endsWith(")") ? `missing image variant: ${missing}` : `missing image: public${missing}`);
+  // The pages give every cover and body image its width and height (src/lib/image-size.ts), so that nothing moves
+  // when it loads: an image that is there but whose size cannot be read is refused.
+  for (const item of files) {
+    for (const src of new Set([item.data.cover, ...bodyImages[item.file]])) {
+      if (/^\/(?:images|uploads)\/[\w./-]+$/.test(src) && fs.existsSync(path.join(ROOT, "public", src)) && !siteImageSize(src, ROOT)) errors.push(`${item.file}: the size of ${src} cannot be read from the file; export it again as WebP, PNG or JPEG`);
+    }
+  }
+});
 // content/vi/ mirrors content/: the same files and entries, and only text may differ (src/lib/content-parity.ts).
 await attempt(() => { errors.push(...contentParityProblems(readLocaleFiles(ROOT, "content"), readLocaleFiles(ROOT, "content/vi"))); });
 let routes = [];

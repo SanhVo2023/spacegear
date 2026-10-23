@@ -1,7 +1,6 @@
 {
   "exports": [
     "APPROACH_STEPS",
-    "ARTICLES",
     "CASE_STUDIES",
     "CONTENT_DIRS",
     "CORE_PANEL",
@@ -75,7 +74,6 @@
         ]
       }
     ],
-    "ARTICLES": [],
     "CASE_STUDIES": [],
     "CONTENT_DIRS": {
       "en": "content",
@@ -613,7 +611,7 @@
         "description": "Published with each client’s permission."
       },
       "labs": {
-        "title": "Spacegear Labs",
+        "title": "spacegear Labs",
         "index": "009",
         "heading": "Practical notes on transformation, AI and the systems behind everyday work.",
         "description": "Explainers and field notes from our work."

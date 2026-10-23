@@ -36,7 +36,7 @@ import { buildContent } from "./content-model.ts";
 import type { ContentInput, Service } from "./content-model.ts";
 import type { Locale } from "./i18n/locales.ts";
 
-export type { Article, Engagement, FooterLink, Person, Pillar, ProcessStep, SectionCopy, Service, Stat, Testimonial, WorkTile } from "./content-model.ts";
+export type { Engagement, FooterLink, Person, Pillar, ProcessStep, SectionCopy, Service, Stat, Testimonial, WorkTile } from "./content-model.ts";
 /** One language's copy: the English exports' names and shapes (SERVICES, HOME, SECTIONS, …). */
 export type SiteContent = ReturnType<typeof buildContent>;
 
@@ -102,5 +102,4 @@ export const FOUNDER = content.FOUNDER;
 export const TEAM = content.TEAM;
 export const TEAM_ROLES = content.TEAM_ROLES;
 export const TESTIMONIALS = content.TESTIMONIALS;
-export const ARTICLES = content.ARTICLES;
 export const FOOTER = content.FOOTER;

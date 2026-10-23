@@ -49,6 +49,9 @@ const CSP = "content-security-policy";
 export const ADMIN_HEADERS = { [CSP]: ADMIN_CSP, "x-robots-tag": "noindex, nofollow", "x-content-type-options": "nosniff", "x-frame-options": "DENY" };
 /** The same for every /uploads/ path. */
 export const UPLOADS_HEADERS = { [CSP]: UPLOADS_CSP, "x-content-type-options": "nosniff", "x-frame-options": "DENY" };
+/** The Labs feeds (Part 3), one per language: RSS, not the generic XML type the asset would get from its extension. */
+export const FEEDS = ["/labs/rss.xml", "/vi/labs/rss.xml"];
+export const FEED_HEADERS = { "content-type": "application/rss+xml; charset=utf-8" };
 const PINNED_NAMES = new Map([[ADMIN_CSP, "ADMIN_CSP (scripts/lib/headers.mjs)"], [UPLOADS_CSP, "UPLOADS_CSP (scripts/lib/headers.mjs)"]]);
 
 const MAX_LINE_LENGTH = 2000;
@@ -232,7 +235,7 @@ export function sitePaths(root) {
 }
 
 /** Paths checked even when nothing ships there (no upload yet), or that sit next to a CMS prefix. */
-const PROBES = ["/", "/privacy/", "/_next/static/chunks/probe.js", "/admin/", "/admin/config.yml", "/admin", "/administrator/", "/uploads/probe.webp", "/uploads/folder/probe.jpg.w640.webp", "/uploads", "/uploadsx/"];
+const PROBES = ["/", "/privacy/", "/_next/static/chunks/probe.js", "/admin/", "/admin/config.yml", "/admin", "/administrator/", "/uploads/probe.webp", "/uploads/folder/probe.jpg.w640.webp", "/uploads", "/uploadsx/", ...FEEDS, "/labs/", "/labs/rss.xml/"];
 const headerName = (name) => name.replace(/(^|-)([a-z])/g, (_, dash, letter) => dash + letter.toUpperCase());
 
 /**
@@ -241,7 +244,7 @@ const headerName = (name) => name.replace(/(^|-)([a-z])/g, (_, dash, letter) => 
  * must come after `/*`; every `/admin/` path must get exactly ADMIN_HEADERS and every `/uploads/` path
  * exactly UPLOADS_HEADERS, each once, plus every other header `/*` sets, unchanged; and every other
  * path in `paths` (URL paths, see sitePaths) must get exactly the site CSP of the `/*` rule, whatever
- * that is, and nosniff.
+ * that is, and nosniff. The two Labs feeds (FEEDS) get FEED_HEADERS, and no other path a Content-Type.
  */
 export function headerProblems(text, paths = []) {
   const { rules, invalid, notes } = parseHeaders(text);
@@ -277,6 +280,8 @@ export function headerProblems(text, paths = []) {
       want({ [CSP]: site[CSP] }, () => " instead of exactly the site policy (/*)");
       want({ "x-content-type-options": "nosniff" });
     }
+    if (FEEDS.includes(pathname)) want(FEED_HEADERS);
+    else want({ "content-type": undefined }, () => ", not the asset's own type");
   }
   for (const [fault, where] of faults) {
     const named = where.length > 3 ? `${where.slice(0, 3).join(", ")} and ${where.length - 3} more paths` : where.join(", ");

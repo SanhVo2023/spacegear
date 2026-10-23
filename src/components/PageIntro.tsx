@@ -9,12 +9,15 @@ export default function PageIntro({
   description,
   back,
   locale = "en",
+  titleClassName = "text-[clamp(32px,6vw,72px)]",
 }: {
   eyebrow: string;
   title: string;
   description: string;
   back?: { href: string; label: string };
   locale?: Locale;
+  /** The H1's size (and any class the page adds to it); a Labs article's long title sets a smaller one. */
+  titleClassName?: string;
 }) {
   const link = back ?? { href: "/", label: dictionary(locale).pageIntro.back };
   return (
@@ -28,7 +31,7 @@ export default function PageIntro({
           {eyebrow}
         </span>
       </div>
-      <h1 className="display mt-6 max-w-3xl break-words text-[clamp(32px,6vw,72px)] text-ink">{title}</h1>
+      <h1 className={`display mt-6 max-w-3xl break-words ${titleClassName} text-ink`}>{title}</h1>
       <p className="mt-5 max-w-xl text-[16px] leading-relaxed text-mut-2">{description}</p>
     </>
   );

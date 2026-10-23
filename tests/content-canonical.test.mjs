@@ -19,7 +19,7 @@ test("folder-collection entries are in the CMS's form: order first, then the fie
       assert.match(text(file), /^\{\n {2}"order": \d+,\n/, `${file}: order is the first key`);
     }
   }
-  // Editors add and delete questions, disciplines, testimonials and articles; services and
+  // Editors add and delete questions, disciplines and testimonials; services and
   // engagements are fixed (the CMS cannot create or delete them).
   assert.equal(listEntries(".", "services").length, 5, "5 services");
   assert.equal(listEntries(".", "engagements").length, 3, "3 engagements");

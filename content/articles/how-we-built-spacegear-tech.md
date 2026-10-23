@@ -3,7 +3,7 @@ title: "How we built spacegear.tech with Claude Code agents"
 summary: "Claude Code agents built most of spacegear.tech from specs and plans while I made the calls. Rebuilding the globe as a shader cut the desktop home page from 7,753 to 1,747 KiB."
 cover: /uploads/labs/how-we-built-spacegear-tech/cover.webp
 coverAlt: "The spacegear.tech shader globe: West Africa and the Atlantic in daylight, with a blue atmosphere against a starry sky"
-date: 2026-10-23
+date: 2026-10-24
 updated: ""
 author: "Sanh Võ"
 ---
@@ -86,11 +86,11 @@ At the same time, the copy moved out of the code into JSON and Markdown files th
 
 ![The sign-in screen of the spacegear.tech content editor at /admin/, with the split-planet symbol and two sign-in buttons](/uploads/labs/how-we-built-spacegear-tech/admin-sign-in.webp)
 
-Signing in with GitHub on this live screen is merged and goes out with the next deploy.
+The GitHub button lets an editor publish from any browser. On a local copy, the other button edits the project files directly.
 
 ## Step 5: launch
 
-On 22 October I chose to merge the work into the release branch, and on 23 October I asked for the deploy. A Cloudflare Worker now serves spacegear.tech: 12 core pages and 181 files, 10.67 MiB in all. The production SEO check passed on the live domain. Inquiry capture is on; email notifications stay off until a sender is verified.
+On 22 October I chose to merge the work into the release branch, and on 23 October I asked for the deploy. Since then, a Cloudflare Worker has served spacegear.tech. That first release held 12 core pages and 181 files, 10.67 MiB in all. The production SEO check passed on the live domain. Inquiry capture is on; email notifications stay off until a sender is verified.
 
 ![The live spacegear.tech hero on a desktop: the headline The smarter way to plan, build, and scale your business over the daylit globe](/uploads/labs/how-we-built-spacegear-tech/hero-desktop.webp)
 
@@ -102,8 +102,8 @@ Between 20 and 23 October, Claude Code made 222 commits on the release line, not
 - **A gate that cried wolf.** About 0.6 kilobytes of new validation made the bundler split a chunk, and the HTML snapshot reported all 15 pages as changed, although the markup was identical. We rebuilt the gate to compare the resolved React tree instead.
 - **A flaky timer.** The first upload of the largest texture set may take 120 ms. On a busy machine, three of four clean runs measured 135, 153 and 170 ms, then under 50 ms on a fresh page. The check now measures twice before failing.
 - **Small numbers, real fixes.** Hovering a Services card shifted the layout (CLS 0.02 to 0.04); now it is 0. The card spotlight dropped small grey text to a contrast of 3.81:1; it now stays at 4.57:1. Over the hero, 14 layers used to be promoted for the GPU at page load; now none are.
-- **Docs that became CSS.** Tailwind scans every file Git tracks, so class names quoted in plans became site styles; excluding the docs removed 27 rules. The bilingual branch now scans the source folder only.
-- **The cursor.** I wanted to keep the custom cursor, but make it feel instant. We assumed the dot lagged a frame. The measurement said no: the dot was already painted in the first frame after each event. What did change is the ring. A critically damped follower replaced the spring, and its settle time went from 234–358 ms to 67–114 ms across seven cases. The blend mode over the globe is gone, and the hover disc is a faint white fill. With this change the unit tests reached 309, up from 15 when Claude Code took over. It is merged and goes live with the next deploy.
+- **Docs that became CSS.** Tailwind scans every file Git tracks, so class names quoted in plans became site styles; excluding the docs removed 27 rules. Tailwind now scans the source folder only.
+- **The cursor.** I wanted to keep the custom cursor, but make it feel instant. We assumed the dot lagged a frame. The measurement said no: the dot was already painted in the first frame after each event. What did change is the ring. A critically damped follower replaced the spring, and its settle time went from 234–358 ms to 67–114 ms across seven cases. The blend mode over the globe is gone, and the hover disc is a faint white fill. With this change the unit tests reached 309, up from 15 when Claude Code took over.
 
 ![Bar chart: the cursor ring's settle time in seven cases, from 234 to 358 ms with the old spring down to 67 to 114 ms with the new follower](/uploads/labs/how-we-built-spacegear-tech/chart-cursor-en.webp)
 
@@ -116,6 +116,6 @@ Between 20 and 23 October, Claude Code made 222 commits on the release line, not
 
 ## What's next
 
-The bilingual site is in progress: Vietnamese copy for every content file, a /vi/ mirror with a region redirect and a language switch, and Vietnamese patterns for the honesty scanner. So is spacegear Labs, the section this article was written for. Neither is live yet.
+This article went out together with two other pieces of work. The first is the bilingual site: Vietnamese copy for every content file, a /vi/ mirror with a region redirect and a language switch, and Vietnamese patterns for the honesty scanner. The second is spacegear Labs, the section you are reading now. Next on my list are the checks by eye in a real browser, and more build logs written the same way: real screenshots, measured numbers, and the dead ends left in.
 
 If you want a similar build, with the decisions kept on your side, [tell us what you want to improve](/contact/).

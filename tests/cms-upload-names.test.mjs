@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { load } from "js-yaml";
-import { loadSveltiaNames } from "./helpers/sveltia-names.mjs";
+import { BUNDLE, PENDING_UPLOAD, loadSveltiaNames } from "./helpers/sveltia-names.mjs";
 import { UPLOAD_PATH } from "../scripts/lib/uploads.mjs";
 
 const config = load(fs.readFileSync("public/admin/config.yml", "utf8"));
@@ -51,6 +51,43 @@ test("a Windows device name cannot be uploaded at all: Sveltia empties it and th
   // The error comes from the vm context, so it is matched by name, not by class.
   for (const original of ["con.png", "COM1.jpg", "nul.webp"]) assert.throws(() => name(original), { name: "TypeError" }, original);
   assert.equal(name("console.png"), "console.webp", "a longer name that starts like one is fine");
+});
+
+/** Every image field's pattern in the configuration ([source, message]), aliases resolved by the YAML loader. */
+function imagePatterns(node, found = []) {
+  if (Array.isArray(node)) for (const item of node) imagePatterns(item, found);
+  else if (node && typeof node === "object") {
+    if (node.widget === "image") found.push(node.pattern);
+    for (const value of Object.values(node)) imagePatterns(value, found);
+  }
+  return found;
+}
+
+// While an upload is pending, Sveltia 0.230.1 tests an image field's pattern against the name the media library
+// gave the new file (ZQ: files[blobURL].file.name, set by K2 after AY renamed and re-encoded it), with no
+// /uploads/ folder yet. The field must accept that name exactly when the build accepts it under /uploads/.
+test("while an upload is pending, every image field accepts the new file's name exactly when the build accepts it", () => {
+  const bundle = fs.readFileSync(BUNDLE, "utf8");
+  for (const code of PENDING_UPLOAD) assert.equal(bundle.split(code).length - 1, 1, `the bundle still tests a pending upload's name: ${code}`);
+  const patterns = imagePatterns(config.collections);
+  assert.equal(patterns.length, 8, "the image fields");
+  const originals = [
+    "photo.jpg", "team-photo.webp", "Team Photo.JPG", "IMG_0042.JPG", "Ảnh đẹp.JPG", "Banner 1280.png", "résumé (final).webp", "chart.avif",
+    "loading spinner.gif", "a.b.c.png", "console.png", "logo.svg", "Logo.SVG", "scan~2.jpg", "notes.txt",
+  ];
+  for (const original of originals) {
+    const uploaded = name(original);
+    for (const pattern of patterns) assert.equal(english.fieldAccepts(pattern, uploaded), UPLOAD_PATH.test(uploaded), `${original} (uploaded as ${uploaded})`);
+  }
+  // Everyday names pass while the upload is pending; an SVG and a ~ are refused before anything is saved.
+  for (const original of ["photo.jpg", "team-photo.webp", "Team Photo.JPG", "IMG_0042.JPG", "Ảnh đẹp.JPG", "loading spinner.gif"]) {
+    for (const pattern of patterns) assert.ok(english.fieldAccepts(pattern, name(original)), `${original} can be uploaded into an image field`);
+  }
+  for (const original of ["logo.svg", "Logo.SVG", "scan~2.jpg"]) {
+    for (const pattern of patterns) assert.equal(english.fieldAccepts(pattern, name(original)), false, `${original} is refused in an image field`);
+  }
+  // A Turkish browser's dotless ı is refused while the upload is pending, too.
+  for (const pattern of patterns) assert.equal(turkish.fieldAccepts(pattern, turkish.uploadName(config, "IMG_0042.JPG")), false);
 });
 
 test("entry file names follow the same slug rules", () => {

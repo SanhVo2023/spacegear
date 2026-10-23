@@ -22,12 +22,11 @@ export type WorkTile = { slug: string; name: string; img: string; desc: string; 
 export type Pillar = { no: string; slug: string; name: string; tag: string; glyph: string; img: string; desc: string };
 export type ProcessStep = { step: string; name?: string; desc: string; outputs: string[] };
 export type Person = { name: string; role: string; img: string; imgAlt: string; bio: string; links: { label: string; href: string }[] };
-// Render only real, permission-confirmed quotes and published articles.
+// Render only real, permission-confirmed quotes.
 export type Testimonial = { img: string; name: string; role: string; company: string; quote: string; permissionConfirmed: true };
-export type Article = { slug: string; author: string; title: string; sub: string; img: string; href: string };
 export type FooterLink = { label: string; href: string };
 
-export const COLLECTION_NAMES = ["services", "engagements", "faqs", "team-roles", "testimonials", "articles"] as const;
+export const COLLECTION_NAMES = ["services", "engagements", "faqs", "team-roles", "testimonials"] as const;
 export type CollectionName = (typeof COLLECTION_NAMES)[number];
 export type CollectionFile = { file: string; data: unknown };
 
@@ -198,10 +197,6 @@ export function contentSchemas(serviceSlugs: readonly string[]) {
         img: image(), name: text({ max: 60 }), role: text({ max: 60 }), company: text({ max: 80 }),
         quote: text({ max: 400 }), permissionConfirmed: boolean(), order: order(),
       }),
-      articles: object({
-        slug: slug(60), author: text({ max: 60 }), title: text({ max: 120 }), sub: text({ max: 200 }),
-        img: image(), href: href(), order: order(),
-      }),
     },
   };
 }
@@ -313,7 +308,6 @@ export function buildContent(input: ContentInput, dir = "content") {
   const faqs = loadCollection(input.collections.faqs, "faqs", many.faqs, issues, dir);
   const roles = loadCollection(input.collections["team-roles"], "team-roles", many["team-roles"], issues, dir);
   const testimonials = loadCollection(input.collections.testimonials, "testimonials", many.testimonials, issues, dir);
-  const articles = loadCollection(input.collections.articles, "articles", many.articles, issues, dir);
   for (const { file, entry } of engagements) {
     uniqueItems(entry.deliverables, `${dir}/engagements/${file}`, "deliverables", issues);
     uniqueItems(entry.outcomes, `${dir}/engagements/${file}`, "outcomes", issues);
@@ -322,7 +316,6 @@ export function buildContent(input: ContentInput, dir = "content") {
   oneFeatured(engagements, input.collections.engagements, issues, dir);
   uniqueField(faqs, "faqs", "question", issues, dir);
   uniqueField(testimonials, "testimonials", ["name", "company"], issues, dir);
-  uniqueField(articles, "articles", "slug", issues, dir);
   uniqueItems(work.tiles, fileOf("work"), "tiles", issues, "slug");
   if (issues.length) throw new ContentError(issues);
 
@@ -344,7 +337,6 @@ export function buildContent(input: ContentInput, dir = "content") {
   const TESTIMONIALS: Testimonial[] = testimonials
     .filter(({ entry }) => entry.permissionConfirmed)
     .map(({ entry }) => ({ ...withoutOrder(entry), permissionConfirmed: true }));
-  const ARTICLES: Article[] = articles.map(({ entry }) => withoutOrder(entry));
   const PROCESS_STEPS: ProcessStep[] = processBlock.steps;
   const APPROACH_STEPS: ProcessStep[] = approach.steps;
   const FOUNDER: Person | null = team.founder;
@@ -368,7 +360,6 @@ export function buildContent(input: ContentInput, dir = "content") {
     TEAM: { label: team.label, cta: team.cta },
     TEAM_ROLES,
     TESTIMONIALS,
-    ARTICLES,
     FOOTER: footer,
   };
 }

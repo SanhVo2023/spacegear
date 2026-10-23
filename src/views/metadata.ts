@@ -3,8 +3,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getContent } from "@/lib/content";
+import { contentImage } from "@/lib/content-images";
 import { dictionary } from "@/lib/i18n/dictionary";
-import type { Locale } from "@/lib/i18n/locales";
+import { LOCALES, localizedHref, type Locale } from "@/lib/i18n/locales";
+import { labsArticle, labsArticles } from "@/lib/labs";
 import { SITE } from "@/lib/site";
 import { buildMetadata } from "@/lib/seo";
 
@@ -33,6 +35,29 @@ export function serviceMetadata(locale: Locale, slug: string) {
   const service = getContent(locale).SERVICES.find((item) => item.slug === slug);
   if (!service) notFound();
   return buildMetadata({ title: service.name, description: service.summary, path: `/services/${slug}/`, locale });
+}
+/**
+ * The Labs index of one language (a route only when the language has an article: next.config.ts). Its hreflang names
+ * the languages that have an index. The title is the dictionary's, in the page's language (the section title is the
+ * brand in both). The description is the section's heading and its line: the line alone is too short for a search result.
+ */
+export function labsIndexMetadata(locale: Locale) {
+  const { SECTIONS } = getContent(locale);
+  const languages = Object.fromEntries(LOCALES.filter((other) => labsArticles(other).length > 0).map((other) => [other, localizedHref("/labs/", other)]));
+  return buildMetadata({ title: dictionary(locale).labs.indexTitle, description: `${SECTIONS.labs.heading} ${SECTIONS.labs.description}`, path: "/labs/", locale, languages, feed: localizedHref("/labs/rss.xml", locale) });
+}
+export function labsStaticParams(locale: Locale) {
+  return labsArticles(locale).map(({ slug }) => ({ slug }));
+}
+/** A Labs article: its summary as the description, its cover as the share image, its dates, its language versions. */
+export function labsArticleMetadata(locale: Locale, slug: string) {
+  const article = labsArticle(locale, slug);
+  if (!article) notFound();
+  return buildMetadata({
+    title: article.title, description: article.summary, path: `/labs/${slug}/`, locale, languages: article.languages, type: "article",
+    image: { url: contentImage(article.cover).src, alt: article.coverAlt }, publishedTime: article.date, modifiedTime: article.updated ?? article.date,
+    feed: localizedHref("/labs/rss.xml", locale),
+  });
 }
 /**
  * The one 404 page says it in both languages. Next writes `<meta name="robots" content="noindex">` on every 404
