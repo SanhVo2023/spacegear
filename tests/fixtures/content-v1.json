@@ -890,51 +890,219 @@
     "routes": [
       {
         "path": "/",
-        "kind": "home"
+        "kind": "home",
+        "locale": "en",
+        "alternates": {
+          "en": "/",
+          "vi": "/vi/"
+        }
       },
       {
         "path": "/services/",
-        "kind": "index"
+        "kind": "index",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/",
+          "vi": "/vi/services/"
+        }
       },
       {
         "path": "/services/digital-transformation/",
-        "kind": "service"
+        "kind": "service",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/digital-transformation/",
+          "vi": "/vi/services/digital-transformation/"
+        }
       },
       {
         "path": "/services/ai-strategy/",
-        "kind": "service"
+        "kind": "service",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/ai-strategy/",
+          "vi": "/vi/services/ai-strategy/"
+        }
       },
       {
         "path": "/services/applied-ai/",
-        "kind": "service"
+        "kind": "service",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/applied-ai/",
+          "vi": "/vi/services/applied-ai/"
+        }
       },
       {
         "path": "/services/automation-integration/",
-        "kind": "service"
+        "kind": "service",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/automation-integration/",
+          "vi": "/vi/services/automation-integration/"
+        }
       },
       {
         "path": "/services/product-delivery/",
-        "kind": "service"
+        "kind": "service",
+        "locale": "en",
+        "alternates": {
+          "en": "/services/product-delivery/",
+          "vi": "/vi/services/product-delivery/"
+        }
       },
       {
         "path": "/approach/",
-        "kind": "page"
+        "kind": "page",
+        "locale": "en",
+        "alternates": {
+          "en": "/approach/",
+          "vi": "/vi/approach/"
+        }
       },
       {
         "path": "/about/",
-        "kind": "page"
+        "kind": "page",
+        "locale": "en",
+        "alternates": {
+          "en": "/about/",
+          "vi": "/vi/about/"
+        }
       },
       {
         "path": "/contact/",
-        "kind": "page"
+        "kind": "page",
+        "locale": "en",
+        "alternates": {
+          "en": "/contact/",
+          "vi": "/vi/contact/"
+        }
       },
       {
         "path": "/privacy/",
-        "kind": "page"
+        "kind": "page",
+        "locale": "en",
+        "alternates": {
+          "en": "/privacy/",
+          "vi": "/vi/privacy/"
+        }
       },
       {
         "path": "/terms/",
-        "kind": "page"
+        "kind": "page",
+        "locale": "en",
+        "alternates": {
+          "en": "/terms/",
+          "vi": "/vi/terms/"
+        }
+      },
+      {
+        "path": "/vi/",
+        "kind": "home",
+        "locale": "vi",
+        "alternates": {
+          "en": "/",
+          "vi": "/vi/"
+        }
+      },
+      {
+        "path": "/vi/services/",
+        "kind": "index",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/",
+          "vi": "/vi/services/"
+        }
+      },
+      {
+        "path": "/vi/services/digital-transformation/",
+        "kind": "service",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/digital-transformation/",
+          "vi": "/vi/services/digital-transformation/"
+        }
+      },
+      {
+        "path": "/vi/services/ai-strategy/",
+        "kind": "service",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/ai-strategy/",
+          "vi": "/vi/services/ai-strategy/"
+        }
+      },
+      {
+        "path": "/vi/services/applied-ai/",
+        "kind": "service",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/applied-ai/",
+          "vi": "/vi/services/applied-ai/"
+        }
+      },
+      {
+        "path": "/vi/services/automation-integration/",
+        "kind": "service",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/automation-integration/",
+          "vi": "/vi/services/automation-integration/"
+        }
+      },
+      {
+        "path": "/vi/services/product-delivery/",
+        "kind": "service",
+        "locale": "vi",
+        "alternates": {
+          "en": "/services/product-delivery/",
+          "vi": "/vi/services/product-delivery/"
+        }
+      },
+      {
+        "path": "/vi/approach/",
+        "kind": "page",
+        "locale": "vi",
+        "alternates": {
+          "en": "/approach/",
+          "vi": "/vi/approach/"
+        }
+      },
+      {
+        "path": "/vi/about/",
+        "kind": "page",
+        "locale": "vi",
+        "alternates": {
+          "en": "/about/",
+          "vi": "/vi/about/"
+        }
+      },
+      {
+        "path": "/vi/contact/",
+        "kind": "page",
+        "locale": "vi",
+        "alternates": {
+          "en": "/contact/",
+          "vi": "/vi/contact/"
+        }
+      },
+      {
+        "path": "/vi/privacy/",
+        "kind": "page",
+        "locale": "vi",
+        "alternates": {
+          "en": "/privacy/",
+          "vi": "/vi/privacy/"
+        }
+      },
+      {
+        "path": "/vi/terms/",
+        "kind": "page",
+        "locale": "vi",
+        "alternates": {
+          "en": "/terms/",
+          "vi": "/vi/terms/"
+        }
       }
     ]
   }
