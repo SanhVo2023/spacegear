@@ -8,20 +8,24 @@ import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
 import Tilt from "@/components/fx/Tilt";
 import { useInViewFlag } from "@/components/fx/useInViewFlag";
-import { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS, type Engagement } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent, type Engagement } from "@/lib/content";
+import { dictionary, format } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 import { contentImage } from "@/lib/content-images";
 
 /** Original billing toggle, repurposed: switch the list between deliverables and outcomes. The knob moves
  *  on a springy transform (it used to animate `left`), with a small overshoot. */
 function Toggle({ outcomes, onToggle, label }: { outcomes: boolean; onToggle: (v: boolean) => void; label: string }) {
+  const t = dictionary(useLocale()).pricing;
   return (
     <div className="mt-3 flex items-center gap-2 text-[12px]">
-      <span className={outcomes ? "text-mut-2" : "text-ink"}>Deliverables</span>
+      <span className={outcomes ? "text-mut-2" : "text-ink"}>{t.toggleDeliverables}</span>
       <button
         type="button"
         role="switch"
         aria-checked={outcomes}
-        aria-label={`Show outcomes instead of deliverables (${label})`}
+        aria-label={format(t.toggleLabel, { label })}
         onClick={() => onToggle(!outcomes)}
         className="relative h-5 w-9 rounded-full bg-card-3 transition-colors before:absolute before:-inset-1 before:content-['']"
       >
@@ -32,7 +36,7 @@ function Toggle({ outcomes, onToggle, label }: { outcomes: boolean; onToggle: (v
           transition={{ type: "spring", stiffness: 520, damping: 22, mass: 0.7 }}
         />
       </button>
-      <span className={outcomes ? "text-ink" : "text-mut-2"}>Outcomes</span>
+      <span className={outcomes ? "text-ink" : "text-mut-2"}>{t.toggleOutcomes}</span>
     </div>
   );
 }
@@ -50,6 +54,7 @@ function Cell({ label, children, className = "" }: { label?: string; children: R
  *  every Select press, so the ring replays even when the same row is chosen again. */
 function EngagementRow({ item, selected, pulseKey, onSelect }: { item: Engagement; selected: boolean; pulseKey: number; onSelect: () => void }) {
   const [outcomes, setOutcomes] = useState(false);
+  const t = dictionary(useLocale()).pricing;
   const list = outcomes ? item.outcomes : item.deliverables;
   return (
     <div className="relative">
@@ -72,29 +77,29 @@ function EngagementRow({ item, selected, pulseKey, onSelect }: { item: Engagemen
           <span className="absolute left-5 top-5 text-[15px] font-medium text-ink">{item.short}</span>
           {item.featured && (
             <span className="absolute right-4 top-4 rounded-full bg-flame/15 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-flame">
-              Start here
+              {t.startHere}
             </span>
           )}
         </div>
 
         {/* stage + toggle (the original price cell) */}
-        <Cell label="Stage">
+        <Cell label={t.stage}>
           <span className="display text-4xl text-ink">{item.stageNo}</span>
           <Toggle outcomes={outcomes} onToggle={setOutcomes} label={item.short} />
         </Cell>
 
         {/* engagement + focus stacked (the original plan + seats cells) */}
         <div className="grid grid-rows-2 lg:divide-y lg:divide-line-soft">
-          <Cell label="Engagement">
+          <Cell label={t.engagement}>
             <span className="text-lg text-ink">{item.name}</span>
           </Cell>
-          <Cell label="Focus">
+          <Cell label={t.focus}>
             <span className="display text-2xl text-mut">{item.stage}</span>
           </Cell>
         </div>
 
         {/* deliverables / outcomes */}
-        <Cell label={outcomes ? "Outcomes" : "Deliverables"}>
+        <Cell label={outcomes ? t.columnOutcomes : t.columnDeliverables}>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-live="polite">
             {list.map((entry) => (
               <li key={entry} className="flex items-center gap-2 text-[12.5px] text-mut">
@@ -129,7 +134,7 @@ function EngagementRow({ item, selected, pulseKey, onSelect }: { item: Engagemen
             >
               {selected ? "✓" : "→"}
             </motion.span>
-            {selected ? "Selected" : "Select"}
+            {selected ? t.selected : t.select}
             {/* the name follows the visible text; `relative` keeps this span inside the mobile scroller */}
             <span className="sr-only"> {item.short}</span>
           </motion.button>
@@ -144,6 +149,9 @@ export default function Pricing() {
   const [pulse, setPulse] = useState(0);
   const rows = useRef<HTMLDivElement>(null);
   useInViewFlag(rows, { amount: 0.15 });
+  const locale = useLocale();
+  const { ENGAGEMENTS, ENGAGEMENTS_FOOTER, SECTIONS } = getContent(locale);
+  const t = dictionary(locale).pricing;
   const chosen = ENGAGEMENTS.find((item) => item.name === selected);
   const select = (name: string) => {
     setSelected(name);
@@ -176,8 +184,8 @@ export default function Pricing() {
         <div aria-live="polite" role="status">
           {chosen && (
             <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-6 text-center text-[13px] text-flame">
-              {chosen.short} selected —{" "}
-              <Link prefetch={false} href="/contact/" className="underline underline-offset-4">tell us about your challenge</Link> to get started.
+              {format(t.chosenBefore, { short: chosen.short })}
+              <Link prefetch={false} href={localizedHref("/contact/", locale)} className="underline underline-offset-4">{t.chosenLink}</Link>{t.chosenAfter}
             </motion.p>
           )}
         </div>
@@ -187,8 +195,8 @@ export default function Pricing() {
             <span className="text-[13px] text-mut-2">{ENGAGEMENTS_FOOTER.text}</span>
             <Link
               prefetch={false}
-              href={ENGAGEMENTS_FOOTER.href}
-              aria-label="Discuss a project"
+              href={localizedHref(ENGAGEMENTS_FOOTER.href, locale)}
+              aria-label={t.discuss}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-1"
             >
               →

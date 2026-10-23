@@ -10,7 +10,10 @@ import { Container, SectionHeader } from "@/components/ui";
 import Tilt from "@/components/fx/Tilt";
 import { useInViewFlag } from "@/components/fx/useInViewFlag";
 import { useTickerVelocity } from "@/components/fx/useTickerVelocity";
-import { MEASURE, SECTIONS } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent } from "@/lib/content";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 import { contentImage } from "@/lib/content-images";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -35,7 +38,7 @@ function Dial({ h, m, index }: { h: number; m: number; index: number }) {
 /** The workflow donut as SVG ring segments (the same 112 px ring, 13 px thick, the conic gradient drew, from 12
  *  o'clock clockwise), so each segment can draw itself in turn when the card enters (globals.css, FX block). */
 function Donut() {
-  const w = MEASURE.workflow;
+  const w = getContent(useLocale()).MEASURE.workflow;
   const ref = useRef<HTMLDivElement>(null);
   useInViewFlag(ref, { amount: 0.6 });
   const starts = w.segments.map((_, i) => w.segments.slice(0, i).reduce((total, s) => total + s.value, 0));
@@ -75,6 +78,8 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 export default function Analytics() {
   const uid = useId().replace(/:/g, "");
+  const locale = useLocale();
+  const { MEASURE, SECTIONS } = getContent(locale);
   const w = MEASURE.workflow;
   const [assisted, manual] = MEASURE.throughput.legend;
   const dials = useRef<HTMLDivElement>(null);
@@ -250,7 +255,7 @@ export default function Analytics() {
         {/* capabilities marquee: focusable so a keyboard or a tap can pause it (globals.css); on fine-pointer
             desktops its speed and skew follow the scroll velocity (useTickerVelocity) */}
         <Reveal delay={120}>
-          <div ref={ticker} tabIndex={0} role="marquee" aria-label="Capabilities" className="mt-4 overflow-hidden rounded-2xl border border-line bg-card/40 py-4">
+          <div ref={ticker} tabIndex={0} role="marquee" aria-label={dictionary(locale).analytics.ticker} className="mt-4 overflow-hidden rounded-2xl border border-line bg-card/40 py-4">
             <div ref={skew} className="fx-ticker-skew">
               <div ref={track} className="marquee-track">
                 {[...MEASURE.ticker, ...MEASURE.ticker].map((item, i) => (
@@ -269,7 +274,7 @@ export default function Analytics() {
             <span className="text-[13px] text-mut-2">{MEASURE.cta.label}</span>
             <Link
               prefetch={false}
-              href={MEASURE.cta.href}
+              href={localizedHref(MEASURE.cta.href, locale)}
               aria-label={MEASURE.cta.label}
               className="grid h-10 w-10 place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-1"
             >

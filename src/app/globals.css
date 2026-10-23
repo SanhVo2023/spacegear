@@ -626,6 +626,10 @@ html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset:
   transition-duration: 0.5s;
   transition-timing-function: var(--fx-ease);
 }
+/* A column's bottom tag keeps one line, clipped by the column like a long one-word tag: a tag of several words
+   (Vietnamese "mức sẵn sàng") would otherwise wrap in a closed column and unwrap as it opens, moving the tag (a
+   layout shift). A one-word tag never wraps, so English renders as before. */
+.fx-svc > a > div:last-child { white-space: nowrap; }
 .fx-reveal-wipe { position: absolute; inset: 0; background: #fa6e43; pointer-events: none; transform: scaleX(0); transform-origin: right; }
 html[data-fx-motion] [data-active="false"] .fx-reveal-wipe { transform: scaleX(1); }
 html[data-fx-motion] [data-active="true"] .fx-reveal-wipe { transition: transform 0.8s var(--fx-ease-io) 0.12s; }
@@ -638,6 +642,9 @@ html[data-fx-motion] .fx-dial .fx-hand { transition: transform 1.3s var(--fx-eas
 html[data-fx-motion] .fx-dial:not([data-in]) .fx-hand { transform: rotate(calc(var(--a) - 140deg)); }
 html[data-fx-motion] .fx-donut circle { transition: stroke-dasharray 1.1s var(--fx-ease) calc(var(--i, 0) * 0.16s); }
 html[data-fx-motion] .fx-donut:not([data-in]) circle { stroke-dasharray: 0 100; }
+/* The readiness bars' labels keep one line, as one-word labels do, so a two-word label (Vietnamese "Kiểm duyệt")
+   never lifts its bar above the others. */
+#analytics div:has(> [data-fill-h]) ~ span { white-space: nowrap; }
 /* The ticker pauses when its box (or anything in it) is hovered or focused, through the skew wrapper (WCAG 2.2.2). */
 [role="marquee"]:is(:hover, :focus, :focus-within) .marquee-track { animation-play-state: paused; }
 
@@ -650,6 +657,9 @@ html[data-fx-motion] .fx-rows:not([data-in]) > * { opacity: 0; translate: 80px 0
 .fx-pulse { position: absolute; inset: 0; z-index: 2; border: 2px solid #fa6e43; border-radius: 1rem; box-shadow: 0 0 44px 2px rgba(250, 110, 67, 0.45); pointer-events: none; opacity: 0; }
 html[data-fx-motion] .fx-pulse { animation: fx-pulse 1s var(--fx-ease) 1; }
 @keyframes fx-pulse { 0% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1.03; } }
+/* In a desktop row's 220 px image tile, the Vietnamese "Start here" badge (the span after the short name) would
+   run into the name, so on Vietnamese pages it sits under the name. */
+:lang(vi) .fx-rows img ~ span + span { top: 3rem; right: auto; left: 1.25rem; }
 
 /* Footer wordmark (FooterWordmark.tsx, the drawn <Wordmark>): the nine glyphs rise in sequence from just below
    their line as the curtain uncovers them (translate and opacity, staggered by --i) and lean away from the
