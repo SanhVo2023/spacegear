@@ -882,11 +882,12 @@ desktop("the nav pill slides, buttons sweep, links underline and fields glow", a
   await page.waitForTimeout(450);
   assert.match(await field.evaluate((el) => getComputedStyle(el).boxShadow), /rgba\(250, 110, 67/, "desktop: a focused field glows");
   // Inner pages: the pill and aria-current sit on the page's own link; under /services/ on the Services trigger.
+  // The EN/VI switch (LanguageSwitch.tsx, its links carry hreflang) marks the current language with its own aria-current.
   await fresh(page, ctx.base, "/about/");
   assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: document.querySelector('header a[aria-current="page"]')?.getAttribute("href") ?? null })), { pill: "/about/", current: "/about/" }, "desktop: on /about/ the pill and aria-current sit on About");
   const service = await page.evaluate(() => document.querySelector('header li.group ul a[href^="/services/"]')?.getAttribute("href"));
   await fresh(page, ctx.base, service);
-  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: "/services/", current: ["/services/=true"] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
+  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]:not([hreflang])")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: "/services/", current: ["/services/=true"] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
 });
 
 /** Curtain animations (PageTransition.tsx) in `state`, or in any state. They exist only while a transition runs. */
