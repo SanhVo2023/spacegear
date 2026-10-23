@@ -17,6 +17,7 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "check:export": "node scripts/check-export.mjs",
     "check:seo": "node scripts/check-seo.mjs",
+    "check:locale": "node scripts/locale-checks.mjs",
     "test:browser": "node scripts/browser-check.mjs",
     "check:fidelity": "node scripts/fidelity-compare.mjs",
     "content:index": "node scripts/build-content-index.mjs",

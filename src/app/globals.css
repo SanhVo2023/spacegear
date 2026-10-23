@@ -661,6 +661,15 @@ html[data-fx-motion] .fx-pulse { animation: fx-pulse 1s var(--fx-ease) 1; }
    run into the name, so on Vietnamese pages it sits under the name. */
 :lang(vi) .fx-rows img ~ span + span { top: 3rem; right: auto; left: 1.25rem; }
 
+/* Vietnamese display type. The display leading (0.92) leaves no room for stacked marks: on Vietnamese pages a
+   descender ran into the circumflex and tone mark under it ("g" over "ẫ", so "lẫn" read as "lẩn") and a dot below
+   into the marks of the next line ("ộ" over "ầ"). 1.15 is the least leading that keeps every mark clear on every
+   Vietnamese page from 320 to 1440 px (scripts/locale-checks.mjs draws each glyph pair). The hero headline needs
+   less (1.05) but runs to six lines in Vietnamese (four in English), so its size also follows the screen's height:
+   the pinned hero's copy fits under the nav from 1024 × 768 up, as the English copy does. English is unchanged. */
+:lang(vi) .display { line-height: 1.15; }
+:lang(vi) .hero-copy h1 { font-size: clamp(38px, min(6vw, 9vh), 80px); line-height: 1.05; }
+
 /* Footer wordmark (FooterWordmark.tsx, the drawn <Wordmark>): the nine glyphs rise in sequence from just below
    their line as the curtain uncovers them (translate and opacity, staggered by --i) and lean away from the
    pointer (transform, from --rx/--ry, easing back). Only under data-fx: touch, phones, reduced motion and no-JS
