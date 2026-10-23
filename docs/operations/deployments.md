@@ -23,7 +23,12 @@
   - `POST /api/contact` with an empty body returns 400 with field errors. A 503 would mean the secret or the database is missing.
 - **Rollback:** `npx wrangler rollback <version-id> --env production`. The only earlier version, `0ff7c44c-…`, has no custom domain.
 - **Open items:**
-  - Cron (rate-limit cleanup and notifications) is not registered yet. The account first needs a workers.dev subdomain: open Workers & Pages in the dashboard once, then redeploy.
   - Turn on "Always Use HTTPS" (`http://` currently serves 200).
   - Add a `www` → apex Redirect Rule.
   - Restore the Google Workspace MX record (the zone has none) and fix SPF.
+
+## 2026-10-23: cron and brand docs
+
+- Version `4c09a23e-6168-4baf-a8f4-440d901999af`, built from `master` at `79f151a`. The site source is unchanged; the stylesheet is byte-identical.
+- An account workers.dev subdomain `spacegear` was created through the API, so the `*/5 * * * *` cron (rate-limit cleanup, notification outbox) is now registered. The Worker keeps `workers_dev: false`, so the site is not served on workers.dev.
+- Email DNS restored by the owner: MX `1 smtp.google.com`, SPF `v=spf1 include:_spf.google.com ~all`, and Google DKIM `google._domainkey` published.
