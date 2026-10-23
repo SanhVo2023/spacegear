@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "spacegear-tech-preview",
+  // Pinned: the spacegear Cloudflare account (admin@spacegear.tech), so a wrangler session logged in
+  // to any other account can never deploy, add secrets or create resources there.
+  "account_id": "70f5a062f4a976cef11502034420b538",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-20",
   "compatibility_flags": ["nodejs_compat"],
