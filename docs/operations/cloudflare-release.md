@@ -28,6 +28,7 @@ Checked-in configuration is inert: no custom-domain route, public workers.dev UR
 | GITHUB_CLIENT_ID | Public client ID of the GitHub OAuth App "spacegear CMS" (production only; empty in preview) |
 | GITHUB_OAUTH_SCOPE | public_repo; repo only if the repository becomes private |
 | GITHUB_CLIENT_SECRET | Worker secret; without it /api/auth answers 503 and only local editing works |
+| LOCALE_TEST_HEADER | "false" in production. "true" only in the local preview, where the language redirect reads the country from the x-sg-test-country header instead of request.cf (README.md, "The region redirect and the switch") |
 
 Production build variables: `npm run build:production` sets SITE_MODE=production and reads the public values from [release.env](../../release.env): NEXT_PUBLIC_SITE_URL=https://spacegear.tech, NEXT_PUBLIC_CONTACT_EMAIL=admin@spacegear.tech, the production NEXT_PUBLIC_TURNSTILE_SITE_KEY and POLICIES_APPROVED=true. Workers Builds therefore needs no build variables. A variable that is set, and not empty, in the build environment wins over its line in release.env (for example to build a copy for another origin); the build log names where each value came from. release.env accepts only these four public keys, so a secret cannot be committed through it; secrets stay Worker secrets. It is not named `.env.production` because Next.js would load that file into preview builds (`npm run build:cf`) too. Validation rejects missing facts and known dummy Turnstile keys; it does not independently verify email/domain ownership.
 

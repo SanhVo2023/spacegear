@@ -4,5 +4,5 @@
     "types": ["@cloudflare/workers-types"], "strict": true, "skipLibCheck": true, "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["worker/**/*.ts", "worker-configuration.d.ts", "src/lib/contact.ts", "src/lib/content.ts"]
+  "include": ["worker/**/*.ts", "worker-configuration.d.ts", "src/lib/contact.ts", "src/lib/content.ts", "src/lib/i18n/*.ts"]
 }

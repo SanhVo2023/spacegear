@@ -2,15 +2,39 @@
 // desktop profile and a touch context. Run them alone (faster while building an effect) with the preview's
 // base URL, which is required (no default port):
 //   node scripts/fx-checks.mjs http://127.0.0.1:8791
+// FX_LOCALE=vi runs the checks on the Vietnamese pages (/vi/…) with the Vietnamese copy and UI strings. It loads the
+// TypeScript dictionary, so run it as: FX_LOCALE=vi node --experimental-strip-types scripts/fx-checks.mjs <base>.
+// browser-check.mjs never sets it (the English run).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+const LOCALE = process.env.FX_LOCALE === "vi" ? "vi" : "en";
+const COPY = LOCALE === "vi" ? "../content/vi/" : "../content/";
 // Section titles that editors can change in the CMS (content/sections.json), read once so the checks follow
 // an edit instead of hard-coding the copy (browser-check.mjs reads content/home.json the same way).
-const SECTION_COPY = JSON.parse(readFileSync(new URL("../content/sections.json", import.meta.url), "utf8"));
+const SECTION_COPY = JSON.parse(readFileSync(new URL(`${COPY}sections.json`, import.meta.url), "utf8"));
 // What We Measure's chart figures (content/measure.json), for the donut check.
-const MEASURE_COPY = JSON.parse(readFileSync(new URL("../content/measure.json", import.meta.url), "utf8"));
+const MEASURE_COPY = JSON.parse(readFileSync(new URL(`${COPY}measure.json`, import.meta.url), "utf8"));
+// The hero's CTA and corner card (content/home.json).
+const HOME_COPY = JSON.parse(readFileSync(new URL(`${COPY}home.json`, import.meta.url), "utf8"));
+/** The UI names the checks look for (src/lib/i18n), and a site path in the run's language. */
+const { NAMES, PATH } = LOCALE === "en"
+  ? {
+    NAMES: { about: "About", contact: "Contact", cta: "Discuss a project", select: "Select", selected: "Selected", view: "View", open: "Open", drag: "Drag", homeLink: "spacegear home", quickName: "Your name", privacy: "Privacy", terms: "Terms" },
+    PATH: (path) => path,
+  }
+  : await (async () => {
+    const { dictionary } = await import("../src/lib/i18n/dictionary.ts");
+    const { localizedHref } = await import("../src/lib/i18n/locales.ts");
+    const t = dictionary("vi");
+    return {
+      NAMES: { about: t.nav.about, contact: t.nav.contact, cta: t.nav.cta, select: t.pricing.select, selected: t.pricing.selected, view: t.cursor.view, open: t.cursor.open, drag: t.cursor.drag, homeLink: t.nav.homeLink, quickName: t.quickStart.nameLabel, privacy: t.footer.privacy, terms: t.footer.terms },
+      PATH: (path) => localizedHref(path, "vi"),
+    };
+  })();
+/** A string as a literal in a regular expression. */
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Page instrumentation, installed before any page script: counts animation frames and view transitions, and
  *  records the window's scroll positions (a scroll the browser animates fires dozens of scroll events). */
@@ -24,7 +48,7 @@ function instrument() {
 }
 
 /** Loads a route with a full page load and waits for the heavy-effect flag. */
-export async function fresh(page, base, path = "/") {
+export async function fresh(page, base, path = PATH("/")) {
   await page.goto("about:blank");
   await page.goto(new URL(path, base).href, { waitUntil: "networkidle" });
   await page.waitForFunction(() => document.documentElement.hasAttribute("data-fx"), null, { timeout: 10000 });
@@ -80,13 +104,13 @@ export async function restorations(page) {
   await page.waitForTimeout(1500);
   const reload = { held, landed: await page.evaluate(() => window.scrollY), between: await passed(0, held) };
   await page.evaluate(() => { window.__fx.scrolls = []; });
-  await page.locator('header a[href="/about/"]').first().click();
-  await page.waitForURL("**/about/");
+  await page.locator(`header a[href="${PATH("/about/")}"]`).first().click();
+  await page.waitForURL(`**${PATH("/about/")}`);
   await page.waitForTimeout(1500);
   const away = { from: reload.landed, landed: await page.evaluate(() => window.scrollY), between: await passed(0, reload.landed) };
   await page.evaluate(() => { window.__fx.scrolls = []; });
   await page.goBack();
-  await page.waitForURL((url) => url.pathname === "/");
+  await page.waitForURL((url) => url.pathname === PATH("/"));
   await page.waitForTimeout(2000);
   const back = { held: reload.landed, landed: await page.evaluate(() => window.scrollY), between: await passed(0, reload.landed) };
   return { reload, away, back };
@@ -290,7 +314,7 @@ export async function checkFxTouch({ browser, base, report, watchCsp, desktop: d
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(instrument);
-  await page.goto(base, { waitUntil: "networkidle" });
+  await page.goto(new URL(PATH("/"), base).href, { waitUntil: "networkidle" });
   assert.equal(await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches), false, "touch: the emulated pointer is coarse (precondition)");
   await assertFxAbsent(page, "touch");
   report.interactions.push("fx touch: heavy effects stay off on a coarse pointer at 1440 px");
@@ -353,7 +377,7 @@ desktop("keyboard scrolling wins over a glide in progress", async (page) => {
 
 desktop("a deep link to #pricing lands at the anchor offset with Lenis on", async (page, ctx) => {
   await page.goto("about:blank");
-  await page.goto(new URL("/#pricing", ctx.base).href, { waitUntil: "load" });
+  await page.goto(new URL(PATH("/#pricing"), ctx.base).href, { waitUntil: "load" });
   await page.waitForTimeout(1500);
   const landing = await page.evaluate(() => ({ lenis: document.documentElement.classList.contains("lenis"), top: document.getElementById("pricing").getBoundingClientRect().top }));
   assert.equal(landing.lenis, true, "desktop deep link: Lenis is active (precondition)");
@@ -368,7 +392,7 @@ desktop("a hash link clicked mid-glide lands on its anchor", async (page, ctx) =
   await page.mouse.wheel(0, 1500);
   await page.waitForTimeout(60);
   assert.equal(await page.evaluate(() => document.documentElement.classList.contains("lenis-smooth")), true, "desktop: a glide is under way (precondition)");
-  await page.locator('header a[href="/#pricing"]').first().click();
+  await page.locator(`header a[href="${PATH("/#pricing")}"]`).first().click();
   await page.waitForTimeout(2500);
   const top = await page.evaluate(() => document.getElementById("pricing").getBoundingClientRect().top);
   assert.ok(Math.abs(top - ctx.deepLinkTop) <= 4, `desktop: the nav's Engagements link, clicked mid-glide, lands #pricing where a deep link does (${top}px, deep link ${ctx.deepLinkTop}px)`);
@@ -394,7 +418,7 @@ desktop("a wheel during the intro ends it, then glides", async (page, ctx) => {
       await new Promise((resolve) => setTimeout(resolve, 4000));
       await route.continue().catch(() => {});
     });
-    await intro.goto(ctx.base, { waitUntil: "domcontentloaded" });
+    await intro.goto(new URL(PATH("/"), ctx.base).href, { waitUntil: "domcontentloaded" });
     await intro.waitForFunction(() => document.documentElement.classList.contains("lenis"), null, { timeout: 15000 });
     assert.equal(await intro.evaluate(() => document.documentElement.dataset.intro), "play", "desktop: the intro is still loading (precondition)");
     await intro.mouse.move(6, 500);
@@ -422,7 +446,7 @@ desktop("the CMS admin page carries none of the site's effects", async (page, ct
 touch("a deep link to #pricing lands at the same offset without Lenis", async (page, ctx) => {
   assert.equal(typeof ctx.desktop?.deepLinkTop, "number", "touch: the desktop deep-link result is available (precondition)");
   await page.goto("about:blank");
-  await page.goto(new URL("/#pricing", ctx.base).href, { waitUntil: "load" });
+  await page.goto(new URL(PATH("/#pricing"), ctx.base).href, { waitUntil: "load" });
   await page.waitForTimeout(1500);
   const top = await page.evaluate(() => document.getElementById("pricing").getBoundingClientRect().top);
   assert.ok(Math.abs(top - ctx.desktop.deepLinkTop) <= 4, `deep link: ${top}px without Lenis, ${ctx.desktop.deepLinkTop}px with it`);
@@ -430,7 +454,7 @@ touch("a deep link to #pricing lands at the same offset without Lenis", async (p
 
 touch("reloads, route changes and Back land at once without Lenis", async (page, ctx) => {
   await page.goto("about:blank");
-  await page.goto(ctx.base, { waitUntil: "load" });
+  await page.goto(new URL(PATH("/"), ctx.base).href, { waitUntil: "load" });
   await page.waitForTimeout(500);
   assertRestorations("touch", await restorations(page));
 });
@@ -465,12 +489,12 @@ desktop("the cursor follows the mouse, steps aside for the keyboard and over tex
   assert.deepEqual(focus, { state: "hidden", dot: 0, disc: 0, outline: true, onTop: true, native: "auto" }, "desktop: keyboard focus hides the custom cursor and keeps the focus ring visible");
   await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
   await page.waitForTimeout(500);
-  await page.getByLabel("Your name").hover();
+  await page.getByLabel(NAMES.quickName).hover();
   await page.waitForTimeout(250);
-  const overField = await page.evaluate(() => ({
+  const overField = await page.evaluate((name) => ({
     state: document.querySelector("[data-fx-cursor-root]").dataset.state,
-    cursor: getComputedStyle(document.querySelector('input[aria-label="Your name"]')).cursor,
-  }));
+    cursor: getComputedStyle(document.querySelector(`input[aria-label="${name}"]`)).cursor,
+  }), NAMES.quickName);
   assert.equal(overField.state, "text", "desktop: the custom cursor steps aside over a text field");
   assert.notEqual(overField.cursor, "none", "desktop: the native caret shows over a text field");
 });
@@ -478,7 +502,7 @@ desktop("the cursor follows the mouse, steps aside for the keyboard and over tex
 desktop("the cursor shows the data-cursor label", async (page) => {
   await jumpTo(page, await sectionTop(page, "work"));
   await page.waitForTimeout(900);
-  await page.locator('#work [data-cursor="View"]').first().hover();
+  await page.locator(`#work [data-cursor="${NAMES.view}"]`).first().hover();
   await page.waitForTimeout(300);
   // The label fades in over 0.2 s; give a frame held up by the tiles' first image decode time to land.
   await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector("[data-fx-cursor-root] .fx-cursor-label")).opacity) > 0.99, null, { timeout: 2000 }).catch(() => {});
@@ -487,13 +511,13 @@ desktop("the cursor shows the data-cursor label", async (page) => {
     const label = root.querySelector(".fx-cursor-label");
     return { state: root.dataset.state, text: label.textContent, opacity: parseFloat(getComputedStyle(label).opacity) };
   });
-  assert.deepEqual({ state: labelled.state, text: labelled.text }, { state: "label", text: "View" }, "desktop: a What We Do tile labels the cursor");
+  assert.deepEqual({ state: labelled.state, text: labelled.text }, { state: "label", text: NAMES.view }, "desktop: a What We Do tile labels the cursor");
   assert.ok(labelled.opacity > 0.99, "desktop: the label is visible");
 });
 
 desktop("the cursor never takes a pointer event, and the live globe labels it Drag", async (page) => {
   // The globe wrapper carries data-cursor="Drag" while the live globe shows (Part 1).
-  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 });
+  await page.waitForSelector(`#home .hero-scene[data-cursor="${NAMES.drag}"]`, { timeout: 45000 });
   const spot = await page.evaluate(() => {
     for (let x = innerWidth - 120; x > innerWidth / 2; x -= 40) {
       for (let y = 240; y < innerHeight - 160; y += 60) {
@@ -518,7 +542,7 @@ desktop("the cursor never takes a pointer event, and the live globe labels it Dr
       hidden: root.getAttribute("aria-hidden"),
     };
   }, spot);
-  assert.deepEqual(over, { state: "label", label: "Drag", clickThrough: true, hitsGlobe: true, hidden: "true" }, "desktop: over the live globe the cursor reads Drag, passes every pointer event to the globe and stays hidden from assistive technology");
+  assert.deepEqual(over, { state: "label", label: NAMES.drag, clickThrough: true, hitsGlobe: true, hidden: "true" }, "desktop: over the live globe the cursor reads Drag, passes every pointer event to the globe and stays hidden from assistive technology");
 });
 
 /** Blend modes other than normal anywhere in the cursor. */
@@ -530,7 +554,7 @@ function cursorBlends(page) {
 }
 
 desktop("the cursor dot is painted in the first frame after each move, over the globe, and never blends", async (page) => {
-  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 }); // the live globe renders under the path
+  await page.waitForSelector(`#home .hero-scene[data-cursor="${NAMES.drag}"]`, { timeout: 45000 }); // the live globe renders under the path
   await page.mouse.move(700, 480);
   await page.mouse.move(710, 480, { steps: 2 });
   await page.waitForTimeout(400);
@@ -555,7 +579,7 @@ desktop("the cursor dot is painted in the first frame after each move, over the 
   const promoted = ["transform", "transform", "auto"];
   assert.deepEqual(await cursorBlends(page), [], "desktop: over the globe (Drag) the cursor does not blend");
   assert.deepEqual(await look(), { state: "label", dotOutline: true, ringOutline: false, promoted }, "desktop: over the globe the orange label disc keeps its plain look, and only the moving layers are promoted");
-  const link = await page.locator('header a[href="/about/"]').first().boundingBox();
+  const link = await page.locator(`header a[href="${PATH("/about/")}"]`).first().boundingBox();
   await page.mouse.move(link.x + link.width / 2, link.y + link.height / 2, { steps: 4 });
   await page.waitForTimeout(300);
   assert.deepEqual(await look(), { state: "hover", dotOutline: true, ringOutline: true, promoted }, "desktop: over a nav link the white dot and ring carry a dark outline");
@@ -665,7 +689,7 @@ desktop("the cursor dot stays under the pointer while it morphs, and a click nav
     const r = root.querySelector(".fx-cursor-dot").getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2, state: root.dataset.state };
   });
-  const link = page.locator('header a[href="/about/"]').first();
+  const link = page.locator(`header a[href="${PATH("/about/")}"]`).first();
   const box = await link.boundingBox();
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(at.x, at.y + 160, { steps: 3 }); // below the nav: an idle cursor at full size
@@ -678,7 +702,7 @@ desktop("the cursor dot stays under the pointer while it morphs, and a click nav
   // Clicking a labelled tile swaps the page under a still pointer: the cursor re-reads what is under it
   // instead of keeping the tile's "View".
   await jumpTo(page, await sectionTop(page, "work"));
-  const tile = page.locator('#work [data-cursor="View"]').first();
+  const tile = page.locator(`#work [data-cursor="${NAMES.view}"]`).first();
   await settle(tile);
   const tileBox = await tile.boundingBox();
   const spot = { x: tileBox.x + tileBox.width * 0.3, y: tileBox.y + tileBox.height * 0.3 };
@@ -800,7 +824,7 @@ desktop("the progress rail is keyboard-reachable and tracks the section in view"
     return { idle: rail.hasAttribute("data-idle"), opacity: parseFloat(getComputedStyle(rail).opacity), events: getComputedStyle(rail).pointerEvents };
   });
   assert.deepEqual(idle, { idle: true, opacity: 0, events: "none" }, "desktop: over the hero the rail is faded out and click-through");
-  await page.locator("header").getByRole("link", { name: "Discuss a project" }).focus();
+  await page.locator("header").getByRole("link", { name: NAMES.cta }).focus();
   await page.keyboard.press("Tab");
   await page.waitForTimeout(450);
   const first = await page.evaluate(() => {
@@ -850,16 +874,16 @@ desktop("the nav pill slides, buttons sweep, links underline and fields glow", a
   });
   const shifts = () => page.evaluate(() => window.__fxShifts.slice());
   const pill = () => page.evaluate(() => document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null);
-  assert.equal(await pill(), "/", "desktop: the pill sits on the current page link");
-  assert.equal(await page.evaluate(() => document.querySelector('header a[aria-current="page"]')?.getAttribute("href")), "/", "desktop: the current page link is marked");
-  await page.locator("header").getByRole("link", { name: "About", exact: true }).hover();
+  assert.equal(await pill(), PATH("/"), "desktop: the pill sits on the current page link");
+  assert.equal(await page.evaluate(() => document.querySelector('header a[aria-current="page"]')?.getAttribute("href")), PATH("/"), "desktop: the current page link is marked");
+  await page.locator("header").getByRole("link", { name: NAMES.about, exact: true }).hover();
   await page.waitForTimeout(500);
-  assert.equal(await pill(), "/about/", "desktop: the pill follows the hovered link");
-  await page.locator("header").getByRole("link", { name: "Discuss a project" }).hover();
+  assert.equal(await pill(), PATH("/about/"), "desktop: the pill follows the hovered link");
+  await page.locator("header").getByRole("link", { name: NAMES.cta }).hover();
   await page.waitForTimeout(500);
   await page.mouse.move(700, 600, { steps: 4 });
   await page.waitForTimeout(500);
-  assert.equal(await pill(), "/", "desktop: the pill returns to the current page link");
+  assert.equal(await pill(), PATH("/"), "desktop: the pill returns to the current page link");
   assert.deepEqual(await shifts(), [], "desktop: hovering the nav links and the header CTA shifts no layout");
   const button = page.locator("#process a.fx-sweep").first();
   await button.scrollIntoViewIfNeeded();
@@ -877,16 +901,17 @@ desktop("the nav pill slides, buttons sweep, links underline and fields glow", a
   await link.hover();
   await page.waitForTimeout(550);
   assert.equal(await link.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el, "::after").transform).a), 1, "desktop: the link underline draws in on hover");
-  const field = page.getByLabel("Your name");
+  const field = page.getByLabel(NAMES.quickName);
   await field.focus();
   await page.waitForTimeout(450);
   assert.match(await field.evaluate((el) => getComputedStyle(el).boxShadow), /rgba\(250, 110, 67/, "desktop: a focused field glows");
   // Inner pages: the pill and aria-current sit on the page's own link; under /services/ on the Services trigger.
-  await fresh(page, ctx.base, "/about/");
-  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: document.querySelector('header a[aria-current="page"]')?.getAttribute("href") ?? null })), { pill: "/about/", current: "/about/" }, "desktop: on /about/ the pill and aria-current sit on About");
-  const service = await page.evaluate(() => document.querySelector('header li.group ul a[href^="/services/"]')?.getAttribute("href"));
+  // The EN/VI switch (LanguageSwitch.tsx, its links carry hreflang) marks the current language with its own aria-current.
+  await fresh(page, ctx.base, PATH("/about/"));
+  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: document.querySelector('header a[aria-current="page"]')?.getAttribute("href") ?? null })), { pill: PATH("/about/"), current: PATH("/about/") }, "desktop: on /about/ the pill and aria-current sit on About");
+  const service = await page.evaluate((path) => document.querySelector(`header li.group ul a[href^="${path}"]`)?.getAttribute("href"), PATH("/services/"));
   await fresh(page, ctx.base, service);
-  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: "/services/", current: ["/services/=true"] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
+  assert.deepEqual(await page.evaluate(() => ({ pill: document.querySelector("[data-nav-pill]")?.closest("a")?.getAttribute("href") ?? null, current: [...document.querySelectorAll("header [aria-current]:not([hreflang])")].map((a) => `${a.getAttribute("href")}=${a.getAttribute("aria-current")}`) })), { pill: PATH("/services/"), current: [`${PATH("/services/")}=true`] }, `desktop: on ${service} the pill sits on Services, marked as the current section, not the current page`);
 });
 
 /** Curtain animations (PageTransition.tsx) in `state`, or in any state. They exist only while a transition runs. */
@@ -899,7 +924,7 @@ const lenisClasses = (page) => page.evaluate(() => [...document.documentElement.
 
 desktop("a route change plays the orange curtain under the nav and the cursor", async (page) => {
   assert.equal(await page.evaluate(() => window.__fx.vt), 0, "desktop: the first load starts no view transition");
-  const about = page.locator("header").getByRole("link", { name: "About", exact: true });
+  const about = page.locator("header").getByRole("link", { name: NAMES.about, exact: true });
   const box = await about.boundingBox();
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(at.x, at.y + 120);
@@ -914,7 +939,7 @@ desktop("a route change plays the orange curtain under the nav and the cursor", 
     cursor: getComputedStyle(document.querySelector("[data-fx-cursor-root]")).viewTransitionName,
   }));
   assert.deepEqual(during, { nav: "fx-nav", cursor: "fx-cursor" }, "desktop: during the curtain the nav and the cursor ride above it");
-  await page.waitForURL("**/about/");
+  await page.waitForURL(`**${PATH("/about/")}`);
   assert.ok(await page.evaluate(() => window.__fx.vt) >= 1, "desktop: navigation starts a view transition");
   await transitionsDone(page);
   assert.equal(await curtains(page, "running"), 0, "desktop: the curtain finishes");
@@ -926,7 +951,7 @@ desktop("a route change plays the orange curtain under the nav and the cursor", 
     cursors: document.querySelectorAll("[data-fx-cursor-root]").length,
     y: window.scrollY,
   }), at);
-  assert.deepEqual(after, { nav: "none", hit: "/about/", pills: ["/about/"], cursors: 1, y: 0 }, "desktop: after the curtain the nav is plain and clickable again, one pill sits on About, one cursor, and the page opens at its top");
+  assert.deepEqual(after, { nav: "none", hit: PATH("/about/"), pills: [PATH("/about/")], cursors: 1, y: 0 }, "desktop: after the curtain the nav is plain and clickable again, one pill sits on About, one cursor, and the page opens at its top");
   assert.equal(await lenisClasses(page), "lenis", "desktop: smooth scrolling survives the navigation, idle and not stopped");
 });
 
@@ -938,7 +963,7 @@ desktop("a route change mid-glide opens the next page at its top, and Lenis glid
   await page.waitForTimeout(60);
   assert.equal(await lenisClasses(page), "lenis lenis-scrolling lenis-smooth", "desktop: a glide is under way (precondition)");
   // A navigation no press or key started (a router.push): only the route change itself can end the glide.
-  await page.evaluate(() => { window.__fx.scrolls = []; document.querySelector('header a[href="/about/"]').click(); });
+  await page.evaluate((path) => { window.__fx.scrolls = []; document.querySelector(`header a[href="${path}"]`).click(); }, PATH("/about/"));
   await waitForCurtain(page);
   // The pill slides along the nav to About; the scroll reset under it must not send it flying from below.
   const pillDrift = await page.evaluate(() => new Promise((resolve) => {
@@ -954,7 +979,7 @@ desktop("a route change mid-glide opens the next page at its top, and Lenis glid
     sample();
   }));
   assert.ok(pillDrift <= 2, `desktop: the nav pill stays inside the nav through a route change from far down the page (${pillDrift}px outside)`);
-  await page.waitForURL("**/about/");
+  await page.waitForURL(`**${PATH("/about/")}`);
   await page.waitForTimeout(1500);
   const landed = await page.evaluate(() => window.scrollY);
   assert.ok(landed <= 1, `desktop: the next page opens at its top, not where the old glide was heading (${landed}px)`);
@@ -972,18 +997,18 @@ desktop("a hash route lands on its anchor, a route within one section gets the c
   assert.equal(typeof ctx.deepLinkTop, "number", "desktop: the deep-link result is available (precondition)");
   // A same-page hash link only scrolls: no curtain.
   const vt0 = await page.evaluate(() => window.__fx.vt);
-  await page.locator('header a[href="/#pricing"]').first().click();
+  await page.locator(`header a[href="${PATH("/#pricing")}"]`).first().click();
   await page.waitForTimeout(1500);
   assert.equal(await page.evaluate(() => window.__fx.vt), vt0, "desktop: a same-page hash link plays no transition");
   // /about/ → /#pricing: the curtain, then #pricing exactly where a deep link puts it, without a glide.
-  await page.locator('header a[href="/about/"]').first().click();
-  await page.waitForURL("**/about/");
+  await page.locator(`header a[href="${PATH("/about/")}"]`).first().click();
+  await page.waitForURL(`**${PATH("/about/")}`);
   await page.waitForTimeout(1200);
   await page.evaluate(() => { window.__fx.scrolls = []; });
   const vt1 = await page.evaluate(() => window.__fx.vt);
-  await page.locator('header a[href="/#pricing"]').first().click();
+  await page.locator(`header a[href="${PATH("/#pricing")}"]`).first().click();
   await waitForCurtain(page);
-  await page.waitForURL((url) => url.pathname === "/" && url.hash === "#pricing");
+  await page.waitForURL((url) => url.pathname === PATH("/") && url.hash === "#pricing");
   await page.waitForTimeout(1500);
   const hashed = await page.evaluate(() => ({ top: document.getElementById("pricing").getBoundingClientRect().top, y: Math.round(window.scrollY) }));
   assert.ok(await page.evaluate(() => window.__fx.vt) > vt1, "desktop: /about/ → /#pricing plays the curtain");
@@ -991,18 +1016,18 @@ desktop("a hash route lands on its anchor, a route within one section gets the c
   assert.ok(await scrollsBetween(page, 0, hashed.y) <= 2, "desktop: the hash target is reached at once, not by a glide from the top");
   assert.equal(await lenisClasses(page), "lenis", "desktop: Lenis is idle after the hash route");
   // /services/ → /services/<slug>/ shares the first segment: the pathname key still remounts the page.
-  await fresh(page, ctx.base, "/services/");
+  await fresh(page, ctx.base, PATH("/services/"));
   await jumpTo(page, 600);
   await page.waitForTimeout(400);
   const held = await page.evaluate(() => window.scrollY);
   // A service link already in view, clicked where it is (a locator click could scroll the page first).
-  const target = await page.evaluate(() => {
-    for (const a of document.querySelectorAll('main a[href^="/services/"]:not([href="/services/"])')) {
+  const target = await page.evaluate((path) => {
+    for (const a of document.querySelectorAll(`main a[href^="${path}"]:not([href="${path}"])`)) {
       const r = a.getBoundingClientRect();
       if (r.top > 120 && r.bottom < innerHeight - 40 && r.width > 0) return { href: a.getAttribute("href"), x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2 };
     }
     return null;
-  });
+  }, PATH("/services/"));
   assert.ok(target, "desktop: a service link is in view on /services/ (precondition)");
   const href = target.href;
   const vt2 = await page.evaluate(() => window.__fx.vt);
@@ -1016,7 +1041,7 @@ desktop("a hash route lands on its anchor, a route within one section gets the c
   assert.equal(await page.evaluate(() => window.scrollY), 0, `desktop: ${href} opens at its top`);
   await page.evaluate(() => { window.__fx.scrolls = []; });
   await page.goBack();
-  await page.waitForURL((url) => url.pathname === "/services/");
+  await page.waitForURL((url) => url.pathname === PATH("/services/"));
   await page.waitForTimeout(2000);
   const back = await page.evaluate(() => window.scrollY);
   assert.ok(Math.abs(back - held) <= 8 && (await scrollsBetween(page, 0, held)) <= 2, `desktop: Back to /services/ restores ${held}px at once (${back}px)`);
@@ -1026,8 +1051,8 @@ desktop("a hash route lands on its anchor, a route within one section gets the c
 
 desktop("without the View Transitions API the route change is instant", async (page) => {
   await page.evaluate(() => { delete Document.prototype.startViewTransition; });
-  await page.locator("header").getByRole("link", { name: "About", exact: true }).click();
-  await page.waitForURL("**/about/");
+  await page.locator("header").getByRole("link", { name: NAMES.about, exact: true }).click();
+  await page.waitForURL(`**${PATH("/about/")}`);
   await page.locator("h1").waitFor({ state: "visible", timeout: 2000 });
   assert.equal(await curtains(page), 0, "desktop: no curtain without the API");
   assert.equal(await page.evaluate(() => window.scrollY), 0, "desktop: the page still opens at its top");
@@ -1037,8 +1062,8 @@ desktop("under reduced motion the route change is instant", async (page) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   try {
     await page.waitForFunction(() => !document.documentElement.hasAttribute("data-fx"));
-    await page.locator("header").getByRole("link", { name: "About", exact: true }).click();
-    await page.waitForURL("**/about/");
+    await page.locator("header").getByRole("link", { name: NAMES.about, exact: true }).click();
+    await page.waitForURL(`**${PATH("/about/")}`);
     await page.waitForTimeout(60);
     assert.equal(await curtains(page, "running"), 0, "reduced motion: the curtain does not play");
     assert.ok(await page.locator("h1").isVisible(), "reduced motion: the new page shows at once");
@@ -1117,10 +1142,10 @@ desktop("What We Do images drift inside their frames and leaving cards stack and
 });
 
 desktop("a footer link at the end of a page holds the old footer until the curtain covers it", async (page, ctx) => {
-  await fresh(page, ctx.base, "/about/");
+  await fresh(page, ctx.base, PATH("/about/"));
   await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
   await page.waitForTimeout(500);
-  const link = page.locator('#contact nav a[href="/services/"]').first();
+  const link = page.locator(`#contact nav a[href="${PATH("/services/")}"]`).first();
   await settle(link);
   const box = await link.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
@@ -1134,7 +1159,7 @@ desktop("a footer link at the end of a page holds the old footer until the curta
     newShown: getComputedStyle(document.documentElement, "::view-transition-new(fx-footer)").display !== "none",
   }));
   assert.deepEqual(held, { old: ["fx-page-hold"], newShown: false }, "desktop: the old footer is held with the old page, and the new one stays hidden");
-  await page.waitForURL("**/services/");
+  await page.waitForURL(`**${PATH("/services/")}`);
   await transitionsDone(page);
   assert.deepEqual(await page.evaluate(() => ({ y: window.scrollY, footer: getComputedStyle(document.querySelector("footer#contact")).viewTransitionName })), { y: 0, footer: "none" }, "desktop: /services/ opens at its top and the footer is plain again");
 });
@@ -1160,7 +1185,7 @@ async function recordShifts(page, selector) {
 desktop("Services: an opening column wipes its image in and the dot matrix ripples", async (page) => {
   await jumpTo(page, await sectionTop(page, "services"));
   await page.waitForTimeout(900);
-  const column = page.locator('#services a[data-cursor="Open"]').nth(1);
+  const column = page.locator(`#services a[data-cursor="${NAMES.open}"]`).nth(1);
   await column.hover();
   await page.waitForTimeout(1300);
   const opened = await column.evaluate((el) => ({
@@ -1182,7 +1207,7 @@ desktop("Services: opening the columns moves no layout box, even with the pointe
   await jumpTo(page, top);
   await page.mouse.move(6, 500);
   await page.waitForTimeout(900);
-  const columns = page.locator('#services a[data-cursor="Open"]');
+  const columns = page.locator(`#services a[data-cursor="${NAMES.open}"]`);
   const centre = async (i) => {
     const box = await columns.nth(i).boundingBox();
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -1296,12 +1321,12 @@ async function footerHoldAt(page, base, viewport, press) {
   try {
     await page.setViewportSize(viewport);
     await page.goto("about:blank");
-    await page.goto(new URL("/about/", base).href, { waitUntil: "networkidle" });
+    await page.goto(new URL(PATH("/about/"), base).href, { waitUntil: "networkidle" });
     await page.waitForFunction(() => document.documentElement.hasAttribute("data-fx-motion"), null, { timeout: 10000 });
     await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
     await page.waitForTimeout(600);
     // On a phone the footer is taller than the screen and its links sit above the end of the page.
-    const link = page.locator('#contact nav a[href="/services/"]').first();
+    const link = page.locator(`#contact nav a[href="${PATH("/services/")}"]`).first();
     await link.scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
     await settle(link);
@@ -1316,7 +1341,7 @@ async function footerHoldAt(page, base, viewport, press) {
       const group = getComputedStyle(document.documentElement, "::view-transition-group(fx-footer)");
       return Math.round(new DOMMatrixReadOnly(group.transform === "none" ? undefined : group.transform).m42);
     });
-    await page.waitForURL("**/services/");
+    await page.waitForURL(`**${PATH("/services/")}`);
     await transitionsDone(page);
     return { inFlow: before.inFlow, before: before.top, held };
   } finally {
@@ -1346,16 +1371,16 @@ touch("a route change from outside the open phone menu shuts the menu before the
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("about:blank");
-    await page.goto(new URL("/about/", ctx.base).href, { waitUntil: "networkidle" });
+    await page.goto(new URL(PATH("/about/"), ctx.base).href, { waitUntil: "networkidle" });
     await page.waitForFunction(() => document.documentElement.hasAttribute("data-fx-motion"), null, { timeout: 10000 });
     await page.locator(".mobile-menu summary").tap();
     assert.equal(await page.evaluate(() => document.querySelector(".mobile-menu").open), true, "touch 390×844: the menu is open (precondition)");
     // The header's home link sits outside the menu, so nothing closes the menu on the press itself (as with a
     // Back or Forward that animates): the route change must, in its own commit.
-    await page.locator('header a[aria-label="spacegear home"]').tap();
+    await page.locator(`header a[aria-label="${NAMES.homeLink}"]`).tap();
     await waitForCurtain(page);
     assert.equal(await page.evaluate(() => document.querySelector(".mobile-menu").open), false, "touch 390×844: the menu is shut while the curtain plays, not riding above it");
-    await page.waitForURL((url) => url.pathname === "/");
+    await page.waitForURL((url) => url.pathname === PATH("/"));
     await transitionsDone(page);
   } finally {
     await page.setViewportSize(restore);
@@ -1391,13 +1416,13 @@ desktop("Engagements: rows slide in, the toggle springs and Select pulses once",
   assert.ok(knob.checked === "true" && Math.abs(knob.x - 16) < 1 && knob.left === "2px", `desktop: the toggle knob springs across on a transform (${JSON.stringify(knob)})`);
   const pulse = rows.locator(".fx-pulse");
   const pulsing = () => pulse.evaluate((el) => el.getAnimations().filter((a) => a.animationName === "fx-pulse").length);
-  await rows.getByRole("button", { name: /^Select/ }).first().click();
+  await rows.getByRole("button", { name: new RegExp(`^${literal(NAMES.select)}`) }).first().click();
   await page.waitForTimeout(100);
   assert.equal(await pulse.count(), 1, "desktop: the selected row pulses");
   assert.equal(await pulsing(), 1, "desktop: the pulse is animating");
   await page.waitForTimeout(1100);
   assert.equal(await pulsing(), 0, "desktop: the pulse plays once");
-  await rows.getByRole("button", { name: /^Select / }).first().click(); // the next row (the first is now "Selected")
+  await rows.getByRole("button", { name: new RegExp(`^${literal(NAMES.select)} `) }).first().click(); // the next row (the first is now "Selected")
   await page.waitForTimeout(100);
   assert.equal(await pulse.count(), 1, "desktop: only the newly selected row pulses");
   assert.equal(await pulsing(), 1, "desktop: another row's Select pulses once too");
@@ -1497,7 +1522,7 @@ desktop("the footer wordmark rises as the curtain opens and leans away from the 
 });
 
 desktop("a footer link keeps the risen wordmark still under the page curtain", async (page, ctx) => {
-  await fresh(page, ctx.base, "/about/");
+  await fresh(page, ctx.base, PATH("/about/"));
   await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
   await page.waitForTimeout(1700);
   assert.equal((await wordmarkState(page)).risen, true, "desktop: the wordmark has risen at the end of /about/ (precondition)");
@@ -1508,27 +1533,27 @@ desktop("a footer link keeps the risen wordmark still under the page curtain", a
     new MutationObserver(() => window.__fxWordmark.push({ risen: mark.hasAttribute("data-in"), underCurtain: document.documentElement.matches(":active-view-transition") }))
       .observe(mark, { attributes: true, attributeFilter: ["data-in"] });
   });
-  const link = page.locator('#contact nav a[href="/services/"]').first();
+  const link = page.locator(`#contact nav a[href="${PATH("/services/")}"]`).first();
   await settle(link);
   const box = await link.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
   await page.mouse.down();
   await page.mouse.up();
   await waitForCurtain(page);
-  await page.waitForURL("**/services/");
+  await page.waitForURL(`**${PATH("/services/")}`);
   await transitionsDone(page);
   await page.waitForTimeout(400);
   // /services/ opens at its top, so the content covers the footer again: the letters sink once, after the curtain.
   assert.deepEqual(await page.evaluate(() => window.__fxWordmark), [{ risen: false, underCurtain: false }], "desktop: the letters keep still under the curtain and sink, out of sight, once it has gone");
 });
 
-const SITE_COPY = JSON.parse(readFileSync(new URL("../content/site.json", import.meta.url), "utf8"));
+const SITE_COPY = JSON.parse(readFileSync(new URL(`${COPY}site.json`, import.meta.url), "utf8"));
 if (SITE_COPY.socialProfiles.length === 0) {
   desktop("the footer's Privacy and Terms pills are magnetic and keep their names", async (page) => {
     await jumpTo(page, await page.evaluate(() => document.documentElement.scrollHeight));
     await page.waitForTimeout(500);
     const pills = page.locator("#contact a[data-magnetic]");
-    assert.deepEqual(await pills.evaluateAll((links) => links.map((a) => [a.getAttribute("href"), a.textContent.trim()])), [["/privacy/", "Privacy"], ["/terms/", "Terms"]], "desktop: both pills are magnetic links with their names");
+    assert.deepEqual(await pills.evaluateAll((links) => links.map((a) => [a.getAttribute("href"), a.textContent.trim()])), [[PATH("/privacy/"), NAMES.privacy], [PATH("/terms/"), NAMES.terms]], "desktop: both pills are magnetic links with their names");
     const pill = pills.first();
     await settle(pill);
     const box = await pill.boundingBox();
@@ -1541,10 +1566,10 @@ if (SITE_COPY.socialProfiles.length === 0) {
 }
 
 // The hero CTA and corner card that editors can change in the CMS (content/home.json), selected as
-// browser-check.mjs selects them: the CTA by its link inside the copy block, the corner card outside it.
-const HOME_COPY = JSON.parse(readFileSync(new URL("../content/home.json", import.meta.url), "utf8"));
-const HERO_CTA = `#home .hero-copy a[href=${JSON.stringify(HOME_COPY.cta.href)}]`;
-const HERO_CORNER = `#home a[href=${JSON.stringify(HOME_COPY.corner.href)}]:not(.hero-copy a)`;
+// browser-check.mjs selects them: the CTA by its link inside the copy block, the corner card outside it
+// (HOME_COPY is read at the top, in the run's language).
+const HERO_CTA = `#home .hero-copy a[href=${JSON.stringify(PATH(HOME_COPY.cta.href))}]`;
+const HERO_CORNER = `#home a[href=${JSON.stringify(PATH(HOME_COPY.corner.href))}]:not(.hero-copy a)`;
 
 /** Waits until this tab's intro (only the first load in a run plays it) has ended and the hero CTA has risen
  *  in: fully opaque and still for two polls, so a pointer placed from its box lands where it rests. */
@@ -1590,7 +1615,7 @@ desktop("the hero CTA is magnetic over the globe, keeps its name and focus ring,
 
   // The live globe beside it (Part 1 labels its wrapper once ready): leaving the CTA for the globe reads Drag
   // and lets the CTA spring back.
-  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 });
+  await page.waitForSelector(`#home .hero-scene[data-cursor="${NAMES.drag}"]`, { timeout: 45000 });
   const spot = await page.evaluate(() => {
     for (let x = innerWidth - 120; x > innerWidth / 2; x -= 40) {
       for (let y = 240; y < innerHeight - 160; y += 60) {
@@ -1602,7 +1627,7 @@ desktop("the hero CTA is magnetic over the globe, keeps its name and focus ring,
   assert.ok(spot, "desktop: part of the live globe is open to the pointer (precondition)");
   await page.mouse.move(spot.x, spot.y, { steps: 6 });
   await page.waitForTimeout(900);
-  assert.deepEqual(await cursorReads(page), { state: "label", label: "Drag" }, "desktop: from the hero CTA onto the globe the cursor reads Drag");
+  assert.deepEqual(await cursorReads(page), { state: "label", label: NAMES.drag }, "desktop: from the hero CTA onto the globe the cursor reads Drag");
   assert.ok(Math.abs((await matrixOf(cta)).m41) < 0.5, "desktop: the hero CTA springs back when the pointer leaves for the globe");
 
   // Still a plain link: its name is its visible text (content/home.json), and keyboard focus shows the ring.
@@ -1657,7 +1682,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ]) {
       const context = await browser.newContext(options);
       const page = await context.newPage();
-      await page.goto(base, { waitUntil: "networkidle" });
+      await page.goto(new URL(PATH("/"), base).href, { waitUntil: "networkidle" });
       await assertFxAbsent(page, label, flags);
       report.interactions.push(`fx ${label}: effects stay off`);
       await context.close();

@@ -6,7 +6,10 @@ import Reveal from "@/components/Reveal";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
 import { useMotionOK } from "@/components/fx/env";
 import { TrackScroll } from "@/components/fx/ScrollDepth";
-import { PROCESS_CTA, PROCESS_STEPS, SECTIONS, type ProcessStep } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent, type ProcessStep } from "@/lib/content";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -26,6 +29,7 @@ function CountUp({ to }: { to: number }) {
 }
 
 export function StepCard({ s, i }: { s: ProcessStep; i: number }) {
+  const t = dictionary(useLocale()).process;
   return (
     <motion.div
       data-reveal=""
@@ -61,7 +65,7 @@ export function StepCard({ s, i }: { s: ProcessStep; i: number }) {
           <span className="text-[12px] text-mut-2">{s.outputs.join(" · ")}</span>
           <span className="display shrink-0 text-3xl text-ink-strong">
             <CountUp to={s.outputs.length} />
-            <span className="ml-1 text-base text-mut-2">{s.outputs.length === 1 ? "output" : "outputs"}</span>
+            <span className="ml-1 text-base text-mut-2">{s.outputs.length === 1 ? t.output : t.outputs}</span>
           </span>
         </div>
       )}
@@ -148,6 +152,8 @@ function LiftOnPass({ at, progress, children }: { at: number; progress: MotionVa
 }
 
 export default function Process() {
+  const locale = useLocale();
+  const { PROCESS_CTA, PROCESS_STEPS, SECTIONS } = getContent(locale);
   return (
     <section id="process" className="relative scroll-mt-2 py-24">
       <Container>
@@ -160,7 +166,7 @@ export default function Process() {
               <h3 className="text-lg font-medium text-ink">{PROCESS_CTA.title}</h3>
               <p className="mt-1 text-[14px] text-mut-2">{PROCESS_CTA.text}</p>
             </div>
-            <FlameButton href={PROCESS_CTA.href}>{PROCESS_CTA.cta}</FlameButton>
+            <FlameButton href={localizedHref(PROCESS_CTA.href, locale)}>{PROCESS_CTA.cta}</FlameButton>
           </div>
         </Reveal>
       </Container>

@@ -29,10 +29,11 @@ test("the committed content passes validation", () => {
 });
 
 // The values are the editors' to change; scripts/check-migration.mjs compares them with the
-// pre-CMS copy. Here only the names count: every content export except the two code-only lists.
+// pre-CMS copy. Here only the names count: every content export except the two code-only lists and
+// the code-only map of each language's folder (CONTENT_DIRS).
 test("buildContent builds every pre-CMS content export from the files in content/", () => {
   const { values } = readJson("tests/fixtures/content-v1.json");
-  const expected = Object.keys(values).filter((name) => !["INSIGHTS", "CASE_STUDIES"].includes(name));
+  const expected = Object.keys(values).filter((name) => !["INSIGHTS", "CASE_STUDIES", "CONTENT_DIRS"].includes(name));
   assert.deepEqual(Object.keys(buildContent(committed())).sort(), expected.sort());
 });
 

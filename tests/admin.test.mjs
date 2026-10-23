@@ -160,12 +160,12 @@ test("a changed schema file, or a lock without its hash, fails the vendor check"
 });
 
 test("the site stylesheet does not take class names from the vendored CMS or the editable copy", () => {
-  // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle, or in a
-  // CMS edit, to the site CSS.
+  // Tailwind's source detection would otherwise add utilities named in the 2 MB bundle, a CMS edit,
+  // the release's configuration schema or the docs to the site CSS. source("..") (relative to
+  // src/app/globals.css) limits it to src/, which holds none of them.
   const css = fs.readFileSync("src/app/globals.css", "utf8");
-  assert.match(css, /^@source not "\.\.\/\.\.\/public\/admin";\r?$/m);
-  assert.match(css, /^@source not "\.\.\/\.\.\/content";\r?$/m);
-  assert.match(css, /^@source not "\.\.\/\.\.\/scripts\/sveltia-cms\.schema\.json";\r?$/m, "nor from the release's configuration schema (its option descriptions)");
+  assert.match(css, /^@import "tailwindcss" source\("\.\."\);\r?$/m);
+  assert.doesNotMatch(css, /^@source\b/m, "no @source line widens the scan beyond src/");
 });
 
 test("the admin page loads only the vendored bundle and is never indexed", () => {

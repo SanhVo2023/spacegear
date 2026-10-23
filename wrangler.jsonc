@@ -13,7 +13,10 @@
     "binding": "ASSETS",
     "html_handling": "force-trailing-slash",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*"]
+    // HTML navigations run the Worker first (worker/locale.ts: region redirect, ?lang= switch); /api/* still
+    // does. Files (any path with a dot), build output, media, the CMS and every /vi/ page go straight to assets.
+    // Negative rules win; "*" matches across "/" (miniflare's router, rules-engine).
+    "run_worker_first": ["/*", "!/_next/*", "!/images/*", "!/textures/*", "!/uploads/*", "!/admin/*", "!/vi/*", "!/*.*"]
   },
   "vars": {
     "SITE_ORIGIN": "http://localhost:8787",
@@ -22,7 +25,9 @@
     "OWNER_EMAIL": "",
     "SENDER_EMAIL": "",
     "GITHUB_CLIENT_ID": "",
-    "GITHUB_OAUTH_SCOPE": "public_repo"
+    "GITHUB_OAUTH_SCOPE": "public_repo",
+    // The local preview reads the visitor's country from the x-sg-test-country header (worker/locale.ts), never in production.
+    "LOCALE_TEST_HEADER": "true"
   },
   "d1_databases": [{ "binding": "DB", "database_name": "spacegear-preview", "migrations_dir": "./migrations" }],
   "send_email": [{ "name": "EMAIL" }],
@@ -40,7 +45,8 @@
         "OWNER_EMAIL": "",
         "SENDER_EMAIL": "",
         "GITHUB_CLIENT_ID": "Ov23liI3hsIsE2jT7eFc",
-        "GITHUB_OAUTH_SCOPE": "public_repo"
+        "GITHUB_OAUTH_SCOPE": "public_repo",
+        "LOCALE_TEST_HEADER": "false"
       },
       "d1_databases": [{ "binding": "DB", "database_name": "spacegear-production", "database_id": "b618e082-fb6d-4d78-9b85-c2a5bb350a7d", "migrations_dir": "./migrations" }],
       "send_email": [{ "name": "EMAIL" }],

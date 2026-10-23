@@ -52,3 +52,11 @@ test("notification failure cannot roll back accepted capture and configuration f
   assert.equal((await subject.handleContact(request(valid()),env,verify)).status,202);
   assert.equal(env.DB.sqlite.prepare("SELECT status FROM notification_outbox").get().status,"pending");
 });
+test("field problems come back in the form's language", async () => {
+  const { validateContact } = await import("../src/lib/contact.ts");
+  assert.equal(validateContact({ ...valid(), name: "A", locale: "vi" }).errors.name, "Vui lòng nhập từ 2 đến 100 ký tự.");
+  assert.equal(validateContact({ ...valid(), message: "ngắn", locale: "vi" }).errors.message, "Vui lòng nhập từ 20 đến 3.000 ký tự.");
+  assert.equal(validateContact({ ...valid(), name: "A" }).errors.name, "Use between 2 and 100 characters.");
+  assert.equal(validateContact({ ...valid(), name: "A", locale: "fr" }).errors.name, "Use between 2 and 100 characters.", "an unknown language is English");
+  assert.equal(validateContact({ ...valid(), locale: "vi" }).data.name, valid().name, "the language is not stored");
+});

@@ -17,33 +17,61 @@
 //   - Text is folded first: NFKC (a fullwidth ＄４９９ becomes $499), then every format character
 //     (\p{Cf}: zero-width, bidi, soft hyphen) and the combining grapheme joiner are removed.
 // Scopes (`where` is a content file or an export name, `field` the path inside it):
-//   - the sample dashboard (content/measure.json, MEASURE) may show percentages and k/M figures,
-//     in its figure fields only (FIGURE_FIELD); its ticker, labels and calls to action may not;
-//   - the legal pages may state periods ("for 2 years", "within 90 days") and name their
-//     processors (AWS); founding years, decades, delivery promises and partner tiers stay refused.
+//   - the sample dashboard (content/measure.json and content/vi/measure.json, MEASURE) may show
+//     percentages and k/M figures, in its figure fields only (FIGURE_FIELD); its ticker, labels and
+//     calls to action may not;
+//   - the legal pages (content/legal/ and content/vi/legal/) may state periods ("for 2 years",
+//     "within 90 days", "tối đa 90 ngày") and name their processors (AWS); founding years, decades,
+//     delivery promises and partner tiers stay refused;
+//   - the owner's contact details (phone, street address) only in Site identity's `address` and
+//     `telephone` fields (content/site.json, content/vi/site.json).
+// Vietnamese copy has its own patterns for every family above (prices in đồng, triệu or tỷ, counts of
+// khách hàng, dự án or đồng sáng lập, năm kinh nghiệm, đối tác, giải thưởng, văn phòng, bàn giao
+// trong N ngày, tăng N%), bounded by Unicode word edges.
 // Every pattern is linear: no unbounded quantifier can restart inside a run it already scanned
 // (tests/content.test.mjs times them on long pathological input).
-// Known gaps: Vietnamese phrasing (the site is English-only), look-alike letters (Cyrillic "Ѕ")
-// and non-ASCII digits (Arabic-Indic "٤٩٩"), HTML entities such as &#36; (React prints them as
-// text), and a literal backslash-u sequence written as text.
+// Known gaps: look-alike letters (Cyrillic "Ѕ") and non-ASCII digits (Arabic-Indic "٤٩٩"), HTML
+// entities such as &#36; (React prints them as text), and a literal backslash-u sequence written as text.
 import fs from "node:fs";
 import path from "node:path";
 
-const LEGAL = (where) => where.startsWith("content/legal/");
-// The figure fields of the illustrative dashboard (content/measure.json), and the figure groups built from them.
+// content/vi/ mirrors content/ file for file, so a Vietnamese file has the scopes of its English twin.
+const englishTwin = (where) => where.replace(/^content\/vi\//, "content/");
+const LEGAL = (where) => englishTwin(where).startsWith("content/legal/");
+// The figure fields of the illustrative dashboard (content/measure.json and its Vietnamese twin), and the figure groups built from them.
 const FIGURE_FIELD = /^(?:workflow\.center|workflow\.segments\[\d+\](?:\.value)?|stages\[\d+\]\.detail|accuracy(?:\.value|\.unit)?|throughput\.legend\[\d+\](?:\.value)?|readiness(?:\.score|\.bars\[\d+\](?:\.v)?)?|coverage(?:\.value|\.progress)?)$/;
-const MEASURE_FIGURE = (where, field) => (where === "content/measure.json" || where === "MEASURE") && FIGURE_FIELD.test(field);
+const MEASURE_FIGURE = (where, field) => (englishTwin(where) === "content/measure.json" || where === "MEASURE") && FIGURE_FIELD.test(field);
 const SPELLED = "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand";
 const MODEL = "Llama|Mistral|Mixtral|Qwen|Gemma|Falcon|Phi|DeepSeek|Yi";
 const AUDIENCE = String.raw`\s?(?:clients?|customers?|users?|people|downloads|installs|companies|businesses|teams|organi[sz]ations|revenue|sales|ARR|MRR)\b`;
 const VENDORS = "Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenAI|Anthropic|NVIDIA|IBM|Cloudflare";
+// Vietnamese. \b only knows ASCII letters, so words are bounded with Unicode lookarounds (L before, R after), and a
+// number may not continue a word or another number (NUM). Spelled numbers and the nouns a count would claim,
+// people included ("3 đồng sáng lập", "8 thành viên"), with any run of up to three spaces between their words:
+const L = String.raw`(?<![\p{L}\p{N}_])`;
+const R = String.raw`(?![\p{L}\p{N}_])`;
+const NUM = String.raw`(?<![\p{L}\p{N}_.,])\d[\d.,]{0,15}`;
+const VI_SPELLED = "một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mươi|trăm|nghìn|ngàn|chục";
+const VI_COUNTED = "khách hàng|dự án|doanh nghiệp|công ty|tổ chức|nhân sự|nhân viên|chuyên gia|kỹ sư|lập trình viên|đối tác|thương hiệu|quốc gia|người dùng|đồng sáng lập|nhà sáng lập|đồng nghiệp|thành viên".replaceAll(" ", String.raw`\s{1,3}`);
+const VI_PRESS = "VnExpress|Tuổi Trẻ|Thanh Niên|CafeF|CafeBiz|VTV|VietnamNet|Dân Trí|Zing|Forbes Việt Nam|Người Lao Động";
+const vi = (source) => new RegExp(source, "iu");
+// A date in the glossary's format ("tháng 10 năm 2026", "ngày 23 tháng 10 năm 2026") names a month, not ten years:
+// a month from 1 to 12 right after "tháng" and right before a four-digit year.
+const VI_DATE_MONTH = String.raw`(?<=${L}tháng\s{1,3})(?:0?[1-9]|1[0-2])\s{1,3}năm\s{1,3}\d{4}${R}`;
+// The owner's contact details (bilingual spec, decision 4) are facts that only Site identity holds.
+const NAP_FIELD = (where, field) => /^content\/(?:vi\/)?site\.json$/.test(where) && /^(?:address\.(?:full|street|locality)|telephone)$/.test(field);
 
 /** [pattern, what, { skip }]: `skip(where, field)` is true where the rule does not apply. */
 export const FORBIDDEN = [
   // Prices.
   [/\$\s?\d/, "a price"],
-  // \b only knows ASCII letters, so "đồng" is bounded with Unicode lookarounds.
-  [/[€£¥₫₹₩₽₺₦₱฿]|\b(?:USD|EUR|GBP|VND|SGD|AUD|CHF|JPY|CNY|INR)\b|\b(?:dollars?|euros?|pounds?|bucks)\b|(?<![\p{L}\p{N}])đồng(?![\p{L}\p{N}])/iu, "a price"],
+  [/[€£¥₫₹₩₽₺₦₱฿]|\b(?:USD|EUR|GBP|VND|SGD|AUD|CHF|JPY|CNY|INR)\b|\b(?:dollars?|euros?|pounds?|bucks)\b/i, "a price"],
+  // Vietnamese prices and rates ("5.000.000 đồng", "200.000đ", "15 triệu", "10 triệu/tháng", "giá từ 9…"). "đồng" is
+  // the currency only after a number: hợp đồng, đồng ý and đồng thời are words, and "3 đồng sáng lập" or
+  // "5 đồng nghiệp" count people (a client or scale claim, below).
+  [vi(String.raw`${NUM}\s{0,3}(?:đồng(?!\s{1,3}(?:sáng\s{1,3}lập|nghiệp)${R})|đ|vnđ|vnd|nghìn|ngàn|triệu|tr|tỷ)${R}`), "a price"],
+  [vi(String.raw`${NUM}\s{0,3}(?:\/|mỗi|một|cho mỗi|trên mỗi)\s{0,3}(?:tháng|năm|quý|giờ|ngày|tuần|dự án|người dùng|người|tài khoản|lượt)${R}`), "a price"],
+  [vi(String.raw`${L}(?:giá|chi phí|phí|mức phí|báo giá|ngân sách)\s{1,3}(?:(?:dịch vụ|gói|trọn gói)\s{1,3})?(?:chỉ\s{1,3})?(?:từ|chỉ|khoảng|dưới|trên|:)\s{0,3}\d`), "a price"],
   // A number with a rate ("499 per month", "49 a month", "49/mo"); "one team per project" is not a price.
   [/(?<![\w.,])\d[\d,.]{0,12}\s{0,3}(?:(?:per|a|an)\s{1,3}|\/\s{0,3})(?:month|year|yr|mo|hour|hr|day|week|project|user|seat|sprint)s?\b/i, "a price"],
   [/\b(?:hourly|daily|day) rates?\b|\b(?:price[sd]?|pricing|fees?|costs?|rates?)\s{0,3}(?:from|of|start(?:s|ing)?\s(?:at|from)|:)\s{0,3}\d|\bstarting (?:at|from)\s{0,3}\d/i, "a price"],
@@ -51,7 +79,8 @@ export const FORBIDDEN = [
   // name and an optional version ("Llama 3 70B", "Qwen 2.5 72B"), never followed by an audience or
   // revenue noun; B sizes before "parameters" or "models" ("7B and 13B parameter models"); a k
   // context window ("a 128k context window"); a K screen ("4K display").
-  [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM]\b(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`), "a price or scale figure", { skip: MEASURE_FIGURE }],
+  // The unit letter ends at a Unicode edge: "100 ký tự" (characters) and "82 Mức" are words, not k or M.
+  [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM](?![\p{L}\p{N}_])(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB](?![\p{L}\p{N}_])(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`, "u"), "a price or scale figure", { skip: MEASURE_FIGURE }],
   // The original site and the old identity.
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
   // "space—gear" is the retired dash wordmark: the drawn logo replaced it (docs/brand/).
@@ -70,7 +99,8 @@ export const FORBIDDEN = [
   [/(?<![\w.,])\d[\d.,]{0,8}[^.!?\n]{0,30}?\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b|\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b[^.!?\n]{0,30}?\d|\b(?:client|customer|user)\s{1,3}satisfaction\s{1,3}(?:of|rate|score)\b/i, "a client result claim"],
   // "You own 100% of the code" states ownership and "100% remotely" a way of working, not a result.
   [/(?<![\w.,])(?!100\s?%\s{1,3}(?:of\s{1,3}(?:the|your)\s{1,3}(?:code|source code|IP|intellectual property|work|deliverables|rights)|remote(?:ly)?|online)\b)\d[\d.,]{0,6}\s?%|\bper ?cent\b/i, "a result figure", { skip: MEASURE_FIGURE }],
-  [/(?<![\w.,])\d{1,6}(?:\.\d{1,3})?\s?(?:x\b|×)|\b(?:two|three|four|five|ten)(?:fold| times)\b|\b(?:doubled|tripled|quadrupled)\b/i, "a multiplier claim"],
+  // "62 Xử lý" is a word, not a multiplier: the x ends at a Unicode edge.
+  [/(?<![\w.,])\d{1,6}(?:\.\d{1,3})?\s?(?:x(?![\p{L}\p{N}_])|×)|\b(?:two|three|four|five|ten)(?:fold| times)\b|\b(?:doubled|tripled|quadrupled)\b/iu, "a multiplier claim"],
   // Press, partners, ratings, awards and certifications.
   [/TechCrunch/, "an unverified press or partnership claim"],
   [/\bAWS\b/, "an unverified press or partnership claim", { skip: LEGAL }],
@@ -92,6 +122,26 @@ export const FORBIDDEN = [
   [new RegExp(`\\b(?:deliver(?:s|ed|y)?|ship(?:s|ped)?|launch(?:es|ed)?|go(?:es)? live|complete[sd]?|built)\\b[^.!?\\n]{0,40}?\\b(?:in|within|under)\\s{1,3}(?:just\\s{1,3}|only\\s{1,3})?(?:\\d{1,3}|a|one|${SPELLED})\\s{0,3}(?:hours?|days?|weeks?|months?)\\b`, "i"), "a delivery timeline"],
   [/(?<![\w.,])\d{1,3}\s?-?\s?(?:h|hrs?|hours?|days?|weeks?)\s{1,3}turnaround\b/i, "a delivery timeline"],
   [/\b(?:in|within|under)\s{1,3}(?:just\s{1,3}|only\s{1,3})?\d{1,3}\s?(?:days?|weeks?|months?|hours?)\b|(?<![\w.,])\d{1,3}\s?(?:-|–|to)\s?\d{1,3}\s?(?:days?|weeks?|months?)\b/i, "a delivery timeline", { skip: LEGAL }],
+  // Vietnamese counts of khách hàng, dự án, doanh nghiệp, nhân sự, chuyên gia, đồng sáng lập…, also "hàng trăm" and spelled numbers.
+  [vi(String.raw`${NUM}\s{0,3}\+?\s{0,3}(?:${VI_COUNTED})${R}|${L}(?:hàng|vài|hơn|trên)\s{1,3}(?:chục|trăm|nghìn|ngàn|triệu)\s{1,3}(?:${VI_COUNTED})${R}|${L}(?:hơn|trên)\s{1,3}(?:${VI_SPELLED})(?:\s{1,3}(?:${VI_SPELLED})){0,3}\s{1,3}(?:${VI_COUNTED})${R}`), "a client or scale claim"],
+  // Năm kinh nghiệm, founding years and decades are refused everywhere; "N năm" periods are allowed on the legal pages,
+  // and a date ("tháng 10 năm 2026") is not a period.
+  [vi(String.raw`${NUM}\s{0,3}\+?\s{0,3}năm\s{1,3}kinh\s{1,3}nghiệm|${L}(?:${VI_SPELLED})(?:\s{1,3}(?:${VI_SPELLED})){0,3}\s{1,3}năm\s{1,3}kinh\s{1,3}nghiệm|${L}(?:thành\s{1,3}lập|ra\s{1,3}đời)\s{1,3}(?:(?:từ|vào)\s{1,3})?(?:năm\s{1,3})?(?:19|20)\d{2}${R}|${L}(?:kể\s{1,3})?từ\s{1,3}năm\s{1,3}(?:19|20)\d{2}${R}|${L}thập\s{1,3}(?:kỷ|niên)${R}`), "an experience claim"],
+  [vi(String.raw`(?!${VI_DATE_MONTH})${NUM}\s{0,3}\+?\s{0,3}năm${R}`), "an experience claim", { skip: LEGAL }],
+  // Đối tác, giải thưởng, chứng nhận, báo chí. "Không hàm ý quan hệ đối tác" (the terms) and "công cụ của đối tác" are not claims.
+  [vi(String.raw`${L}đối\s{1,3}tác\s{1,3}(?:chính\s{1,3}thức|chiến\s{1,3}lược|vàng|bạc|bạch\s{1,3}kim|kim\s{1,3}cương|cấp\s{1,3}cao|được\s{1,3}chứng\s{1,3}nhận|ưu\s{1,3}tiên|hàng\s{1,3}đầu|độc\s{1,3}quyền)${R}|${L}đối\s{1,3}tác\s{1,3}(?:của|với)\s{1,3}(?:${VENDORS})${R}|${L}(?:${VENDORS})\s{1,3}(?:chứng\s{1,3}nhận|công\s{1,3}nhận|ủy\s{1,3}quyền)${R}`), "an unverified partnership claim"],
+  [vi(String.raw`${L}(?:giải\s{1,3}thưởng|đạt\s{1,3}giải|đoạt\s{1,3}giải|được\s{1,3}vinh\s{1,3}danh|top\s{1,3}\d{1,3}\s{1,3}(?:công\s{1,3}ty|doanh\s{1,3}nghiệp|đơn\s{1,3}vị|nhà\s{1,3}cung\s{1,3}cấp|agency|thương\s{1,3}hiệu)|(?:đơn\s{1,3}vị|công\s{1,3}ty|doanh\s{1,3}nghiệp|nhà\s{1,3}cung\s{1,3}cấp|agency|thương\s{1,3}hiệu)\s{1,3}số\s{1,3}1|số\s{1,3}1\s{1,3}(?:Việt\s{1,3}Nam|thị\s{1,3}trường|khu\s{1,3}vực|châu\s{1,3}Á|thế\s{1,3}giới|về)|hàng\s{1,3}đầu\s{1,3}(?:Việt\s{1,3}Nam|thị\s{1,3}trường|khu\s{1,3}vực|châu\s{1,3}Á|thế\s{1,3}giới)|được\s{1,3}(?:đánh\s{1,3}giá|xếp\s{1,3}hạng)\s{1,3}\d|${NUM}\s{0,3}sao)${R}`), "an unverified rating or award"],
+  [vi(String.raw`${L}(?:chứng\s{1,3}nhận|chứng\s{1,3}chỉ|đạt\s{1,3}chuẩn|tiêu\s{1,3}chuẩn)\s{1,3}(?:ISO|SOC)${R}|${L}được\s{1,3}chứng\s{1,3}nhận${R}`), "an unverified certification"],
+  [vi(String.raw`${L}(?:báo\s{1,3}chí|truyền\s{1,3}thông\s{1,3}(?:đưa\s{1,3}tin|nói\s{1,3}về)|lên\s{1,3}báo|xuất\s{1,3}hiện\s{1,3}trên\s{1,3}(?:báo|truyền\s{1,3}hình|VTV)|${VI_PRESS})${R}`), "an unverified press claim", { skip: LEGAL }],
+  // Văn phòng, chi nhánh, trụ sở.
+  [vi(String.raw`${L}(?:văn\s{1,3}phòng|chi\s{1,3}nhánh|trụ\s{1,3}sở)(?:\s{1,3}(?:chính|đại\s{1,3}diện|giao\s{1,3}dịch))?\s{1,3}(?:tại|ở|đặt\s{1,3}tại)${R}|${L}(?:các|nhiều|hệ\s{1,3}thống)\s{1,3}(?:văn\s{1,3}phòng|chi\s{1,3}nhánh)${R}|${NUM}\s{0,3}(?:văn\s{1,3}phòng|chi\s{1,3}nhánh)${R}|${L}có\s{1,3}(?:văn\s{1,3}phòng|chi\s{1,3}nhánh|trụ\s{1,3}sở)${R}`), "an office location"],
+  // Delivery timelines: a promise to deliver is refused everywhere; other periods ("tối đa 90 ngày") only off the legal pages.
+  [vi(String.raw`${L}(?:bàn\s{1,3}giao|triển\s{1,3}khai|hoàn\s{1,3}thành|hoàn\s{1,3}tất|ra\s{1,3}mắt|vận\s{1,3}hành|go\s{1,3}live|giao|xây\s{1,3}dựng\s{1,3}xong|làm\s{1,3}xong)${R}[^.!?\n]{0,40}?${L}(?:trong|chỉ\s{1,3}trong|trong\s{1,3}vòng|dưới|chưa\s{1,3}đến|không\s{1,3}quá)\s{1,3}(?:chỉ\s{1,3})?(?:\d{1,3}|${VI_SPELLED})(?:\s{1,3}(?:${VI_SPELLED}))?\s{0,3}(?:giờ|ngày|tuần|tháng)${R}`), "a delivery timeline"],
+  [vi(String.raw`${L}(?:trong|chỉ\s{1,3}trong|trong\s{1,3}vòng|dưới|chưa\s{1,3}đến|không\s{1,3}quá|tối\s{1,3}đa)\s{1,3}(?:chỉ\s{1,3})?\d{1,3}\s{0,3}(?:giờ|ngày|tuần|tháng)${R}|${NUM}\s{0,3}(?:-|–|đến|tới)\s{0,3}\d{1,3}\s{0,3}(?:ngày|tuần|tháng)${R}`), "a delivery timeline", { skip: LEGAL }],
+  // Results with figures: tăng/giảm N%, gấp N lần, nhanh hơn N lần.
+  [vi(String.raw`${L}gấp\s{1,3}(?:\d{1,3}(?:[.,]\d)?|${VI_SPELLED})\s{1,3}lần${R}|${NUM}\s{0,3}lần\s{1,3}(?:nhanh|hiệu\s{1,3}quả|rẻ|tốt|cao|nhiều)|${L}(?:nhanh|hiệu\s{1,3}quả|rẻ|tốt|cao|nhiều)\s{1,3}hơn\s{1,3}(?:\d{1,3}(?:[.,]\d)?|${VI_SPELLED})\s{1,3}lần${R}|${L}(?:tăng|giảm|cải\s{1,3}thiện|tiết\s{1,3}kiệm|rút\s{1,3}ngắn|nâng|cắt\s{1,3}giảm)\s{1,3}(?:\p{L}{1,10}\s{1,3}){0,3}?(?:đến\s{1,3}|tới\s{1,3}|hơn\s{1,3}|thêm\s{1,3}|khoảng\s{1,3})?\d[\d.,]{0,6}\s{0,3}(?:%|phần\s{1,3}trăm)`), "a result figure", { skip: MEASURE_FIGURE }],
+  // The owner's phone number and street address, in either language, outside Site identity's address and telephone fields.
+  [/(?<!\p{N})(?:\+\s?84|0)\s?386\s?749\s?799(?!\p{N})|\bB4\s{1,3}Street\b|đường\s{1,3}B4(?![\p{L}\p{N}])|\bSala\s{1,3}Urban\s{1,3}Area\b|Khu\s{1,3}đô\s{1,3}thị\s{1,3}Sala(?!\p{L})/iu, "the owner's contact details outside Site identity (content/site.json: address and telephone)", { skip: NAP_FIELD }],
 ];
 
 /** NFKC, then format characters (\p{Cf}) and the combining grapheme joiner removed: what a reader sees, in plain characters. */

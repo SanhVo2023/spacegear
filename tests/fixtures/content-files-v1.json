@@ -752,7 +752,13 @@
     "content/site.json": {
       "name": "spacegear.tech",
       "description": "Digital transformation and AI consulting, from strategy to working systems. Modernize operations, connect data and put AI to work.",
-      "socialProfiles": []
+      "socialProfiles": [],
+      "address": {
+        "full": "11 B4 Street, Sala Urban Area, An Khanh Ward, Ho Chi Minh City, Vietnam",
+        "street": "11 B4 Street, Sala Urban Area, An Khanh Ward",
+        "locality": "Ho Chi Minh City"
+      },
+      "telephone": "+84386749799"
     },
     "content/team-roles/adoption-and-support.json": {
       "order": 5,
@@ -806,6 +812,865 @@
         "href": "/about/"
       },
       "founder": null
+    },
+    "content/vi/approach.json": {
+      "steps": [
+        {
+          "step": "Giai đoạn 1",
+          "name": "Đánh giá",
+          "desc": "Chúng tôi tìm hiểu công việc của bạn và lập sơ đồ hiện trạng về quy trình, hệ thống, các ràng buộc cùng những người liên quan. Hai bên thống nhất vấn đề trước khi chọn giải pháp.",
+          "outputs": [
+            "Sơ đồ hiện trạng",
+            "Bản mô tả vấn đề"
+          ]
+        },
+        {
+          "step": "Giai đoạn 2",
+          "name": "Xác định ưu tiên",
+          "desc": "Chúng tôi giúp bạn chọn một bước tiếp theo hữu ích bằng cách so sánh các cơ hội theo giá trị, tính khả thi và mức độ phụ thuộc. Hai bên thống nhất mốc cơ sở và thế nào là thành công.",
+          "outputs": [
+            "Danh sách cơ hội ưu tiên",
+            "Lộ trình triển khai"
+          ]
+        },
+        {
+          "step": "Giai đoạn 3",
+          "name": "Kiểm chứng",
+          "desc": "Chúng tôi kiểm chứng các giả định quan trọng bằng một nguyên mẫu hoặc một đợt thí điểm có trọng tâm, đối chiếu kết quả với mốc cơ sở rồi quyết định hạng mục nào đáng đầu tư tiếp.",
+          "outputs": [
+            "Bằng chứng đánh giá",
+            "Quyết định tiếp tục hay dừng"
+          ]
+        },
+        {
+          "step": "Giai đoạn 4",
+          "name": "Triển khai",
+          "desc": "Chúng tôi xây dựng giải pháp bám sát quy trình thực tế, thiết kế và phát triển theo từng phần nhỏ có thể xem xét, rồi kiểm thử tích hợp, các ngoại lệ và trải nghiệm người dùng trước khi đưa vào vận hành.",
+          "outputs": [
+            "Giải pháp đã được kiểm thử",
+            "Kế hoạch triển khai"
+          ]
+        },
+        {
+          "step": "Giai đoạn 5",
+          "name": "Đưa vào sử dụng",
+          "desc": "Chúng tôi chuẩn bị để hệ thống đi vào sử dụng hằng ngày: viết tài liệu vận hành, làm rõ trách nhiệm quản lý, hỗ trợ bàn giao và cùng bạn thống nhất cách đo lường, cải tiến hệ thống.",
+          "outputs": [
+            "Hướng dẫn vận hành",
+            "Danh sách hạng mục cải tiến"
+          ]
+        }
+      ]
+    },
+    "content/vi/engagements/assess.json": {
+      "order": 1,
+      "name": "Đánh giá & xác định ưu tiên",
+      "short": "Đánh giá",
+      "img": "/images/suite/design-engine.webp",
+      "stage": "Định hướng",
+      "stageNo": "01",
+      "deliverables": [
+        "Sơ đồ quy trình hiện tại và các cơ hội",
+        "Yêu cầu về dữ liệu và tích hợp",
+        "Tiêu chí thành công",
+        "Đề xuất dự án thí điểm đầu tiên"
+      ],
+      "outcomes": [
+        "Hai bên cùng hiểu rõ vấn đề",
+        "Các ưu tiên rõ ràng, được hai bên thống nhất",
+        "Các thiếu hụt về dữ liệu đã được xác định",
+        "Một bước đi đầu tiên thiết thực"
+      ],
+      "featured": true
+    },
+    "content/vi/engagements/build.json": {
+      "order": 2,
+      "name": "Kiểm chứng & xây dựng",
+      "short": "Xây dựng",
+      "img": "/images/suite/shield-core.webp",
+      "stage": "Triển khai",
+      "stageNo": "02",
+      "deliverables": [
+        "Nguyên mẫu và tiêu chí đánh giá",
+        "Giải pháp đã tích hợp và kiểm thử",
+        "Kế hoạch triển khai",
+        "Tài liệu bàn giao"
+      ],
+      "outcomes": [
+        "Có bằng chứng trước khi đầu tư lớn hơn",
+        "Giải pháp phù hợp với quy trình làm việc",
+        "Ít bước chuyển giao thủ công hơn",
+        "Đội ngũ sẵn sàng sử dụng giải pháp"
+      ],
+      "featured": false
+    },
+    "content/vi/engagements/improve.json": {
+      "order": 3,
+      "name": "Đưa vào vận hành & cải tiến",
+      "short": "Cải tiến",
+      "img": "/images/suite/scale-matrix.webp",
+      "stage": "Đưa vào sử dụng",
+      "stageNo": "03",
+      "deliverables": [
+        "Hướng dẫn sử dụng và vận hành",
+        "Rà soát hiệu quả hoạt động và các ngoại lệ",
+        "Các hạng mục cải tiến được xếp ưu tiên",
+        "Hỗ trợ triển khai liên tục"
+      ],
+      "outcomes": [
+        "Hệ thống được dùng đều đặn hằng ngày",
+        "Ngoại lệ giảm dần theo thời gian",
+        "Hiệu quả hoạt động được theo dõi rõ ràng",
+        "Danh sách hạng mục cải tiến rõ ràng"
+      ],
+      "featured": false
+    },
+    "content/vi/engagements-panel.json": {
+      "footer": {
+        "text": "Bạn chưa biết bắt đầu từ đâu? Hãy cho chúng tôi biết bạn muốn cải thiện điều gì",
+        "href": "/contact/"
+      }
+    },
+    "content/vi/faq-card.json": {
+      "title": "Bạn vẫn còn thắc mắc?",
+      "text": "Mỗi tổ chức có một hoàn cảnh riêng. Hãy chia sẻ điều bạn đang làm, chúng tôi sẽ gợi ý một bước tiếp theo hợp lý. Bạn không cần chuẩn bị sẵn bản mô tả hoàn chỉnh.",
+      "cta": "Trò chuyện cùng chúng tôi",
+      "href": "/contact/",
+      "img": "/images/faq-team.webp",
+      "imgAlt": "Mọi người đang thảo luận về một dự án quanh chiếc bàn",
+      "badge": "chúng tôi xây hệ thống · bạn dẫn dắt thay đổi ·"
+    },
+    "content/vi/faqs/after-release.json": {
+      "order": 7,
+      "question": "spacegear.tech có hỗ trợ sau lần phát hành đầu tiên không?",
+      "answer": "Việc cải tiến tiếp theo có thể bao gồm hỗ trợ đưa vào sử dụng, giám sát, rà soát ngoại lệ và tiếp tục triển khai thêm. Mức độ hỗ trợ và trách nhiệm của các bên được thống nhất riêng cho từng dự án hợp tác."
+    },
+    "content/vi/faqs/ai-evaluation.json": {
+      "order": 5,
+      "question": "Giải pháp AI được đánh giá như thế nào?",
+      "answer": "Chúng tôi cùng bạn thống nhất thế nào là một kết quả đủ tốt để sử dụng, so sánh với mốc cơ sở và kiểm thử trên các ví dụ cũng như ngoại lệ liên quan. Bước con người kiểm duyệt và giới hạn vận hành được thiết kế theo từng tình huống ứng dụng."
+    },
+    "content/vi/faqs/data-readiness.json": {
+      "order": 4,
+      "question": "Dữ liệu của tôi có cần sẵn sàng trước khi trao đổi không?",
+      "answer": "Không cần. Việc tìm hiểu chất lượng, khả năng truy cập và mức sẵn sàng của dữ liệu có thể là một phần của dự án hợp tác đầu tiên. Bạn có thể bắt đầu từ chính bài toán kinh doanh."
+    },
+    "content/vi/faqs/existing-systems.json": {
+      "order": 3,
+      "question": "spacegear.tech có làm việc với hệ thống tôi đang dùng không?",
+      "answer": "Có. Chúng tôi bắt đầu bằng việc tìm hiểu những gì bạn đang có. Hướng đi phù hợp có thể là cải thiện một quy trình, kết nối các công cụ hoặc mở rộng một hệ thống, thay vì thay thế toàn bộ."
+    },
+    "content/vi/faqs/scope-and-pricing.json": {
+      "order": 6,
+      "question": "Phạm vi công việc và chi phí được thống nhất như thế nào?",
+      "answer": "Trước tiên, chúng tôi trao đổi với bạn về mục tiêu, các ràng buộc và sản phẩm bàn giao, sau đó hai bên thống nhất phạm vi và điều khoản thương mại. Website này không đưa ra gói thuê bao phần mềm hay gói dịch vụ cố định nào."
+    },
+    "content/vi/faqs/what-we-do.json": {
+      "order": 1,
+      "question": "spacegear.tech làm gì?",
+      "answer": "Chúng tôi giúp các tổ chức thay đổi cách làm việc: xác định chuyển đổi số và AI sẽ giúp ích ở đâu, xây dựng hệ thống, rồi hỗ trợ đội ngũ của bạn khi bắt đầu đưa hệ thống vào sử dụng."
+    },
+    "content/vi/faqs/where-to-start.json": {
+      "order": 2,
+      "question": "Tôi nên bắt đầu từ đâu?",
+      "answer": "Hãy cho chúng tôi biết bạn muốn cải thiện điều gì. Nếu bước tiếp theo chưa rõ ràng, bước Đánh giá cơ hội có thể giúp lập sơ đồ quy trình làm việc, xác định các phương án và đề xuất sáng kiến đầu tiên. Nếu bạn đã có sẵn bản mô tả dự án, hai bên có thể bàn ngay về việc triển khai."
+    },
+    "content/vi/faqs/who-we-work-with.json": {
+      "order": 8,
+      "question": "spacegear.tech làm việc với những ai?",
+      "answer": "Chúng tôi làm việc với các tổ chức thuộc mọi quy mô, ngành nghề và khu vực. Điều quan trọng là bạn có một bài toán thực tế muốn giải quyết, chứ không phải yêu cầu về lĩnh vực hay quy mô công ty."
+    },
+    "content/vi/footer.json": {
+      "badge": "chúng tôi xây hệ thống · bạn dẫn dắt thay đổi ·",
+      "tagline": "Chúng tôi giúp bạn hoạch định, xây dựng và mở rộng doanh nghiệp thông minh hơn.",
+      "identity": [
+        "Tư vấn chuyển đổi số",
+        "& AI"
+      ],
+      "identityStrong": "spacegear.tech",
+      "columns": [
+        [
+          {
+            "label": "Trang chủ",
+            "href": "/"
+          },
+          {
+            "label": "Những gì chúng tôi làm",
+            "href": "/#work"
+          },
+          {
+            "label": "Dịch vụ",
+            "href": "/services/"
+          },
+          {
+            "label": "Quy trình",
+            "href": "/#process"
+          },
+          {
+            "label": "Những gì chúng tôi đo lường",
+            "href": "/#analytics"
+          },
+          {
+            "label": "Hình thức hợp tác",
+            "href": "/#pricing"
+          },
+          {
+            "label": "Hỏi đáp",
+            "href": "/#faq"
+          },
+          {
+            "label": "Ai sẽ làm việc cùng bạn",
+            "href": "/#team"
+          }
+        ],
+        [
+          {
+            "label": "Phương pháp",
+            "href": "/approach/"
+          },
+          {
+            "label": "Giới thiệu",
+            "href": "/about/"
+          },
+          {
+            "label": "Liên hệ",
+            "href": "/contact/"
+          },
+          {
+            "label": "AI ứng dụng",
+            "href": "/services/applied-ai/"
+          },
+          {
+            "label": "Tự động hóa",
+            "href": "/services/automation-integration/"
+          },
+          {
+            "label": "Phát triển sản phẩm",
+            "href": "/services/product-delivery/"
+          },
+          {
+            "label": "Quyền riêng tư",
+            "href": "/privacy/"
+          },
+          {
+            "label": "Điều khoản",
+            "href": "/terms/"
+          }
+        ]
+      ],
+      "quickStart": {
+        "title": "Hãy bắt đầu từ một bài toán",
+        "text": "Bạn chỉ cần để lại tên và email, chúng tôi sẽ đưa bạn đến một biểu mẫu ngắn để mô tả nhu cầu.",
+        "note": "Chúng tôi chỉ dùng những thông tin này để phản hồi bạn."
+      },
+      "about": "giúp các tổ chức biến những bài toán kinh doanh thành hệ thống số vận hành thực tế."
+    },
+    "content/vi/home.json": {
+      "eyebrow": {
+        "muted": "Bạn mang đến bài toán,",
+        "strong": "chúng tôi xây dựng hệ thống."
+      },
+      "headline": {
+        "lead": "Chúng tôi giúp bạn",
+        "verbs": [
+          "hoạch định",
+          "xây dựng",
+          "mở rộng"
+        ],
+        "tail": "doanh nghiệp thông minh hơn."
+      },
+      "pitch": {
+        "title": "Hãy bắt đầu từ một bài toán",
+        "text": "Cho chúng tôi biết bạn muốn cải thiện điều gì."
+      },
+      "cta": {
+        "label": "Trao đổi về dự án",
+        "href": "/contact/"
+      },
+      "stats": [
+        {
+          "value": "05",
+          "unit": "",
+          "label": "Dịch vụ cốt lõi",
+          "sub": "Từ chiến lược đến triển khai"
+        },
+        {
+          "value": "03",
+          "unit": "",
+          "label": "Hình thức hợp tác",
+          "sub": "Đánh giá, xây dựng, cải tiến"
+        }
+      ],
+      "corner": {
+        "title": "AI ứng dụng & học sâu",
+        "sub": "// Dịch vụ nổi bật",
+        "href": "/services/applied-ai/"
+      },
+      "scrollHint": "Cuộn xuống để khám phá ↓",
+      "statement": "Chúng tôi biến những bài toán kinh doanh thành hệ thống số vận hành thực tế mà đội ngũ của bạn có thể sử dụng."
+    },
+    "content/vi/measure.json": {
+      "illustrative": true,
+      "imageCard": {
+        "img": "/images/suite/shield-core.webp",
+        "accent": "Minh họa",
+        "label": "Ví dụ"
+      },
+      "workflow": {
+        "title": "Quy trình xử lý hồ sơ",
+        "sub": "Lượt chạy mẫu · minh họa",
+        "center": "62%",
+        "segments": [
+          {
+            "label": "Tự động xử lý",
+            "value": 62,
+            "color": "#fa6e43"
+          },
+          {
+            "label": "Con người kiểm duyệt",
+            "value": 29,
+            "color": "#888891"
+          },
+          {
+            "label": "Ngoại lệ",
+            "value": 9,
+            "color": "#434346"
+          }
+        ]
+      },
+      "stages": [
+        {
+          "name": "Tiếp nhận",
+          "note": "Bước 01",
+          "status": "Tự động",
+          "detail": "12 phút → 2 phút",
+          "hands": [
+            300,
+            65
+          ]
+        },
+        {
+          "name": "Trích xuất",
+          "note": "Bước 02",
+          "status": "Có hỗ trợ",
+          "detail": "9 phút → 3 phút",
+          "hands": [
+            210,
+            150
+          ]
+        },
+        {
+          "name": "Kiểm duyệt",
+          "note": "Bước 03",
+          "status": "Do người xử lý",
+          "detail": "Vẫn trong tầm kiểm soát",
+          "hands": [
+            120,
+            20
+          ]
+        }
+      ],
+      "stagesFooter": "Thời gian mỗi hồ sơ · minh họa",
+      "accuracy": {
+        "label": "Độ chính xác so với mốc cơ sở",
+        "value": "94.6",
+        "unit": "%",
+        "sub": "Ví dụ về mục tiêu"
+      },
+      "throughput": {
+        "title": "Số hồ sơ đã xử lý",
+        "sub": "Có hỗ trợ so với thủ công · ví dụ",
+        "legend": [
+          {
+            "value": "+68%",
+            "label": "Có hỗ trợ"
+          },
+          {
+            "value": "Cơ sở",
+            "label": "Thủ công"
+          }
+        ]
+      },
+      "readiness": {
+        "title": "Mức sẵn sàng triển khai",
+        "sub": "Mức mà một dự án thí điểm có thể đạt tới · ví dụ",
+        "score": "82",
+        "scoreLabel": "Điểm sẵn sàng",
+        "bars": [
+          {
+            "label": "Dữ liệu",
+            "v": 38
+          },
+          {
+            "label": "Tích hợp",
+            "v": 79
+          },
+          {
+            "label": "Kiểm duyệt",
+            "v": 92
+          },
+          {
+            "label": "Đào tạo",
+            "v": 84
+          },
+          {
+            "label": "Giám sát",
+            "v": 96
+          }
+        ]
+      },
+      "coverage": {
+        "tag": "Ví dụ: bộ dữ liệu đánh giá",
+        "value": "99.1%",
+        "label": "Độ phủ ca kiểm thử",
+        "progress": 99.1
+      },
+      "connectors": {
+        "tag": "Kết nối với hệ thống hiện có",
+        "glyphs": [
+          "◇",
+          "◎",
+          "△",
+          "⬡"
+        ]
+      },
+      "ticker": [
+        "Lập sơ đồ quy trình",
+        "Rà soát mức sẵn sàng dữ liệu",
+        "Đánh giá AI",
+        "Con người tham gia kiểm duyệt",
+        "Tích hợp hệ thống",
+        "Triển khai & đào tạo",
+        "Giám sát & cải tiến",
+        "Phát triển sản phẩm"
+      ],
+      "cta": {
+        "label": "Xem cách chúng tôi đánh giá AI",
+        "href": "/services/applied-ai/"
+      }
+    },
+    "content/vi/process.json": {
+      "steps": [
+        {
+          "step": "Bước 1",
+          "name": "Đánh giá",
+          "desc": "Chúng tôi lập sơ đồ hiện trạng về quy trình làm việc, hệ thống, các ràng buộc và những người liên quan, rồi cùng bạn thống nhất vấn đề trước khi chọn giải pháp.",
+          "outputs": [
+            "Sơ đồ hiện trạng",
+            "Bản mô tả vấn đề"
+          ]
+        },
+        {
+          "step": "Bước 2",
+          "name": "Xác định ưu tiên",
+          "desc": "Chúng tôi so sánh các cơ hội theo giá trị, tính khả thi và mức độ phụ thuộc, sau đó cùng bạn thống nhất mốc cơ sở và thế nào là thành công.",
+          "outputs": [
+            "Danh sách cơ hội ưu tiên",
+            "Tiêu chí thành công",
+            "Lộ trình"
+          ]
+        },
+        {
+          "step": "Bước 3",
+          "name": "Xây dựng",
+          "desc": "Chúng tôi kiểm chứng những giả định rủi ro nhất trước, rồi thiết kế và phát triển theo từng phần nhỏ có thể xem xét, bám sát quy trình làm việc thực tế.",
+          "outputs": [
+            "Nguyên mẫu đã được đánh giá",
+            "Giải pháp đã được kiểm thử"
+          ]
+        },
+        {
+          "step": "Bước 4",
+          "name": "Đưa vào sử dụng",
+          "desc": "Chúng tôi hỗ trợ triển khai và bàn giao, viết tài liệu về cách hệ thống vận hành, rồi cùng bạn thống nhất cách đo lường và cải tiến hệ thống.",
+          "outputs": [
+            "Kế hoạch triển khai",
+            "Hướng dẫn vận hành",
+            "Danh sách hạng mục cải tiến"
+          ]
+        }
+      ],
+      "cta": {
+        "title": "Bạn muốn biết quy trình này áp dụng vào công việc của mình như thế nào?",
+        "text": "Nếu bạn có câu hỏi về quy trình, chúng tôi rất sẵn lòng trao đổi kỹ hơn.",
+        "cta": "Trao đổi về dự án",
+        "href": "/contact/"
+      }
+    },
+    "content/vi/sections.json": {
+      "work": {
+        "title": "Những gì chúng tôi làm",
+        "index": "001",
+        "heading": "Chúng tôi đảm nhận cả chiến lược lẫn triển khai, giúp bạn tiến nhanh hơn và ít vướng mắc hơn.",
+        "description": "Mỗi dự án hợp tác đều bắt đầu từ một vấn đề có thật, với mục tiêu để lại cho đội ngũ của bạn một thành quả có thể sử dụng."
+      },
+      "services": {
+        "title": "Dịch vụ của chúng tôi",
+        "index": "002",
+        "heading": "Các dịch vụ linh hoạt giúp bạn hiện đại hóa vận hành và đưa AI vào công việc.",
+        "description": "Năm năng lực này có thể triển khai riêng lẻ hoặc kết hợp với nhau."
+      },
+      "process": {
+        "title": "Quy trình làm việc",
+        "index": "003",
+        "heading": "Mỗi dự án đi theo một lộ trình rõ ràng, từ buổi trao đổi đầu tiên đến khi hệ thống được sử dụng hằng ngày.",
+        "description": "Mỗi giai đoạn đều cho ra một sản phẩm cụ thể mà bạn có thể xem xét và sử dụng."
+      },
+      "analytics": {
+        "title": "Những gì chúng tôi đo lường",
+        "index": "004",
+        "heading": "Bạn sẽ biết một thay đổi có đang phát huy tác dụng hay không, dựa trên bằng chứng đủ rõ để hành động.",
+        "description": "Đây là ví dụ minh họa về các chỉ số mà hai bên thống nhất trước khi bắt tay xây dựng, không phải kết quả của khách hàng."
+      },
+      "pricing": {
+        "title": "Hình thức hợp tác",
+        "index": "005",
+        "heading": "Mỗi hình thức hợp tác đều rõ ràng, với phạm vi được xác định xoay quanh mục tiêu của bạn.",
+        "description": "Bạn có thể bắt đầu từ một bài toán hoặc một dự án đã xác định rõ. Phạm vi và điều khoản được thống nhất trước khi bắt đầu công việc."
+      },
+      "faq": {
+        "title": "Hỏi đáp",
+        "index": "006",
+        "heading": "Những giải thích ngắn gọn giúp bạn quyết định nên bắt đầu từ đâu.",
+        "description": "Bạn không cần có sẵn mọi câu trả lời trước khi bắt đầu trao đổi với chúng tôi."
+      },
+      "team": {
+        "title": "Ai sẽ làm việc cùng bạn",
+        "index": "007",
+        "heading": "Đằng sau mỗi dự án là các chuyên môn về chiến lược, kỹ thuật và triển khai.",
+        "description": "Mỗi dự án đều huy động các chuyên môn này, từ buổi trao đổi đầu tiên đến khi bàn giao."
+      },
+      "testimonials": {
+        "title": "Khách hàng nói gì",
+        "index": "008",
+        "heading": "Đây là những chia sẻ từ các tổ chức đã làm việc cùng chúng tôi.",
+        "description": "Mỗi chia sẻ đều được đăng với sự cho phép của khách hàng."
+      },
+      "labs": {
+        "title": "spacegear Labs",
+        "index": "009",
+        "heading": "Chúng tôi chia sẻ những ghi chép thực tế về chuyển đổi số, AI và các hệ thống đứng sau công việc hằng ngày.",
+        "description": "Đây là các bài giải thích và ghi chép rút ra từ công việc của chúng tôi."
+      }
+    },
+    "content/vi/services/ai-strategy.json": {
+      "order": 2,
+      "slug": "ai-strategy",
+      "name": "Chiến lược AI & xây dựng năng lực",
+      "shortName": "Chiến lược AI",
+      "category": "Định hướng",
+      "image": "/images/suite/neural-core.webp",
+      "summary": "Chúng tôi giúp bạn đi từ sự quan tâm đến AI tới một quyết định có cơ sở: AI có thể hỗ trợ ở đâu, cần những gì và nên bắt đầu thế nào.",
+      "buyerProblem": "Một bản demo đầy hứa hẹn vẫn chưa đủ để chứng minh giá trị kinh doanh. Chúng tôi gắn các tình huống ứng dụng AI tiềm năng với dữ liệu sẵn có, các ràng buộc vận hành và một cách đánh giá rõ ràng để biết giải pháp có thực sự hữu ích hay không.",
+      "deliverables": [
+        "Đánh giá cơ hội và mức sẵn sàng cho AI",
+        "Các tình huống ứng dụng được xếp ưu tiên, kèm yêu cầu dữ liệu",
+        "Tiêu chí đánh giá, rủi ro và các điểm cần con người kiểm duyệt",
+        "Kế hoạch thí điểm và phương án xây dựng năng lực"
+      ],
+      "process": [
+        "Chúng tôi tìm hiểu các quyết định, đầu việc và luồng thông tin.",
+        "Chúng tôi so sánh các phương án AI với những cách làm đơn giản hơn.",
+        "Hai bên xác định dự án thí điểm, quy trình đánh giá và kế hoạch đưa vào sử dụng."
+      ],
+      "faqs": [
+        {
+          "question": "Nếu dữ liệu của tôi chưa sẵn sàng thì sao?",
+          "answer": "Đó lại là một điểm khởi đầu hữu ích. Chúng tôi sẽ xác định những việc cần làm về dữ liệu và quy trình trước khi có thể đánh giá một dự án thí điểm AI một cách có trách nhiệm."
+        },
+        {
+          "question": "spacegear.tech có đề xuất dùng AI cho mọi vấn đề không?",
+          "answer": "Không. Các quy tắc nghiệp vụ, việc tích hợp tốt hơn hoặc một quy trình đơn giản hơn có thể phù hợp hơn. Đề xuất của chúng tôi xuất phát từ chính vấn đề cần giải quyết."
+        }
+      ],
+      "relatedInsightSlugs": []
+    },
+    "content/vi/services/applied-ai.json": {
+      "order": 3,
+      "slug": "applied-ai",
+      "name": "AI ứng dụng & học sâu",
+      "shortName": "AI ứng dụng",
+      "category": "Triển khai",
+      "image": "/images/suite/neural-net.webp",
+      "summary": "Chúng tôi biến dữ liệu và thông tin phi cấu trúc thành phần mềm hữu ích, có tích hợp sẵn khâu đánh giá và sự giám sát của con người.",
+      "buyerProblem": "Tài liệu, hình ảnh và dữ liệu vận hành có thể chứa nhiều thông tin hữu ích nhưng khó khai thác một cách nhất quán. Chúng tôi xây dựng và đánh giá hệ thống AI xoay quanh một quy trình làm việc cụ thể, kể cả những tình huống cần con người tiếp quản.",
+      "deliverables": [
+        "Mốc cơ sở và bộ dữ liệu đánh giá",
+        "Nguyên mẫu cho xử lý tài liệu thông minh, truy xuất thông tin, dự báo hoặc thị giác máy tính",
+        "Giải pháp đã tích hợp, có bước con người kiểm duyệt",
+        "Giám sát, mô tả giới hạn và tài liệu vận hành"
+      ],
+      "process": [
+        "Chúng tôi xác định nhiệm vụ, các ràng buộc và ngưỡng chất lượng.",
+        "Chúng tôi so sánh các cách tiếp cận với một mốc cơ sở đo lường được.",
+        "Chúng tôi tích hợp, đánh giá và chuẩn bị để hệ thống đi vào vận hành."
+      ],
+      "faqs": [
+        {
+          "question": "Khi nào thì nên dùng học sâu?",
+          "answer": "Học sâu có thể hữu ích với những mẫu hình phức tạp trong văn bản, hình ảnh hoặc các loại dữ liệu khác, khi có đủ dữ liệu phù hợp và đủ năng lực để đánh giá. Chúng tôi so sánh nó với các phương pháp đơn giản hơn trước khi chọn cách tiếp cận."
+        },
+        {
+          "question": "spacegear.tech xử lý thế nào khi hệ thống cho kết quả sai?",
+          "answer": "Khi thiết kế từng tình huống ứng dụng, chúng tôi đưa vào khâu đánh giá, kiểm tra chất lượng ở những chỗ cần thiết, bước con người kiểm duyệt và một hướng xử lý rõ ràng cho các trường hợp ngoại lệ. Không mô hình nào được coi là không bao giờ sai."
+        }
+      ],
+      "relatedInsightSlugs": []
+    },
+    "content/vi/services/automation-integration.json": {
+      "order": 4,
+      "slug": "automation-integration",
+      "name": "Tự động hóa & tích hợp hệ thống",
+      "shortName": "Tự động hóa & tích hợp",
+      "category": "Kết nối",
+      "image": "/images/suite/scale-matrix.webp",
+      "summary": "Chúng tôi kết nối các công cụ bạn đang dùng, giảm việc thủ công lặp lại, nhưng vẫn để các ngoại lệ và quyền kiểm soát luôn rõ ràng.",
+      "buyerProblem": "Việc sao chép thông tin giữa các công cụ rời rạc vừa tốn sự tập trung vừa gây ra những lỗi lẽ ra có thể tránh được. Chúng tôi thiết kế lại quy trình làm việc, kết nối các hệ thống và giúp các bước chuyển giao dễ hiểu, dễ quản lý hơn.",
+      "deliverables": [
+        "Quy trình làm việc được thiết kế lại và sơ đồ tích hợp",
+        "Kết nối API và các bước chuyển giao tự động",
+        "Cơ chế xử lý ngoại lệ và các bước phê duyệt của con người",
+        "Khả năng theo dõi vận hành và tài liệu bảo trì"
+      ],
+      "process": [
+        "Chúng tôi lập sơ đồ các công việc lặp lại và những trường hợp ngoại lệ đi kèm.",
+        "Chúng tôi kết nối các hệ thống với quy tắc và trách nhiệm rõ ràng.",
+        "Chúng tôi kiểm thử toàn bộ quy trình và chuẩn bị bàn giao."
+      ],
+      "faqs": [
+        {
+          "question": "spacegear.tech có làm việc được với các công cụ tôi đang dùng không?",
+          "answer": "Trước hết, chúng tôi đánh giá API, cơ chế phân quyền truy cập và các phương án tích hợp của những công cụ đó. Hệ thống hiện có là một phần của điểm xuất phát, không phải lý do mặc nhiên để thay thế."
+        },
+        {
+          "question": "Nếu một bước tự động gặp lỗi thì sao?",
+          "answer": "Thiết kế đã bao gồm phần xử lý lỗi, cơ chế thử lại an toàn và một bước để con người xem xét các trường hợp ngoại lệ. Những tình huống này được kiểm thử song song với các lượt chạy thành công."
+        }
+      ],
+      "relatedInsightSlugs": []
+    },
+    "content/vi/services/digital-transformation.json": {
+      "order": 1,
+      "slug": "digital-transformation",
+      "name": "Chiến lược chuyển đổi số",
+      "shortName": "Chuyển đổi số",
+      "category": "Định hướng",
+      "image": "/images/suite/design-engine.webp",
+      "summary": "Chúng tôi giúp bạn tìm ra điểm nghẽn, xác định ưu tiên và vạch một lộ trình thiết thực từ cách làm việc hiện nay đến bước tiếp theo.",
+      "buyerProblem": "Chuyển đổi số trở nên khó khăn khi công cụ, quy trình và các ưu tiên mỗi thứ đi một hướng. Chúng tôi bắt đầu từ cách công việc thực sự diễn ra, rồi gắn mục tiêu kinh doanh với những quyết định mà bạn có thể thực hiện.",
+      "deliverables": [
+        "Sơ đồ quy trình làm việc và hệ thống hiện tại của bạn",
+        "Danh sách cơ hội đã được xếp thứ tự ưu tiên",
+        "Lộ trình triển khai kèm người phụ trách và các mối phụ thuộc",
+        "Tiêu chí thành công và một sáng kiến đầu tiên thiết thực"
+      ],
+      "process": [
+        "Chúng tôi tìm hiểu bài toán kinh doanh và quy trình làm việc hiện tại.",
+        "Chúng tôi so sánh các phương án cải thiện, công sức cần bỏ ra và các mối phụ thuộc.",
+        "Hai bên thống nhất lộ trình và bước đầu tiên có thể đo lường được."
+      ],
+      "faqs": [
+        {
+          "question": "Tôi có cần chuẩn bị sẵn kế hoạch chuyển đổi không?",
+          "answer": "Không cần. Bạn chỉ cần mang đến vấn đề muốn giải quyết. Chúng tôi có thể bắt đầu bằng giai đoạn khảo sát và giúp bạn quyết định điều gì nên thay đổi trước."
+        },
+        {
+          "question": "Chuyển đổi số có nghĩa là phải thay thế mọi thứ không?",
+          "answer": "Không. Bước đánh giá sẽ xem xét nên giữ lại, kết nối, cải thiện hay thay thế những gì. Một thay đổi hữu ích có thể chỉ là cải thiện một quy trình làm việc cụ thể."
+        }
+      ],
+      "relatedInsightSlugs": []
+    },
+    "content/vi/services/product-delivery.json": {
+      "order": 5,
+      "slug": "product-delivery",
+      "name": "Phát triển sản phẩm & nền tảng số",
+      "shortName": "Phát triển sản phẩm",
+      "category": "Triển khai",
+      "image": "/images/suite/shield-core.webp",
+      "summary": "Chúng tôi đưa ý tưởng đi qua các bước khảo sát, thiết kế và phát triển để trở thành phần mềm mà mọi người có thể sử dụng và cải tiến.",
+      "buyerProblem": "Một chiến lược trở nên hữu ích khi được hiện thực hóa thành một hệ thống vận hành được. Chúng tôi kết nối các quyết định về sản phẩm, trải nghiệm người dùng và phần thực thi kỹ thuật, kèm phạm vi rõ ràng, tiêu chí nghiệm thu và kế hoạch triển khai.",
+      "deliverables": [
+        "Vấn đề, phạm vi và hành trình người dùng được xác định rõ",
+        "Thiết kế sản phẩm và kiến trúc kỹ thuật",
+        "Giải pháp đã được kiểm thử và kế hoạch triển khai",
+        "Bàn giao, tài liệu và danh sách hạng mục cải tiến"
+      ],
+      "process": [
+        "Chúng tôi xác định người dùng, vấn đề và phiên bản đầu tiên hữu ích.",
+        "Chúng tôi thiết kế và xây dựng theo từng phần nhỏ có thể xem xét.",
+        "Chúng tôi kiểm thử, phát hành và hỗ trợ đưa sản phẩm vào sử dụng."
+      ],
+      "faqs": [
+        {
+          "question": "Tôi có thể bắt đầu từ một dự án đang có không?",
+          "answer": "Có. Chúng tôi có thể rà soát sản phẩm, mã nguồn hoặc kế hoạch triển khai hiện tại, rồi cùng bạn trao đổi những việc cần làm để đưa dự án tiến lên."
+        },
+        {
+          "question": "Ai sở hữu sản phẩm được bàn giao?",
+          "answer": "Quyền sở hữu, quyền truy cập, giấy phép và việc bàn giao được thống nhất trong phạm vi hợp tác trước khi bắt đầu công việc. Nội dung trên website không thay thế cho thỏa thuận đó."
+        }
+      ],
+      "relatedInsightSlugs": []
+    },
+    "content/vi/services-panel.json": {
+      "panel": {
+        "label": "Dịch vụ cốt lõi",
+        "count": "5/5",
+        "title": "Các dịch vụ dạng mô-đun, linh hoạt, phục vụ vận hành số hiện đại",
+        "text": "Chúng tôi giúp bạn hiện đại hóa cách làm việc và ứng dụng AI một cách thiết thực. Các năng lực cốt lõi của spacegear.tech gồm:",
+        "line": "Chúng tôi hoạch định, xây dựng, kết nối và cải tiến.",
+        "cta": "Tìm hiểu chi tiết các dịch vụ",
+        "href": "/services/"
+      },
+      "pillars": [
+        {
+          "no": "01",
+          "slug": "digital-transformation",
+          "name": "Chuyển đổi số",
+          "tag": "định hướng",
+          "glyph": "≈"
+        },
+        {
+          "no": "02",
+          "slug": "ai-strategy",
+          "name": "Chiến lược AI",
+          "tag": "mức sẵn sàng",
+          "glyph": "◇"
+        },
+        {
+          "no": "03",
+          "slug": "applied-ai",
+          "name": "AI ứng dụng",
+          "tag": "trí tuệ",
+          "glyph": "◈"
+        },
+        {
+          "no": "04",
+          "slug": "automation-integration",
+          "name": "Tự động hóa",
+          "tag": "kết nối",
+          "glyph": "△"
+        },
+        {
+          "no": "05",
+          "slug": "product-delivery",
+          "name": "Phát triển sản phẩm",
+          "tag": "triển khai",
+          "glyph": "⬡"
+        }
+      ]
+    },
+    "content/vi/site.json": {
+      "name": "spacegear.tech",
+      "description": "spacegear.tech tư vấn chuyển đổi số và AI, từ chiến lược đến hệ thống vận hành thực tế. Chúng tôi giúp bạn hiện đại hóa vận hành, kết nối dữ liệu và đưa AI vào công việc.",
+      "socialProfiles": [],
+      "address": {
+        "full": "Số 11, đường B4, Khu đô thị Sala, phường An Khánh, TP. Hồ Chí Minh, Việt Nam",
+        "street": "Số 11, đường B4, Khu đô thị Sala, phường An Khánh",
+        "locality": "Thành phố Hồ Chí Minh"
+      },
+      "telephone": "+84386749799"
+    },
+    "content/vi/team-roles/adoption-and-support.json": {
+      "order": 5,
+      "name": "Đưa vào sử dụng & hỗ trợ",
+      "role": "Cải tiến",
+      "img": "/images/suite/neural-core.webp",
+      "imgAlt": "",
+      "links": [],
+      "bio": "Chúng tôi chuẩn bị bàn giao, hỗ trợ quá trình sử dụng hằng ngày và tiếp tục cải tiến hệ thống khi nhu cầu của bạn thay đổi."
+    },
+    "content/vi/team-roles/ai-and-data-engineering.json": {
+      "order": 2,
+      "name": "AI & kỹ thuật dữ liệu",
+      "role": "AI ứng dụng",
+      "img": "/images/suite/neural-net.webp",
+      "imgAlt": "",
+      "links": [],
+      "bio": "Chúng tôi so sánh AI với những phương án đơn giản hơn, xây dựng dựa trên một mốc cơ sở đo lường được và thiết kế những điểm mà con người vẫn nắm quyền kiểm soát."
+    },
+    "content/vi/team-roles/integration-and-automation.json": {
+      "order": 4,
+      "name": "Tích hợp & tự động hóa",
+      "role": "Kết nối",
+      "img": "/images/suite/scale-matrix.webp",
+      "imgAlt": "",
+      "links": [],
+      "bio": "Chúng tôi kết nối các công cụ bạn đang dùng và loại bỏ việc thủ công lặp lại, trong khi vẫn giữ các ngoại lệ hiển thị rõ ràng và các bước chuyển giao minh bạch."
+    },
+    "content/vi/team-roles/product-and-delivery.json": {
+      "order": 3,
+      "name": "Sản phẩm & triển khai",
+      "role": "Xây dựng",
+      "img": "/images/suite/shield-core.webp",
+      "imgAlt": "",
+      "links": [],
+      "bio": "Chúng tôi biến các quyết định thành phần mềm vận hành được theo từng phần nhỏ có thể xem xét, với phạm vi rõ ràng, tiêu chí nghiệm thu và kế hoạch triển khai."
+    },
+    "content/vi/team-roles/strategy-and-discovery.json": {
+      "order": 1,
+      "name": "Chiến lược & khảo sát",
+      "role": "Định hướng",
+      "img": "/images/suite/design-engine.webp",
+      "imgAlt": "",
+      "links": [],
+      "bio": "Chúng tôi bắt đầu từ cách công việc thực sự diễn ra, lập sơ đồ quy trình, hệ thống và các ràng buộc để đề xuất đầu tiên bám sát thực tế của bạn."
+    },
+    "content/vi/team.json": {
+      "label": "Cách chúng tôi hợp tác với bạn",
+      "cta": {
+        "label": "Xem cách chúng tôi làm việc",
+        "href": "/about/"
+      },
+      "founder": null
+    },
+    "content/vi/work.json": {
+      "featured": {
+        "label": "Dịch vụ nổi bật",
+        "name": "AI ứng dụng",
+        "slug": "applied-ai"
+      },
+      "lineup": {
+        "label": "Danh mục dịch vụ",
+        "count": "5/5",
+        "title": "Chúng tôi đảm nhận cả chiến lược lẫn triển khai",
+        "text": "Chuyển đổi số, chiến lược AI, AI ứng dụng, tự động hóa và phát triển sản phẩm được kết nối với nhau, từ quyết định đầu tiên đến khi đi vào sử dụng hằng ngày.",
+        "footer": "Từ định hướng đến sử dụng hằng ngày"
+      },
+      "tiles": [
+        {
+          "slug": "digital-transformation",
+          "name": "Chuyển đổi số",
+          "desc": "Chúng tôi tìm ra điểm nghẽn, xác định ưu tiên và vạch ra một hướng đi thiết thực."
+        },
+        {
+          "slug": "automation-integration",
+          "name": "Tự động hóa & tích hợp",
+          "desc": "Chúng tôi kết nối các công cụ của bạn và loại bỏ những thao tác thủ công lặp đi lặp lại."
+        },
+        {
+          "slug": "ai-strategy",
+          "name": "Chiến lược AI",
+          "desc": "Chúng tôi giúp bạn xác định AI có thể hỗ trợ ở đâu, cần những gì và nên bắt đầu thế nào."
+        },
+        {
+          "slug": "product-delivery",
+          "name": "Phát triển sản phẩm",
+          "desc": "Chúng tôi đưa ý tưởng đi từ khâu khảo sát đến phần mềm được đưa vào sử dụng."
+        }
+      ],
+      "assessment": {
+        "title": "Đánh giá cơ hội",
+        "badge": "01/03",
+        "note": "Chúng tôi đề xuất bắt đầu từ bước này.",
+        "chip": "Giai đoạn hợp tác",
+        "value": "01",
+        "unit": "/03",
+        "progress": 33.3,
+        "cta": "Bắt đầu với bước đánh giá",
+        "href": "/contact/"
+      }
     },
     "content/work.json": {
       "featured": {

@@ -1,0 +1,44 @@
+{
+  "eyebrow": {
+    "muted": "Bạn mang đến bài toán,",
+    "strong": "chúng tôi xây dựng hệ thống."
+  },
+  "headline": {
+    "lead": "Chúng tôi giúp bạn",
+    "verbs": [
+      "hoạch định",
+      "xây dựng",
+      "mở rộng"
+    ],
+    "tail": "doanh nghiệp thông minh hơn."
+  },
+  "pitch": {
+    "title": "Hãy bắt đầu từ một bài toán",
+    "text": "Cho chúng tôi biết bạn muốn cải thiện điều gì."
+  },
+  "cta": {
+    "label": "Trao đổi về dự án",
+    "href": "/contact/"
+  },
+  "stats": [
+    {
+      "value": "05",
+      "unit": "",
+      "label": "Dịch vụ cốt lõi",
+      "sub": "Từ chiến lược đến triển khai"
+    },
+    {
+      "value": "03",
+      "unit": "",
+      "label": "Hình thức hợp tác",
+      "sub": "Đánh giá, xây dựng, cải tiến"
+    }
+  ],
+  "corner": {
+    "title": "AI ứng dụng & học sâu",
+    "sub": "// Dịch vụ nổi bật",
+    "href": "/services/applied-ai/"
+  },
+  "scrollHint": "Cuộn xuống để khám phá ↓",
+  "statement": "Chúng tôi biến những bài toán kinh doanh thành hệ thống số vận hành thực tế mà đội ngũ của bạn có thể sử dụng."
+}

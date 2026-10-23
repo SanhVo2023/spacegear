@@ -1,6 +1,6 @@
 # spacegear.tech
 
-Digital transformation and AI consultancy website. Next.js exports 12 visible HTML pages; Cloudflare Workers Static Assets serves them. A same-origin Worker validates inquiries with Turnstile, stores them in D1 and queues owner notifications through Cloudflare Email Service.
+Digital transformation and AI consultancy website, in English and Vietnamese. Next.js exports 24 visible HTML pages, 12 in each language; Cloudflare Workers Static Assets serves them. A same-origin Worker sends first-time visitors from Vietnam to the Vietnamese pages, validates inquiries with Turnstile, stores them in D1 and queues owner notifications through Cloudflare Email Service.
 
 Customer eligibility is open across industries, regions and company sizes. Public copy and schema contain no company-scale claims or fictional clients, staff, testimonials or results.
 
@@ -28,11 +28,12 @@ npm run typecheck
 npm test
 npm run build:cf
 npm run check:seo
+npm run check:locale -- http://127.0.0.1:8787
 npm run test:browser
 npm run check:fidelity
 ```
 
-The last three expect the local Cloudflare server. Install the pinned browser with `npx playwright install chromium`, or set PLAYWRIGHT_CHROMIUM_EXECUTABLE to a compatible Chromium executable. The SEO command also accepts a URL and --production.
+The last four expect the local Cloudflare server. Install the pinned browser with `npx playwright install chromium`, or set PLAYWRIGHT_CHROMIUM_EXECUTABLE to a compatible Chromium executable. The SEO and browser commands also accept a URL (the SEO command also --production); `check:locale` needs one. It covers the Vietnamese pages and the language routing, and `test:browser` runs it too (see "Checks for the Vietnamese pages").
 
 `check:fidelity` compares every home section with the original platform-clone build. Serve it with `npx next start -p 3101 -H 127.0.0.1` from that folder, alongside the local Cloudflare preview. The check writes side-by-side sheets to `artifacts/fidelity/`. A person reviews those sheets before release; the height check alone is not sign-off.
 
@@ -40,21 +41,21 @@ Tests cover durable capture, same-key races against local D1, transactional roll
 
 ## Editing content
 
-Most of the site's copy is kept in [content/](content/), as JSON and Markdown files that the editor at `/admin/` changes for you:
+Most of the site's copy is kept in [content/](content/) (English) and [content/vi/](content/vi/) (Vietnamese, the same files with the same names), as JSON and Markdown files that the editor at `/admin/` changes for you:
 
 - the home page: the hero, the section headings and the copy of every home section, including the illustrative dashboard, the questions and answers, the team, the testimonials, the articles and the footer;
 - the five services, which also fill each service page's introduction, title and description;
 - the three engagements;
-- the site name, description and social profiles;
+- the site name, description and social profiles, and the owner's address and phone number;
 - the text sections of the privacy and terms pages.
 
-Some copy still lives in the code (`src/app/` and `src/components/`), and changing it needs a developer: the introductions of the About, Approach, Services and Contact pages, the fixed headings on the service pages (such as "What you receive"), the navigation labels, a few labels inside the home sections (such as the footer's "Discuss a project" link), the headers and notices of the privacy and terms pages, and the title and description of every page except the service pages.
+Some copy still lives in the code, in the UI dictionary (`src/lib/i18n/en.ts` and `vi.ts`), and changing it needs a developer: the introductions of the About, Approach, Services and Contact pages, the fixed headings on the service pages (such as "What you receive"), the navigation labels, a few labels inside the home sections (such as the footer's "Discuss a project" link), the headers and notices of the privacy and terms pages, the form labels and messages, the 404 page, and the title and description of every page except the service pages (see "Languages").
 
 Images that editors add go to `public/uploads/`. The site reads all of these files when it is built, so nothing is fetched while a visitor reads a page.
 
 The editor is [Sveltia CMS](https://sveltiacms.app/) 0.230.1. A copy of it is kept in this repository (`public/admin/sveltia/`), so none of its code comes from another site; only its interface fonts load from jsDelivr, and on the live site it reads and saves through GitHub's API. `/admin/` is not linked from the site and is hidden from search engines.
 
-There are two ways to edit: on the live site, signed in with GitHub, or on your own computer.
+There are two ways to edit: on the live site, signed in with GitHub, or on your own computer. Either way, every entry has an English side and a Vietnamese side (see "Editing in two languages").
 
 ### Edit on the live site
 
@@ -85,12 +86,23 @@ The editor's own menus follow the browser language. Translations other than Engl
 
 On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-in works only on https://spacegear.tech: use **Work with Local Repository** here.
 
+### Editing in two languages
+
+- **Two sides.** Every entry shows English on the left and Vietnamese on the right. A save writes the English file under `content/` and its Vietnamese twin under `content/vi/`, with the same name: `content/home.json` and `content/vi/home.json`, `content/faqs/…` and `content/vi/faqs/…`. Write both sides before you save.
+- **Copied from English.** Links, images, numbers, switches, slugs, stage numbers, the phone number and the order are the same in both languages. They are edited on the English side; the Vietnamese side shows them read-only, and the CMS copies them over. Dragging entries into a new order therefore reorders both languages. This has not been tried in a live CMS session yet: after the first drag, check that the Vietnamese files changed too.
+- **The same on both sides.** A text that holds no letter, such as a hero figure (`05`), a percentage of the sample dashboard (`62%`) or a badge (`5/5`), must read the same in Vietnamese as in English, even where the CMS lets you type it on the Vietnamese side. If a Vietnamese value ever differs where it must not, the build names the file and the field.
+- **What the build refuses** in Vietnamese: a missing file, entry or field; a value that must stay as in English but differs, such as a figure of the sample dashboard or a link; a legal page with a different number of sections than its English twin; and everything it refuses in English, with Vietnamese words where a rule looks for words (the sample dashboard must say "minh họa" and "không phải kết quả của khách hàng"). See "What the build checks".
+- **Contact details.** The owner's address and phone number live only in Site identity (`content/site.json` and `content/vi/site.json`). The address is written in each language: the full line that the site shows, and the street and the city for the structured data. The phone number is written once, in international format without spaces, and copied to Vietnamese; the site shows `0386 749 799` on Vietnamese pages and `+84 386 749 799` on English ones. The honesty scan refuses the address and the number anywhere else.
+- **Writing Vietnamese.** Write natural Vietnamese, in full sentences with a subject and a predicate. Say a claim the way Vietnamese people say it instead of translating it word for word, and keep the facts exactly as in English, with nothing added. Body text writes thousands with a dot and decimals with a comma (`3.000`, `1,5`); the figures of the sample dashboard stay exactly as in English. The terms, the forms of address and worked examples are in [docs/i18n/glossary-vi.md](docs/i18n/glossary-vi.md).
+
 ### What the build checks
 
-- No prices, invented metrics, clients, press, offices, ratings or experience claims, in any field of any content file (see "The honesty scan").
+- No prices, invented metrics, clients, press, offices, ratings or experience claims, in any field of any content file, in either language (see "The honesty scan").
+- The owner's address and phone number appear only in Site identity.
+- `content/vi/` mirrors `content/`: the same files and entries, the same fields and list lengths. Only text may differ. Text that holds no letter in English (a figure, a count, a symbol) or follows a pattern stays exactly as in English, and so do links, images, colours, slugs, numbers, switches and choices (`src/lib/content-parity.ts`). Every rule below applies to the Vietnamese copy too.
 - The counts on the page match the data: the "5/5" badges and the first hero figure count the services, and the "01/03" badge and the second hero figure count the engagements. The second hero figure's line names the engagements in list order.
 - The team cards describe disciplines, not people. A card name of two to four words is refused when it reads like a person's name: it starts with a title such as "Dr", or every word is a capitalised name word ("Ada Lovelace", "J. Smith", "Nguyễn Văn An", "Ludwig van Beethoven") and none of them is a discipline word such as "Engineering", "Design" or "Data". So "Data Engineering", "Product Design" and "Applied AI" pass. If a real discipline is refused, write it in sentence case ("Brand storytelling") or with "&" ("Brand & Story"); a developer can also add the word to `DISCIPLINE_WORDS` in `scripts/lib/content-rules.mjs`. A real person goes in the founder card. Team cards may not use the original site's stock portraits (`/images/team/`), and testimonials and articles may not use its stock reviews and labs images.
-- The sample dashboard stays labelled: its section description must say "illustrative" and "not client results", and each of its cards must call itself illustrative, an example or a sample.
+- The sample dashboard stays labelled: its section description must say "illustrative" and "not client results", and each of its cards must call itself illustrative, an example or a sample. In Vietnamese the description says "minh họa" and "không phải kết quả của khách hàng", and each card "minh họa", "ví dụ" or "mẫu".
 - A testimonial is shown only after its permission box is ticked.
 - Every link points at a page of the site (such as `/contact/`), optionally with a section or a query after it (`/#faq`, `/about/#team`, `/contact/?service=applied-ai`), or at a full `https://` address.
 - Services and engagements cannot be added or removed in the CMS: each service has its own page, and the engagements are the three stages the page counts.
@@ -124,14 +136,14 @@ The stage numbers of the engagements (01, 02, 03) must follow the list order. Dr
 
 #### Legal pages
 
-`content/legal/privacy.md` and `content/legal/terms.md` hold the sections of the privacy and terms pages. The CMS refuses to save anything that the build would refuse:
+`content/legal/privacy.md` and `content/legal/terms.md` hold the sections of the privacy and terms pages, and `content/vi/legal/` holds their Vietnamese versions, with the same number of sections. The CMS refuses to save anything that the build would refuse:
 
 - The page starts with a `## ` heading, and every section starts with a line `## Heading`.
 - Below each heading there is at least one plain paragraph. Paragraphs are separated by blank lines.
 - No lists (lines that start with `-`, `+`, `*` or a number such as `1.`), no other heading levels (`#`, `###`), no `#` inside a heading, and no lines of only `-` or `=`.
 - None of the characters `*`, `_`, `` ` ``, `<`, `>`, `[`, `]`, `\`, `|` or `~~`, and no codes such as `&amp;`.
 
-Leave a blank line before each heading. The preview notice and the contact section come from the site settings, not from these files.
+Leave a blank line before each heading. The preview notice and the contact section come from the site settings, not from these files; the contact section also gives the owner's address and phone number from Site identity.
 
 ### Reading the content check
 
@@ -143,7 +155,9 @@ Every build runs the content check, and it also runs on its own: `node --experim
 
 #### The honesty scan
 
-[scripts/lib/honesty.mjs](scripts/lib/honesty.mjs) refuses claims that the site cannot back up: prices and rates, the original platform's metrics and old brand, counts of clients, users or staff, scale figures, multipliers, press and partner claims, ratings, awards and certifications, office locations, founding years and years of experience, delivery timelines, and client results. It reads every text of every file under `content/`, including fields the site does not show, and the copy as the site loads it. A figure split over several fields (a value with its unit and label, or a title with its text) is read as one phrase. The content check and `npm test` both run it.
+[scripts/lib/honesty.mjs](scripts/lib/honesty.mjs) refuses claims that the site cannot back up: prices and rates, the original platform's metrics and old brand, counts of clients, users or staff, scale figures, multipliers, press and partner claims, ratings, awards and certifications, office locations, founding years and years of experience, delivery timelines, and client results. It reads every text of every file under `content/` (and so `content/vi/`), including fields the site does not show, and the copy as the site loads it in both languages; `npm test` also scans the UI dictionary. A figure split over several fields (a value with its unit and label, or a title with its text) is read as one phrase. The content check and `npm test` both run it.
+
+Vietnamese has its own patterns for every one of these families, such as "15 triệu", "200.000đ", "hơn 50 khách hàng", "10 năm kinh nghiệm", "đối tác chính thức", "bàn giao trong 2 tuần" or "tăng 40%". Words are bounded by letters of any script, not only ASCII ones: "đồng" counts as money only after a number ("5.000.000 đồng", but not "hợp đồng" or "đồng ý"), and a Vietnamese word right after a number ("62 Xử lý") is not read as a unit such as "62x". A date ("tháng 10 năm 2026") is not a number of years. `tests/honesty-vi.test.mjs` plants a claim of each family and checks that the scan refuses it.
 
 A problem looks like this:
 
@@ -154,15 +168,70 @@ forbidden claim in export FAQS[1].answer: a client or scale claim ("50 companies
 
 Each message names the file, or the copy as the site loads it, then the field, the kind of claim, and the text that matched, which may be only part of the claim. The same claim usually appears twice. Reword the copy: the CMS cannot switch a rule off.
 
-There are two exceptions. The illustrative dashboard (`content/measure.json`) may show percentages and figures such as 12k in its figure fields. The legal pages may state periods ("within 90 days") and name the services that process data.
+A problem in a Vietnamese file names it (`content/vi/…`), and one in the Vietnamese copy as the site loads it starts with `forbidden claim in Vietnamese export`.
 
-The scan is a safety net, not a review. Its known gaps are listed in the code: Vietnamese phrasing (the site is English-only today), look-alike letters (a Cyrillic "Ѕ") and digits from other scripts, codes such as `&#36;`, a backslash-u escape written as text, a claim split over list items, and some phrasings such as "200 loyal clients", "a team of 30" or "five stars on Google".
+There are three exceptions. The illustrative dashboard (`content/measure.json` and `content/vi/measure.json`) may show percentages and figures such as 12k in its figure fields. The legal pages, in both languages, may state periods ("within 90 days", "tối đa 90 ngày") and name the services that process data. The owner's address and phone number may appear in Site identity's address and telephone fields, and nowhere else.
+
+The scan is a safety net, not a review. Its known gaps are listed in the code: look-alike letters (a Cyrillic "Ѕ") and digits from other scripts, codes such as `&#36;`, a backslash-u escape written as text, a claim split over list items, and phrasings that its patterns do not list, in either language, such as "200 loyal clients", "a team of 30" or "five stars on Google".
+
+## Languages
+
+English keeps today's URLs. Vietnamese mirrors every page under `/vi/` with the same slugs: `/about/` and `/vi/about/`, `/services/applied-ai/` and `/vi/services/applied-ai/`.
+
+### How the pages are built
+
+- **One component tree.** Server components take a `locale` prop; client components call `useLocale()` (`src/components/LocaleProvider.tsx`), so their English markup did not change. Copy comes from `getContent(locale)` (`content/` or `content/vi/`, see `src/lib/content.ts`) and UI strings from `dictionary(locale)` (`src/lib/i18n/`). Content links stay English site paths such as `/contact/`; `localizedHref()` (`src/lib/i18n/locales.ts`) gives them the `/vi` prefix on Vietnamese pages.
+- **Views.** Every page body is a view in `src/views/`, a server component that takes the language, and its title and description are in `src/views/metadata.ts`. The route files are thin wrappers that pass the language: `src/app/(en)/…` for English and `src/app/(vi)/vi/…` for Vietnamese. Each group has its own root layout, so every exported page has the right `<html lang>`. Moving between the two root layouts is a full page load, so the curtain transition plays only within a language.
+- **A new UI string** goes into `src/lib/i18n/en.ts` and `src/lib/i18n/vi.ts` under the same key. `npm run typecheck` fails when a key is missing or extra in Vietnamese, and `tests/i18n-dictionary.test.mjs` checks lists, placeholders and the honesty scan. `format()` and `formatParts()` fill placeholders such as `{n}`.
+- **One 404 for both languages.** `src/app/global-not-found.tsx` (`experimental.globalNotFound` in `next.config.ts`, since the site has two root layouts) serves every unknown URL in either language, in English first, then in Vietnamese.
+- **Search engines.** Every page has its own canonical URL and hreflang links to both versions (`en`, `vi`, and `x-default` for English); `og:locale` names the page's language and `og:locale:alternate` the other. The sitemap lists all 24 pages with their language versions. In the structured data, the Organization is "spacegear" (alternate name "spacegear.tech") with the owner's address and phone number, and every page names its language (`inLanguage`).
+
+### The region redirect and the switch
+
+`worker/locale.ts` runs for HTML navigations only. `assets.run_worker_first` in `wrangler.jsonc` sends every path to the Worker first except `/_next/`, `/images/`, `/textures/`, `/uploads/`, `/admin/`, `/vi/` and any path with a dot (every file). `/api/*` reaches the Worker as before. The rules:
+
+- **First visit.** A visitor without the `sg_lang` cookie who opens an English page from Vietnam (`request.cf.country` is `VN`), or whose browser lists Vietnamese first in Accept-Language (`vi` or `vi-VN`; later entries do not count), gets a 302 to the page's `/vi/` twin, with the query kept. The Worker redirects only when the twin exists. The redirect carries `Cache-Control: no-store` and `Vary: Cookie, Accept-Language`, because `public/_headers` does not reach responses that the Worker makes.
+- **Everyone else** gets the page as asked. Crawlers are not special: Googlebot from outside Vietnam sees English and finds `/vi/` through hreflang and the sitemap. A `/vi/` URL never reaches the Worker, so it is never moved.
+- **The switch.** EN and VI sit in the desktop nav and in the phone menu. They are plain links, so they work without JavaScript: each links the English path with `?lang=en` or `?lang=vi` (`switchHref()`), because `/vi/` paths never reach the Worker. The Worker stores the choice in the `sg_lang` cookie (one year, `Path=/`, `SameSite=Lax`, and `Secure` everywhere but a plain-http loopback preview) and sends a 302 to the clean page in that language: its twin, or the language's home page when it has none. Other query parameters are kept. Once the cookie is set, the region rule never applies again.
+
+**Testing the redirect locally.** `wrangler dev --local` takes `request.cf` from `node_modules/.mf/cf.json`, a copy that it caches from Cloudflare, and on the owner's machine that copy says `VN`. Without care, every English check against the preview would land on `/vi/`. So the top-level `vars` in `wrangler.jsonc` set `LOCALE_TEST_HEADER` to `"true"` (`env.production` sets it to `"false"`): with that value and a `localhost` or `127.0.0.1` `SITE_ORIGIN`, the Worker ignores `request.cf` and reads the country only from the `x-sg-test-country` header. Production never reads the header. Node's `fetch` sends `accept-language: *` and Playwright sends `en-US`, so the English checks stay in English. To try it:
+
+```sh
+curl -I -H "x-sg-test-country: VN" http://127.0.0.1:8787/about/
+curl -I -H "accept-language: vi-VN,vi;q=0.9" http://127.0.0.1:8787/about/
+curl -I -H "x-sg-test-country: VN" -H "cookie: sg_lang=en" http://127.0.0.1:8787/about/
+curl -I "http://127.0.0.1:8787/about/?lang=vi"
+```
+
+The first two answer `302` with `Location: /vi/about/`, the third `200`, and the last `302` with `Set-Cookie: sg_lang=vi`. Use your preview's port.
+
+### Fonts
+
+Inter and JetBrains Mono each ship as two files: Google Fonts' latin subset and its vietnamese subset, of the same versions and metrics (OFL 1.1, `public/licenses/fonts.txt`). `src/app/fonts/fonts.ts` gives both files one family name, and the Vietnamese face carries Google's `unicode-range`, so a browser downloads it only for a page that shows Vietnamese letters: English pages never fetch it, and only the latin Inter is preloaded. The Vietnamese files add 10.3 KB (Inter) and 7.5 KB (JetBrains Mono). Because of the custom family name, next/font cannot build the metric-adjusted fallback faces or the CSS variables, so `src/app/fonts/fonts.css` declares them with the values next/font computed for these files. `tests/fonts.test.mjs` checks the pinned files, the families and ranges, the fallbacks and the font licence.
+
+### Vietnamese-only styles
+
+Vietnamese words stack marks above and below letters, so three rules in `src/app/globals.css` apply only to Vietnamese pages (`:lang(vi)`). English is unchanged.
+
+- **Display titles** get a line height of 1.15 instead of 0.92. At 0.92 a descender ran into the marks of the line below ("g" over "ẫ", so "lẫn" read as "lẩn"). 1.15 is the least leading that keeps every mark clear on every Vietnamese page from 320 to 1440 px.
+- **The hero headline** runs to six lines in Vietnamese at 1440 px (four in English), so its size follows the screen's height as well as its width: between 38 and 80 px (`clamp(38px, min(6vw, 9vh), 80px)`), with a line height of 1.05. The pinned hero's copy then fits under the nav from 1024 × 768 up, as the English copy does. **The owner has yet to confirm this size.**
+- **The "Start here" badge** of the Engagements rows sits under the short name in the desktop image tile, where the longer Vietnamese badge would run into the name.
+
+### Checks for the Vietnamese pages
+
+- **`npm run check:locale -- <base URL>`** (`scripts/locale-checks.mjs`, 17 checks) runs against the preview and reads the routes from its sitemap. On every `/vi/` page at 320, 390, 768, 1024 and 1440 px it checks that no stacked mark is cut by a mask or a clipping box and that no mark runs into the line above or below it; that nothing overflows; that the hero headline keeps clear of the pitch and fits the screen; that the cursor's labels (Xem, Kéo, Mở) fit the orange disc; that no English string or sentence shows on a Vietnamese page, with and without JavaScript; and that Vietnamese pages link only to Vietnamese pages. It also checks the fonts (English pages never download the Vietnamese subsets, and every Vietnamese letter is drawn by the site's own fonts), the switch (by keyboard, with and without JavaScript, and in the phone menu) and the redirect (the country, the browser language, the cookie, and `/vi/` never moved).
+- **`npm run test:browser`** runs the same checks and adds four Vietnamese profiles (desktop, phone at 390 px, reduced motion and no JavaScript) on `/vi/`, `/vi/contact/` and `/vi/services/applied-ai/`: clean hydration, layout shift under 0.05, the headline in its word masks, and accessible names that hold the visible text. Its hidden-text sweeps cover every `/vi/` page, and the identity check expects the logo link to be named "Trang chủ spacegear" there.
+- **`FX_LOCALE=vi node --experimental-strip-types scripts/fx-checks.mjs <base URL>`** runs the motion checks on the Vietnamese pages with the Vietnamese copy and UI strings. `test:browser` runs only the English set.
+- **`npm run check:seo`** crawls both languages: hreflang both ways, canonicals, one H1 and visible content without JavaScript.
+- **`npm test`** covers the language rules without a browser: the Worker's decisions (`tests/worker-locale.test.mjs`), the path rules, the dictionary, the content parity, the fonts, the phone formats, the routes and the Vietnamese honesty patterns.
 
 ## Maintaining the CMS
 
 ### The CMS configuration
 
 The CMS configuration is [public/admin/config.yml](public/admin/config.yml). It mirrors [src/lib/content-model.ts](src/lib/content-model.ts), and `npm test` fails when the two drift apart. `npm test` also validates it against the vendored release's own schema (`node scripts/check-sveltia-config.mjs`; see "Upgrading Sveltia"). The CMS reads `config.yml` from the preview, so rebuild after changing it. The rules that the schemas cannot express, such as the counts and the illustrative labels, are in [scripts/lib/content-rules.mjs](scripts/lib/content-rules.mjs), which the content check runs (so `npm run build:production` enforces them too).
+
+Both languages are set up in its `i18n` block: locales `en` and `vi`, English the default, and every file and folder path written with `{{locale}}` (such as `content/{{locale}}/home.json`). With `omit_default_locale_from_file_path`, Sveltia 0.230.1 drops `{{locale}}/` from the English path, so English stays in `content/` and Vietnamese goes to `content/vi/`. Every field sets `i18n` itself: `true` (translated) or `duplicate` (copied from English, read-only in Vietnamese). `tests/cms-config.test.mjs` checks every field, and the content check refuses a Vietnamese file that differs from English in anything but its text.
 
 ### Upload variants
 
@@ -284,7 +353,7 @@ Content that does not load (a validation or legal-page error, a broken file) sto
    node scripts/html-snapshot.mjs compare artifacts/html-baseline --explain-client-ids artifacts/dist-before
    ```
 
-   The expected result is `Rendered HTML identical to artifacts/html-baseline: 15 pages.` A page that is not in the snapshot, such as `admin/index.html`, is listed as new.
+   The expected result is `Rendered HTML identical to artifacts/html-baseline: 28 pages.` (both languages, the 404 pages and `/admin/`). A page that is not in the snapshot is listed as new.
 
 How to read the result:
 
@@ -299,15 +368,16 @@ How to read the result:
 No formal budget is set. Measured on this repository's build:
 
 - **Browser.** The copy and its validation ship in one shared chunk of 35.8 KB (12.0 KB gzipped). The validation added about 13.6 KB (4.8 KB gzipped) and about 6 ms of script evaluation per full page load when the loader replaced the hand-written module.
-- **Worker.** The Worker bundle includes the copy and validates it when it starts. Bundled with esbuild and not minified, it is about 62 KB (17 KB gzipped), against 19 KB before the CMS. Validation takes 6 to 7 ms per cold start.
-- **Export.** `/admin/` adds 5 files and 2.39 MiB, nearly all of it the Sveltia bundle, which only `/admin/` loads. The export was 161 files and 13.92 MiB on the CMS branch; merged with the Part 1 globe, which removed the GLB and the Draco decoder, it is 173 files and 10.39 MiB.
+- **Both languages in the browser.** Client components read their copy through `getContent(locale)`, so both languages' content ships in that shared chunk, and every page, English or Vietnamese, loads it once; it is cached across pages. The Vietnamese content added 8.0 KB gzipped when it arrived (measured on the first bilingual build). Since then the UI dictionary, in both languages, has joined the same chunk: it is now 91.7 KB (27.0 KB gzipped), against 40.1 KB (13.8 KB gzipped) just before the bilingual work. All client chunks together grew from 1 974 KB to 2 034 KB (572 KB to 588 KB gzipped). Only the language a page uses is validated in the browser: `getContent` builds a language the first time it is asked for.
+- **Worker.** The Worker bundle includes the copy and validates it when it starts. Bundled with esbuild and not minified, it is about 62 KB (17 KB gzipped), against 19 KB before the CMS. Validation takes 6 to 7 ms per cold start. With both languages' copy and the UI dictionary (the contact form answers in the visitor's language) it is 155 KB (38 KB gzipped), against 75 KB (20 KB gzipped) before the bilingual work, measured the same way; the Worker still validates only the English copy when it starts.
+- **Export.** `/admin/` adds 5 files and 2.39 MiB, nearly all of it the Sveltia bundle, which only `/admin/` loads. The export was 161 files and 13.92 MiB on the CMS branch; merged with the Part 1 globe, which removed the GLB and the Draco decoder, it is 173 files and 10.39 MiB. With the Vietnamese pages and font subsets it is 319 files and 13.28 MiB (24 pages).
 - **Build time.** The upload variant step takes about 65 ms when there are no uploads. With twenty 12-megapixel JPEGs it took 9 s the first time and about 0.15 s when nothing had changed.
 
 If a JavaScript budget is set later, the browser could load a pre-validated data module generated at build time instead.
 
 ### Tailwind and the docs
 
-Tailwind CSS builds the site stylesheet from class names it finds in any file that Git does not ignore. `content/`, `public/admin/` and the vendored configuration schema are excluded (in `src/app/globals.css`), but `docs/`, the tests and this README are still scanned, so a utility class name written in prose, even inside backticks, adds a rule to the site stylesheet. Do not write class names in documentation, and after editing it, rebuild and compare the stylesheet. Limiting the scan to `src/` is recommended. It is not done yet: excluding `docs/` alone removed 27 rules (old class names quoted in earlier plans), and proving that none of them is used is a separate task.
+Tailwind scans `src/` only (`source("..")` in `src/app/globals.css`), so documentation, tests, content and the CMS files can quote class names freely: they add nothing to the site stylesheet. Limiting the scan removed 37 utilities that only the docs and plans quoted, and added none.
 
 ## Hero globe
 
@@ -321,15 +391,16 @@ Effects live in `src/components/fx/`: Motion plus Lenis 1.3.26 (no GSAP).
 
 - **Who gets what.** Heavy effects (smooth scroll, cursor, magnetic buttons, tilt and spotlight, split titles, the home progress rail, grain, the footer letters) run only after hydration on `(hover: hover) and (pointer: fine)` at ≥1024 px with motion allowed (`useFx()`, `html[data-fx]`). Lenis and the cursor load on demand there, so phones, tablets, touch screens and reduced motion never download them. Reveals and scroll draws run wherever motion is allowed (`html[data-fx-motion]`). Without JavaScript or under reduced motion, everything shows its end state.
 - **Rules.** Markup branches only on `useFx()` / `useMotionOK()` (false on the server and during hydration), never on `useReducedMotion()`. Effects animate transform and opacity (SVG draws animate stroke dashes). An idle page requests no animation frames. Scroll-linked layers are promoted the first time they come near the viewport, not at page load.
-- **Cursor labels.** Add `data-cursor="View"` (or `Drag`, `Open`) to an element to show that label in the custom cursor.
+- **Cursor labels.** Set `data-cursor` on an element to a label from the dictionary's `cursor` strings (View, Drag or Open; Xem, Kéo or Mở on Vietnamese pages) to show that label in the custom cursor.
 - **Scroll locks.** Set `data-scroll-lock` on `<html>` (`setScrollLock()` in `src/components/fx/scroll-lock.ts`) to pause smooth scrolling.
-- **Page transitions.** `experimental.viewTransition` plus React `<ViewTransition>` (`src/app/template.tsx`, `src/components/fx/PageTransition.tsx`): an orange curtain, instant where unsupported or under reduced motion.
+- **Page transitions.** `experimental.viewTransition` plus React `<ViewTransition>` (`src/app/(en)/template.tsx`, `src/app/(vi)/template.tsx`, `src/components/fx/PageTransition.tsx`): an orange curtain, instant where unsupported or under reduced motion. Switching language is a full page load, without the curtain.
 - **Browser fallbacks.** Chromium 111–124 (View Transitions without transition classes) shows a plain crossfade, with the nav hidden for about 250 ms. Safari before 16.4 and Firefox before 128 (no registered custom properties) snap the Services columns open instead of sliding them. Safari's swipe-back gesture can play its own animation and then the curtain.
-- **Checks.** `scripts/fx-checks.mjs` runs inside `npm run test:browser`, or alone with `node scripts/fx-checks.mjs http://127.0.0.1:8787` (use your preview's port). `FX_ONLY=<pattern>` narrows a lone run to the matching desktop checks.
+- **Checks.** `scripts/fx-checks.mjs` runs inside `npm run test:browser`, or alone with `node scripts/fx-checks.mjs http://127.0.0.1:8787` (use your preview's port). `FX_ONLY=<pattern>` narrows a lone run to the matching desktop checks, and `FX_LOCALE=vi` runs them on the Vietnamese pages (see "Checks for the Vietnamese pages").
 
 ## Content and release
 
-- [Content](content/): most of the copy, as JSON and Markdown, edited through the CMS at /admin/ (see "Editing content", which also lists the copy that is still in the code). [src/lib/content.ts](src/lib/content.ts) loads and validates it.
+- [Content](content/): most of the copy, as JSON and Markdown, in English and (under `content/vi/`) Vietnamese, edited through the CMS at /admin/ (see "Editing content", which also lists the copy that is still in the code). [src/lib/content.ts](src/lib/content.ts) loads and validates it.
+- [UI dictionary](src/lib/i18n/) and [Vietnamese glossary](docs/i18n/glossary-vi.md): the strings that live in code, in both languages, and the terms and voice of the Vietnamese copy (see "Languages").
 - [Site configuration](src/lib/site.ts) and [.env.example](.env.example): identity and publication settings.
 - [Cloudflare release runbook](docs/operations/cloudflare-release.md): bindings, gates, operations and rollback.
 - [Source provenance](docs/operations/source-provenance.md): preserved source and clone status.

@@ -1,5 +1,6 @@
 import { handleContact, json } from "./contact.ts";
 import { handleGitHubAuth, isGitHubAuthPath } from "./github-auth.ts";
+import { handleLocale } from "./locale.ts";
 import { drainNotifications } from "./notifications.ts";
 import type { RuntimeEnv } from "./types.ts";
 export default {
@@ -8,6 +9,8 @@ export default {
     if(path==="/api/contact"||path==="/api/contact/")return handleContact(request,env);
     if(isGitHubAuthPath(path))return handleGitHubAuth(request,env);
     if(path==="/api"||path.startsWith("/api/"))return json({ok:false,code:"not_found"},404);
+    const localized=await handleLocale(request,env);
+    if(localized)return localized;
     return env.ASSETS.fetch(request);
   },
   async scheduled(_event:ScheduledController,env:RuntimeEnv):Promise<void> {

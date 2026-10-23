@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { useLocale } from "@/components/LocaleProvider";
 import Reveal from "@/components/Reveal";
 import { Container, SectionHeader } from "@/components/ui";
-import { FOUNDER, SECTIONS, TEAM, TEAM_ROLES } from "@/lib/content";
+import { getContent } from "@/lib/content";
 import { contentImage } from "@/lib/content-images";
+import { dictionary, formatParts } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 
-const MEMBERS = FOUNDER ? [FOUNDER, ...TEAM_ROLES] : TEAM_ROLES;
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 export default function Team() {
   const [i, setI] = useState(0);
+  const locale = useLocale();
+  const { FOUNDER, SECTIONS, TEAM, TEAM_ROLES } = getContent(locale);
+  const MEMBERS = FOUNDER ? [FOUNDER, ...TEAM_ROLES] : TEAM_ROLES;
+  const t = dictionary(locale).team;
   const m = MEMBERS[i];
   const go = (d: number) => setI((p) => (p + d + MEMBERS.length) % MEMBERS.length);
 
@@ -45,7 +51,7 @@ export default function Team() {
                       exit={{ opacity: 0, y: -12 }}
                       transition={{ duration: 0.35, ease: EASE }}
                     >
-                      <span className="sr-only">Role {i + 1} of {MEMBERS.length}</span>
+                      <span className="sr-only">{formatParts(t.roleOf, { i: i + 1, n: MEMBERS.length })}</span>
                       <h3 className="display text-[clamp(24px,2.4vw,34px)] text-ink">{m.name}</h3>
                       <p className="mt-1 text-[13px] text-flame">{m.role}</p>
                     </motion.div>
@@ -69,7 +75,7 @@ export default function Team() {
               {/* CENTER: image — swipe to change; fixed 3:4 cell */}
               <motion.div
                 drag="x"
-                data-cursor="Drag"
+                data-cursor={dictionary(locale).cursor.drag}
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.18}
                 onDragEnd={(_, info) => {
@@ -95,15 +101,15 @@ export default function Team() {
                 </AnimatePresence>
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-card/30 to-transparent" />
                 <span aria-hidden className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-bg/60 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur lg:hidden">
-                  ‹ swipe ›
+                  {t.swipe}
                 </span>
               </motion.div>
 
               {/* RIGHT: arrows (+ real profile links when a person has them) */}
               <div className="flex flex-row items-center justify-between border-t border-line-soft lg:flex-col lg:justify-start lg:border-l lg:border-t-0">
                 <div className="flex gap-2 p-5 lg:w-full lg:justify-center lg:gap-3 lg:border-b lg:border-line-soft">
-                  <button type="button" onClick={() => go(-1)} aria-label="Previous role" className="grid h-9 w-9 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">←</button>
-                  <button type="button" onClick={() => go(1)} aria-label="Next role" className="grid h-9 w-9 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">→</button>
+                  <button type="button" onClick={() => go(-1)} aria-label={t.previous} className="grid h-9 w-9 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">←</button>
+                  <button type="button" onClick={() => go(1)} aria-label={t.next} className="grid h-9 w-9 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">→</button>
                 </div>
                 {m.links.length > 0 && (
                   <div className="flex gap-3 p-5 lg:mt-6 lg:flex-col lg:gap-5">
@@ -131,7 +137,7 @@ export default function Team() {
             <span className="text-[13px] text-mut-2">{TEAM.cta.label}</span>
             <Link
               prefetch={false}
-              href={TEAM.cta.href}
+              href={localizedHref(TEAM.cta.href, locale)}
               aria-label={TEAM.cta.label}
               className="grid h-10 w-10 place-items-center rounded-xl bg-flame text-[#161719] transition-transform hover:translate-x-1"
             >

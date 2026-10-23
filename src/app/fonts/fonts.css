@@ -1,0 +1,9 @@
+/* The families' CSS variables (read by --font-sans and --font-mono in globals.css) and their fallbacks while the
+   web fonts load: Arial with the metric overrides next/font computed for these exact files (the site's CSS before
+   the Vietnamese subsets: "inter Fallback" and "mono Fallback"), so text keeps its size when the fonts swap in. */
+@font-face { font-family: "SG Inter Fallback"; src: local("Arial"); ascent-override: 89.79%; descent-override: 22.36%; line-gap-override: 0%; size-adjust: 107.89%; }
+@font-face { font-family: "SG Mono Fallback"; src: local("Arial"); ascent-override: 77.57%; descent-override: 22.82%; line-gap-override: 0%; size-adjust: 131.49%; }
+:root {
+  --font-inter: "SG Inter", "SG Inter Fallback";
+  --font-code: "SG Mono", "SG Mono Fallback";
+}

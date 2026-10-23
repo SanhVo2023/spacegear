@@ -1,8 +1,10 @@
 Inter: Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
 Source: https://github.com/rsms/inter/blob/master/LICENSE.txt
+Files: inter-latin.woff2, inter-vietnamese.woff2 (Google Fonts subsets of Inter 4.001, variable weight 100-900)
 
 JetBrains Mono: Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
 Source: https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt
+Files: jetbrains-mono-latin.woff2, jetbrains-mono-vietnamese.woff2 (Google Fonts subsets of JetBrains Mono 2.211, variable weight 100-800)
 
 These fonts are licensed under the SIL Open Font License, Version 1.1.
 

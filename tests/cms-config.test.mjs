@@ -11,6 +11,8 @@ const config = load(fs.readFileSync("public/admin/config.yml", "utf8"));
 const schemas = contentSchemas(SERVICES.map((service) => service.slug));
 const pages = config.collections.find((collection) => collection.name === "pages");
 const legal = config.collections.find((collection) => collection.name === "legal");
+/** A CMS path for one language: "content/{{locale}}/home.json" → content/home.json (en) or content/vi/home.json (vi). */
+const localePath = (template, locale = "en") => template.replace("{{locale}}/", locale === "en" ? "" : `${locale}/`);
 
 // Sveltia CMS 0.230.1 numbers a collection with `reorder: true` itself: a new entry gets the
 // highest order plus one, and dragging or deleting entries renumbers them 1, 2, 3…, always in the
@@ -92,7 +94,7 @@ function allFields() {
 }
 
 test("every content file has a CMS entry whose fields mirror its schema", () => {
-  const files = new Map(pages.files.map((file) => [file.file, file]));
+  const files = new Map(pages.files.map((file) => [localePath(file.file), file]));
   mirrorFields(schemas.site.meta.shape, files.get("content/site.json").fields, "content/site.json");
   for (const [name, file] of Object.entries(SINGLETON_FILES)) {
     assert.ok(files.has(file), `${file} is editable in the CMS`);
@@ -105,8 +107,8 @@ test("every folder collection mirrors its entry schema, and the CMS keeps its or
   for (const name of COLLECTION_NAMES) {
     const collection = config.collections.find((item) => item.name === name);
     assert.ok(collection, `${name} is a CMS collection`);
-    assert.deepEqual([collection.folder, collection.extension, collection.format], [`content/${name}`, "json", "json"], `${name}: folder and format`);
-    assert.ok(fs.existsSync(collection.folder), `${collection.folder} exists`);
+    assert.deepEqual([collection.folder, collection.extension, collection.format], [`content/{{locale}}/${name}`, "json", "json"], `${name}: folder and format`);
+    assert.ok(fs.existsSync(localePath(collection.folder)), `${localePath(collection.folder)} exists`);
     assert.equal(collection.reorder, true, `${name}: entries are ordered by dragging them, which writes ${REORDER_KEY}`);
     mirrorFields(schemas.collections[name].meta.shape, collection.fields, `content/${name}`, { reorder: true });
   }
@@ -119,9 +121,9 @@ test("services keep their pages: no creating, deleting or renaming them in the C
 });
 
 test("legal pages are Markdown files with a single plain-text body field", () => {
-  assert.deepEqual(legal.files.map((file) => file.file), ["content/legal/privacy.md", "content/legal/terms.md"]);
+  assert.deepEqual(legal.files.map((file) => file.file), ["content/{{locale}}/legal/privacy.md", "content/{{locale}}/legal/terms.md"]);
   for (const file of legal.files) {
-    assert.ok(fs.existsSync(file.file), `${file.file} exists`);
+    assert.ok(fs.existsSync(localePath(file.file)), `${localePath(file.file)} exists`);
     assert.deepEqual(file.fields.map((field) => field.name), ["body"]);
     // The markdown and rich-text widgets write \ escapes, which the legal parser refuses.
     assert.equal(file.fields[0].widget, "text", `${file.file}: a plain text area`);
@@ -148,8 +150,10 @@ test("the legal body pattern mirrors the parser: a '## ' heading first, no inlin
   assert.match(message, /Start with a line "## Heading"/);
   for (const file of legal.files) {
     assert.equal(file.fields[0].pattern, legalPattern(), "one rule for both pages");
-    const body = fs.readFileSync(file.file, "utf8");
-    assert.ok(cmsAccepts(body) && parserAccepts(body), `${file.file}: today's text passes both`);
+    for (const locale of ["en", "vi"]) {
+      const body = fs.readFileSync(localePath(file.file, locale), "utf8");
+      assert.ok(cmsAccepts(body) && parserAccepts(body), `${localePath(file.file, locale)}: today's text passes both`);
+    }
   }
   const good = "## Heading\n\nA plain paragraph, with commas: and colons.\n\n## Second\n\nMore text.";
   assert.ok(cmsAccepts(good) && parserAccepts(good));
@@ -169,6 +173,55 @@ test("the legal body pattern mirrors the parser: a '## ' heading first, no inlin
     assert.equal(cmsAccepts(body), false, `the CMS refuses ${JSON.stringify(body)}`);
     assert.equal(parserAccepts(body), false, `the parser refuses ${JSON.stringify(body)}`);
   }
+});
+
+test("i18n: English stays at today's paths, Vietnamese mirrors it under content/vi/, and every Vietnamese entry is required", () => {
+  assert.deepEqual(config.i18n, { structure: "multiple_folders", locales: ["en", "vi"], default_locale: "en", omit_default_locale_from_file_path: true });
+  for (const collection of config.collections) {
+    assert.equal(collection.i18n, true, `${collection.name}: i18n`);
+    for (const file of collection.files ?? []) {
+      assert.equal(file.i18n, true, `${collection.name}/${file.name}: i18n`);
+      assert.match(file.file, /^content\/\{\{locale\}\}\//, file.file);
+      for (const locale of ["en", "vi"]) assert.ok(fs.existsSync(localePath(file.file, locale)), localePath(file.file, locale));
+    }
+    if (collection.folder) {
+      assert.match(collection.folder, /^content\/\{\{locale\}\}\//, collection.folder);
+      assert.equal(collection.initial_locales, undefined, `${collection.name}: both languages are always saved (Vietnamese cannot be switched off)`);
+    }
+  }
+});
+
+/** Whether a schema holds text an editor translates: plain text without a fixed pattern, or a group or list holding some. */
+function translatable(meta) {
+  switch (meta.kind) {
+    case "text": return meta.format === "plain" && !meta.pattern;
+    case "list": return meta.max > 0 && translatable(meta.item.meta);
+    case "object": return Object.values(meta.shape).some((child) => translatable(child.meta));
+    case "nullable": return translatable(meta.inner.meta);
+    default: return false;
+  }
+}
+
+/** Every CMS field says how it behaves in Vietnamese: translated (true) or copied from English (duplicate). */
+function i18nFields(shape, fields, where) {
+  for (const field of fields) {
+    const meta = shape[field.name].meta;
+    assert.equal(field.i18n, translatable(meta) ? true : "duplicate", `${where}.${field.name}`);
+    const inner = meta.kind === "nullable" ? meta.inner.meta : meta;
+    if (inner.kind === "object") i18nFields(inner.shape, field.fields, `${where}.${field.name}`);
+    if (inner.kind === "list" && inner.max > 0) {
+      if (inner.item.meta.kind === "object") i18nFields(inner.item.meta.shape, field.fields, `${where}.${field.name}[]`);
+      else assert.equal(field.field.i18n, translatable(inner.item.meta) ? true : "duplicate", `${where}.${field.name}[]`);
+    }
+  }
+}
+
+test("text is translated; links, images, numbers, choices, patterned counts and the order are copied from English", () => {
+  const files = new Map(pages.files.map((file) => [localePath(file.file), file]));
+  i18nFields(schemas.site.meta.shape, files.get("content/site.json").fields, "content/site.json");
+  for (const [name, file] of Object.entries(SINGLETON_FILES)) i18nFields(schemas.singletons[name].meta.shape, files.get(file).fields, file);
+  for (const name of COLLECTION_NAMES) i18nFields(schemas.collections[name].meta.shape, config.collections.find((item) => item.name === name).fields, `content/${name}`);
+  for (const file of legal.files) assert.equal(file.fields[0].i18n, true, `${file.file}: the body is translated`);
 });
 
 test("emoji autocomplete is off in every text input", () => {

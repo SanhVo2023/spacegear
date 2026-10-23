@@ -6,6 +6,7 @@ import { launchBrowser } from "./browser-runtime.mjs";
 // === FX === motion-system checks (scripts/fx-checks.mjs)
 import { assertFxAbsent, checkFxDesktop, checkFxTouch } from "./fx-checks.mjs";
 import { NAV_HOME_NAME, WORDMARK_LETTERS, identityOnPage, identityServed } from "./identity-check.mjs";
+import { localeChecks } from "./locale-checks.mjs";
 import { canvasShot, dragTurn } from "./globe-drag.mjs";
 import { CAPABLE_DESKTOP, SOFTWARE_RENDERER, coarseLandscapeCheck, fakeGpu, streamingCheck } from "./globe-stream.mjs";
 import { deepReloadCheck, detachedTouchCheck, liveIntervals, mobileProbe, mountOrder, statementContrast, touchHoldCheck, watchSceneChunk } from "./globe-mobile.mjs";
@@ -187,6 +188,12 @@ async function hiddenText(page) {
       .map(el => el.textContent.trim().replace(/\s+/g, " ").slice(0, 60));
   });
 }
+
+// Links and buttons whose aria-label does not hold their visible text (WCAG 2.5.3); text without letters (an arrow) is decoration.
+const labelInName = page => page.evaluate(() => [...document.querySelectorAll("a[aria-label], button[aria-label]")].filter(el => {
+  const visible = el.innerText.replace(/\s+/g, " ").trim();
+  return /\p{L}/u.test(visible) && !el.getAttribute("aria-label").toLowerCase().includes(visible.toLowerCase());
+}).map(el => `${el.getAttribute("aria-label")} / ${el.innerText.trim()}`));
 
 // Screenshot of the hero globe's canvas alone (the copy, scrim and hint layers hidden), cropped to a
 // region given in fractions of the canvas, downsampled to 96×64 RGB.
@@ -853,6 +860,50 @@ try {
     report.interactions.push(`${profile.name}: no CSP violations or texture errors`);
     await context.close();
   }
+  // Vietnamese pages (bilingual spec, "Tests and gates"): home, contact and a service page in the desktop, mobile,
+  // reduced-motion and no-JS profiles: no page or hydration error, no CSP violation, CLS under 0.05, the headline in
+  // its masks and named as one sentence, every accessible name holding its visible text. The no-JS and
+  // reduced-motion hidden-text sweeps above already cover every /vi/ route (they read the sitemap).
+  for (const profile of [
+    { name: "vi desktop", width: 1440, height: 1000 },
+    { name: "vi mobile-390", width: 390, height: 844 },
+    { name: "vi reduced-motion", width: 1440, height: 1000, reducedMotion: "reduce" },
+    { name: "vi no-javascript", width: 1440, height: 1000, javaScriptEnabled: false },
+  ]) {
+    const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height }, reducedMotion: profile.reducedMotion, javaScriptEnabled: profile.javaScriptEnabled });
+    const cspProblems = await watchCsp(context);
+    await context.addInitScript(fakeGpu, SOFTWARE_RENDERER);
+    const page = await context.newPage(), errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error" && /hydrat|error #4(18|23|25)\b/i.test(message.text())) errors.push(message.text().slice(0, 300)); });
+    await page.addInitScript(() => { window.__cls = 0; new PerformanceObserver(list => { for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.__cls += entry.value; }).observe({ type: "layout-shift", buffered: true }); });
+    for (const route of ["/vi/", "/vi/contact/", "/vi/services/applied-ai/"]) {
+      await page.goto(new URL(route, base).href, { waitUntil: "networkidle" });
+      await page.waitForTimeout(1200);
+      if (route === "/vi/") {
+        // The desktop's first visit plays the intro: the words rise once it has lifted.
+        if (profile.javaScriptEnabled !== false) await page.waitForFunction(() => !["play", "reveal"].includes(document.documentElement.dataset.intro) && [...document.querySelectorAll("#home .hero-word")].every(el => ["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(getComputedStyle(el).transform)), null, { timeout: 20000 });
+        const words = await heroWords(page);
+        assert.ok(words.masked && words.count >= 5, `${profile.name}: the Vietnamese headline sits in its word masks (${JSON.stringify(words)})`);
+        assert.deepEqual(words.unsettled, [], `${profile.name}: the Vietnamese headline words have risen into place`);
+        assert.deepEqual(words.clipped, [], `${profile.name}: no Vietnamese headline word is clipped by its mask`);
+        assert.ok(!/\s[,.]/.test(words.text), `${profile.name}: the Vietnamese headline reads as a sentence (${words.text})`);
+        assert.equal(await page.getByRole("heading", { level: 1, name: words.text, exact: true }).count(), 1, `${profile.name}: the headline's accessible name is the whole sentence`);
+      } else {
+        const h1 = (await page.locator("h1").innerText()).replace(/\s+/g, " ").trim();
+        assert.equal(await page.getByRole("heading", { level: 1, name: h1, exact: true }).count(), 1, `${profile.name} ${route}: one h1, named by its text`);
+      }
+      assert.deepEqual(await labelInName(page), [], `${profile.name} ${route}: accessible names hold the visible text`);
+      if (profile.javaScriptEnabled !== false) {
+        const cls = await page.evaluate(() => window.__cls);
+        assert.ok(cls < 0.05, `${profile.name} ${route}: cumulative layout shift ${cls}`);
+      }
+    }
+    assert.deepEqual(errors, [], `${profile.name}: no page or hydration errors`);
+    assert.deepEqual(cspProblems, [], `${profile.name}: no CSP violations`);
+    await context.close();
+    report.interactions.push(`${profile.name}: /vi/, /vi/contact/ and /vi/services/applied-ai/ hydrate cleanly, CLS under 0.05, the headline masked and named, names hold visible text`);
+  }
   // 4k streaming on a page that reports a capable desktop GPU and 8 GB of device memory; a texture probe
   // records its WebGL calls (scripts/globe-stream.mjs). An intro visit, the hero scrolled away and back,
   // a lost context, then reloads: a stream paused off screen, and a stream that fails.
@@ -1020,8 +1071,10 @@ try {
     await identityOnPage(narrowPage, route); // brand kit: nav logo name, footer letters, icon links, no "space—gear"
   }
   await narrowPage.close();
-  report.interactions.push("all 12 routes: actual text bounds fit 320px, including long service headings");
-  report.interactions.push(`all ${routes.length} routes: the nav logo link is named "${NAV_HOME_NAME}", the footer wordmark has ${WORDMARK_LETTERS} letter elements, icons and the manifest are linked, no retired dash wordmark`);
+  report.interactions.push(`all ${routes.length} routes: actual text bounds fit 320px, including long service headings`);
+  // The Vietnamese pages and the language routing (scripts/locale-checks.mjs).
+  report.interactions.push(...await localeChecks(browser, base));
+  report.interactions.push(`all ${routes.length} routes: the nav logo link is named "${NAV_HOME_NAME}" (in Vietnamese on /vi/), the footer wordmark has ${WORDMARK_LETTERS} letter elements, icons and the manifest are linked, no retired dash wordmark`);
   report.interactions.push(await identityServed(base));
 
   const fallbackPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

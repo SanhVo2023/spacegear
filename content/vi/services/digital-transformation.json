@@ -1,0 +1,32 @@
+{
+  "order": 1,
+  "slug": "digital-transformation",
+  "name": "Chiến lược chuyển đổi số",
+  "shortName": "Chuyển đổi số",
+  "category": "Định hướng",
+  "image": "/images/suite/design-engine.webp",
+  "summary": "Chúng tôi giúp bạn tìm ra điểm nghẽn, xác định ưu tiên và vạch một lộ trình thiết thực từ cách làm việc hiện nay đến bước tiếp theo.",
+  "buyerProblem": "Chuyển đổi số trở nên khó khăn khi công cụ, quy trình và các ưu tiên mỗi thứ đi một hướng. Chúng tôi bắt đầu từ cách công việc thực sự diễn ra, rồi gắn mục tiêu kinh doanh với những quyết định mà bạn có thể thực hiện.",
+  "deliverables": [
+    "Sơ đồ quy trình làm việc và hệ thống hiện tại của bạn",
+    "Danh sách cơ hội đã được xếp thứ tự ưu tiên",
+    "Lộ trình triển khai kèm người phụ trách và các mối phụ thuộc",
+    "Tiêu chí thành công và một sáng kiến đầu tiên thiết thực"
+  ],
+  "process": [
+    "Chúng tôi tìm hiểu bài toán kinh doanh và quy trình làm việc hiện tại.",
+    "Chúng tôi so sánh các phương án cải thiện, công sức cần bỏ ra và các mối phụ thuộc.",
+    "Hai bên thống nhất lộ trình và bước đầu tiên có thể đo lường được."
+  ],
+  "faqs": [
+    {
+      "question": "Tôi có cần chuẩn bị sẵn kế hoạch chuyển đổi không?",
+      "answer": "Không cần. Bạn chỉ cần mang đến vấn đề muốn giải quyết. Chúng tôi có thể bắt đầu bằng giai đoạn khảo sát và giúp bạn quyết định điều gì nên thay đổi trước."
+    },
+    {
+      "question": "Chuyển đổi số có nghĩa là phải thay thế mọi thứ không?",
+      "answer": "Không. Bước đánh giá sẽ xem xét nên giữ lại, kết nối, cải thiện hay thay thế những gì. Một thay đổi hữu ích có thể chỉ là cải thiện một quy trình làm việc cụ thể."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
 import ScrollColorTitle from "@/components/ScrollColorTitle";
 import { MagneticLink } from "@/components/fx/Magnetic";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref, type Locale } from "@/lib/i18n/locales";
 
 /** Clean diagonal ↗ glyph (no emoji). */
 function DiagArrow() {
@@ -90,19 +92,22 @@ export function SectionHeader({
   );
 }
 
+/** `locale` localizes `href`; without it `href` is used as given (client callers pass an href they localized). */
 export function FlameButton({
   children,
   href = "/contact/",
   className = "",
+  locale,
 }: {
   children: ReactNode;
   href?: string;
   className?: string;
+  locale?: Locale;
 }) {
   // transition-[filter,box-shadow], not transition-all: the magnetic pull writes transform every frame.
   return (
     <MagneticLink
-      href={href}
+      href={locale ? localizedHref(href, locale) : href}
       className={`fx-sweep group inline-flex items-center justify-center gap-2 rounded-xl bg-flame px-5 py-[14px] text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] duration-300 hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)] ${className}`}
     >
       {children}
@@ -111,18 +116,21 @@ export function FlameButton({
   );
 }
 
+/** `locale` localizes `href`; without it `href` is used as given (client callers pass an href they localized). */
 export function GhostButton({
   children,
   href = "/",
   className = "",
+  locale,
 }: {
   children: ReactNode;
   href?: string;
   className?: string;
+  locale?: Locale;
 }) {
   return (
     <MagneticLink
-      href={href}
+      href={locale ? localizedHref(href, locale) : href}
       className={`fx-sweep fx-sweep-ghost inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-card-2/60 px-5 py-[14px] text-[13px] font-medium text-ink transition-colors duration-300 hover:border-mut-3 hover:bg-card-3/60 ${className}`}
     >
       {children}
@@ -174,19 +182,21 @@ export function ArrowButton({ className = "" }: { className?: string }) {
 export function CtaBand({
   title,
   text,
-  cta = "Discuss a project",
+  cta,
   href = "/contact/",
+  locale,
 }: {
   title: string;
   text: string;
   cta?: string;
   href?: string;
+  locale?: Locale;
 }) {
   return (
     <div className="mt-12 flex flex-col items-center gap-4 rounded-3xl border border-line bg-card/40 p-10 text-center">
       <h2 className="display text-3xl text-ink">{title}</h2>
       <p className="max-w-md text-[14px] text-mut-2">{text}</p>
-      <FlameButton href={href}>{cta}</FlameButton>
+      <FlameButton href={href} locale={locale}>{cta ?? dictionary(locale ?? "en").cta.discuss}</FlameButton>
     </div>
   );
 }

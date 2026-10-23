@@ -1,0 +1,32 @@
+{
+  "order": 5,
+  "slug": "product-delivery",
+  "name": "Phát triển sản phẩm & nền tảng số",
+  "shortName": "Phát triển sản phẩm",
+  "category": "Triển khai",
+  "image": "/images/suite/shield-core.webp",
+  "summary": "Chúng tôi đưa ý tưởng đi qua các bước khảo sát, thiết kế và phát triển để trở thành phần mềm mà mọi người có thể sử dụng và cải tiến.",
+  "buyerProblem": "Một chiến lược trở nên hữu ích khi được hiện thực hóa thành một hệ thống vận hành được. Chúng tôi kết nối các quyết định về sản phẩm, trải nghiệm người dùng và phần thực thi kỹ thuật, kèm phạm vi rõ ràng, tiêu chí nghiệm thu và kế hoạch triển khai.",
+  "deliverables": [
+    "Vấn đề, phạm vi và hành trình người dùng được xác định rõ",
+    "Thiết kế sản phẩm và kiến trúc kỹ thuật",
+    "Giải pháp đã được kiểm thử và kế hoạch triển khai",
+    "Bàn giao, tài liệu và danh sách hạng mục cải tiến"
+  ],
+  "process": [
+    "Chúng tôi xác định người dùng, vấn đề và phiên bản đầu tiên hữu ích.",
+    "Chúng tôi thiết kế và xây dựng theo từng phần nhỏ có thể xem xét.",
+    "Chúng tôi kiểm thử, phát hành và hỗ trợ đưa sản phẩm vào sử dụng."
+  ],
+  "faqs": [
+    {
+      "question": "Tôi có thể bắt đầu từ một dự án đang có không?",
+      "answer": "Có. Chúng tôi có thể rà soát sản phẩm, mã nguồn hoặc kế hoạch triển khai hiện tại, rồi cùng bạn trao đổi những việc cần làm để đưa dự án tiến lên."
+    },
+    {
+      "question": "Ai sở hữu sản phẩm được bàn giao?",
+      "answer": "Quyền sở hữu, quyền truy cập, giấy phép và việc bàn giao được thống nhất trong phạm vi hợp tác trước khi bắt đầu công việc. Nội dung trên website không thay thế cho thỏa thuận đó."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

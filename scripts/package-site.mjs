@@ -8,7 +8,7 @@ if(process.env.SITE_MODE==="production") {
   if(exists)throw new Error("Production packaging requires a fresh checkout with no dist directory.");
 }
 await fs.mkdir(target,{recursive:true});
-const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms"];
+const roots=["_next","404","_not-found","services","about","approach","contact","privacy","terms","vi"];
 // The hero globe's texture tiers (scripts/build-globe-textures.mjs): 1k phones, 2k desktop first frame, 4k streamed.
 const globeTextures=["1k","2k","4k"].flatMap(tier=>["day","night","normal","spec","clouds"].map(map=>`textures/earth/${tier}/${map}.webp`));
 const assets=["apple-icon.png","icon.svg","favicon.ico","icon-192.png","icon-512.png","icon-maskable-512.png","licenses/fonts.txt","images/galaxy.webp","images/hero-poster.webp","images/hero-poster-3840w.webp","images/suite/design-engine.webp","images/suite/scale-matrix.webp","images/suite/neural-net.webp","images/suite/shield-core.webp","images/suite/neural-core.webp","images/faq-team.webp","seo/og.png",...globeTextures];
@@ -39,7 +39,9 @@ if(process.env.SITE_MODE!=="production"){
   headers=marked;
 }
 await fs.writeFile(path.join(target,"_headers"),headers);
-const routes=["services","services/digital-transformation","services/ai-strategy","services/applied-ai","services/automation-integration","services/product-delivery","about","approach","contact","privacy","terms"];
+const pages=["services","services/digital-transformation","services/ai-strategy","services/applied-ai","services/automation-integration","services/product-delivery","about","approach","contact","privacy","terms"];
+// Both languages: /vi/ mirrors every English page.
+const routes=[...pages,"vi",...pages.map(route=>`vi/${route}`)];
 const redirects=["/index.html / 301",...routes.flatMap(route=>[`/${route} /${route}/ 301`,`/${route}/index.html /${route}/ 301`])];
 await fs.writeFile(path.join(target,"_redirects"),redirects.join("\n")+"\n");
 await fs.mkdir("artifacts",{recursive:true});

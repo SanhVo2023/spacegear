@@ -1,0 +1,56 @@
+{
+  "work": {
+    "title": "Những gì chúng tôi làm",
+    "index": "001",
+    "heading": "Chúng tôi đảm nhận cả chiến lược lẫn triển khai, giúp bạn tiến nhanh hơn và ít vướng mắc hơn.",
+    "description": "Mỗi dự án hợp tác đều bắt đầu từ một vấn đề có thật, với mục tiêu để lại cho đội ngũ của bạn một thành quả có thể sử dụng."
+  },
+  "services": {
+    "title": "Dịch vụ của chúng tôi",
+    "index": "002",
+    "heading": "Các dịch vụ linh hoạt giúp bạn hiện đại hóa vận hành và đưa AI vào công việc.",
+    "description": "Năm năng lực này có thể triển khai riêng lẻ hoặc kết hợp với nhau."
+  },
+  "process": {
+    "title": "Quy trình làm việc",
+    "index": "003",
+    "heading": "Mỗi dự án đi theo một lộ trình rõ ràng, từ buổi trao đổi đầu tiên đến khi hệ thống được sử dụng hằng ngày.",
+    "description": "Mỗi giai đoạn đều cho ra một sản phẩm cụ thể mà bạn có thể xem xét và sử dụng."
+  },
+  "analytics": {
+    "title": "Những gì chúng tôi đo lường",
+    "index": "004",
+    "heading": "Bạn sẽ biết một thay đổi có đang phát huy tác dụng hay không, dựa trên bằng chứng đủ rõ để hành động.",
+    "description": "Đây là ví dụ minh họa về các chỉ số mà hai bên thống nhất trước khi bắt tay xây dựng, không phải kết quả của khách hàng."
+  },
+  "pricing": {
+    "title": "Hình thức hợp tác",
+    "index": "005",
+    "heading": "Mỗi hình thức hợp tác đều rõ ràng, với phạm vi được xác định xoay quanh mục tiêu của bạn.",
+    "description": "Bạn có thể bắt đầu từ một bài toán hoặc một dự án đã xác định rõ. Phạm vi và điều khoản được thống nhất trước khi bắt đầu công việc."
+  },
+  "faq": {
+    "title": "Hỏi đáp",
+    "index": "006",
+    "heading": "Những giải thích ngắn gọn giúp bạn quyết định nên bắt đầu từ đâu.",
+    "description": "Bạn không cần có sẵn mọi câu trả lời trước khi bắt đầu trao đổi với chúng tôi."
+  },
+  "team": {
+    "title": "Ai sẽ làm việc cùng bạn",
+    "index": "007",
+    "heading": "Đằng sau mỗi dự án là các chuyên môn về chiến lược, kỹ thuật và triển khai.",
+    "description": "Mỗi dự án đều huy động các chuyên môn này, từ buổi trao đổi đầu tiên đến khi bàn giao."
+  },
+  "testimonials": {
+    "title": "Khách hàng nói gì",
+    "index": "008",
+    "heading": "Đây là những chia sẻ từ các tổ chức đã làm việc cùng chúng tôi.",
+    "description": "Mỗi chia sẻ đều được đăng với sự cho phép của khách hàng."
+  },
+  "labs": {
+    "title": "spacegear Labs",
+    "index": "009",
+    "heading": "Chúng tôi chia sẻ những ghi chép thực tế về chuyển đổi số, AI và các hệ thống đứng sau công việc hằng ngày.",
+    "description": "Đây là các bài giải thích và ghi chép rút ra từ công việc của chúng tôi."
+  }
+}

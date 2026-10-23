@@ -23,7 +23,10 @@ import { chooseHeroMode } from "@/components/globe/hero-mode";
 import { getIntroPhase, getServerIntroPhase, INTRO_CHUNK_SHARE, introStore, type IntroPhase } from "@/components/globe/intro-store";
 import { POSTER } from "@/components/globe/poster";
 import type { GlobeTier } from "@/components/globe/tiers";
-import { HOME, type Stat as StatData } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent, type SiteContent, type Stat as StatData } from "@/lib/content";
+import { dictionary, type Dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 
 // 3D scene is client-only (WebGL) — load without SSR. Its code chunk fills the first INTRO_CHUNK_SHARE of
 // the intro counter, so the count moves before the textures start; their bytes fill the rest (EarthScene.tsx).
@@ -122,9 +125,10 @@ function HeroScene({ progress, active }: { progress: MotionValue<number>; active
 
   // The canvas fades in over the poster once its first textured frame has rendered (globals.css).
   // From then on a mouse or pen drag spins it, and Part 2's cursor shows its "Drag" label.
+  const drag = dictionary(useLocale()).cursor.drag;
   const live = globe === "ready";
   return (
-    <div ref={sceneRef} className="hero-scene absolute inset-0" data-globe={globe} data-globe-tier={tier} data-cursor={live ? "Drag" : undefined} aria-hidden>
+    <div ref={sceneRef} className="hero-scene absolute inset-0" data-globe={globe} data-globe-tier={tier} data-cursor={live ? drag : undefined} aria-hidden>
       {ready && globe !== "failed" && (
         <SceneBoundary onError={fail}>
           {/* A failure is terminal: a first frame that lands after a loss never revives the scene. */}
@@ -333,8 +337,6 @@ function MobileScene({ hero, fill, dimBy }: MobileSceneProps) {
   );
 }
 
-const STATEMENT_WORDS = HOME.statement.split(" ").length;
-
 /**
  * The static hero's layers: the backdrop, the 2D stars, the phone globe, the copy and the statement.
  * Phones and tablets: the galaxy under gradients and the 2D stars over the whole hero. Desktops: the
@@ -344,6 +346,8 @@ const STATEMENT_WORDS = HOME.statement.split(" ").length;
  * and that progress also dims the phone globe behind it, so the filled words stay legible.
  */
 function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
+  const home = getContent(useLocale()).HOME;
+  const statementWords = home.statement.split(" ").length;
   const statement = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress: fill } = useScroll({ target: statement, offset: ["start 0.8", "end 0.4"] });
   return (
@@ -359,7 +363,7 @@ function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
         <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_75%_0%,rgba(250,110,67,0.18),rgba(22,23,25,0)_60%)] min-[1024px]:hidden" />
       </div>
       <Starfield className="opacity-50 min-[1024px]:hidden" />
-      <MobileScene hero={hero} fill={fill} dimBy={1 / STATEMENT_WORDS} />
+      <MobileScene hero={hero} fill={fill} dimBy={1 / statementWords} />
 
       {/* Desktops: the copy fills the poster's first screen and the statement starts below it. */}
       <Container className="relative flex min-h-[90svh] flex-col justify-center pt-28 pb-20 min-[1024px]:min-h-screen">
@@ -368,7 +372,7 @@ function StaticStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
 
       <Container className="relative pb-24">
         <div ref={statement} className="hero-statement max-w-3xl">
-          <ScrollFillText text={HOME.statement} progress={fill} />
+          <ScrollFillText text={home.statement} progress={fill} />
         </div>
       </Container>
     </div>
@@ -470,17 +474,23 @@ const WORD: Variants = {
 };
 
 type Word = { text: string; tone?: string; after?: string };
-const [FIRST, SECOND, THIRD] = HOME.headline.verbs;
-// "— The smarter way to plan, build, and scale your business." as single words, each in its own mask.
-const WORDS: Word[] = [
-  { text: "—", tone: "text-mut-3" },
-  ...HOME.headline.lead.split(" ").map((text) => ({ text })),
-  { text: FIRST, tone: "text-flame", after: "," },
-  { text: SECOND, tone: "text-flame", after: "," },
-  { text: "and" },
-  { text: THIRD, tone: "text-flame" },
-  ...HOME.headline.tail.split(" ").map((text) => ({ text })),
-];
+/**
+ * "— The smarter way to plan, build, and scale your business." as single words, each in its own mask. The
+ * punctuation and the word between the verbs come from the dictionary (hero.*): English writes "plan, build, and
+ * scale", Vietnamese "hoạch định, xây dựng và mở rộng" (no comma before "và"). An empty `after` renders nothing.
+ */
+function heroWords(headline: SiteContent["HOME"]["headline"], grammar: Dictionary["hero"]): Word[] {
+  const [first, second, third] = headline.verbs;
+  return [
+    { text: "—", tone: "text-mut-3" },
+    ...headline.lead.split(" ").map((text) => ({ text })),
+    { text: first, tone: "text-flame", after: grammar.afterFirst },
+    { text: second, tone: "text-flame", after: grammar.afterSecond },
+    { text: grammar.conjunction },
+    { text: third, tone: "text-flame" },
+    ...headline.tail.split(" ").map((text) => ({ text })),
+  ];
+}
 
 function HeroCopy() {
   // Same markup for every visitor (static export). The intro holds the copy until its reveal;
@@ -489,20 +499,23 @@ function HeroCopy() {
   // Only picks an animation label, never markup; on the server (and so in the HTML) it is "off".
   const [startPhase] = useState(getIntroPhase);
   const state = copyState(phase, startPhase);
+  const locale = useLocale();
+  const home = getContent(locale).HOME;
+  const words = heroWords(home.headline, dictionary(locale).hero);
   return (
     // Desktop layout from the same px boundary as the cinematic query (`min-[1024px]:`; Tailwind's `lg` is
     // in rem, so it moves with the browser's default font size).
     <div className="hero-copy mx-auto max-w-2xl text-center min-[1024px]:mx-0 min-[1024px]:text-left">
       <motion.p data-reveal="" variants={EYEBROW} initial="hidden" animate={state} className="hero-backing text-[15px] leading-tight">
-        <span className="text-mut-2">{HOME.eyebrow.muted}</span>{" "}
-        <span className="font-medium text-ink">{HOME.eyebrow.strong}</span>
+        <span className="text-mut-2">{home.eyebrow.muted}</span>{" "}
+        <span className="font-medium text-ink">{home.eyebrow.strong}</span>
       </motion.p>
 
       {/* Each word rises out of its own mask (.hero-word-mask). The heading's accessible name is the
           sentence itself; role="none" keeps Chrome from exposing each inline-block mask as a group,
           so assistive technology gets plain runs of text, as with the unsplit markup. */}
       <motion.h1 variants={HEADLINE} initial="hidden" animate={state} className="display mx-auto mt-6 max-w-3xl text-[clamp(38px,7.4vw,92px)] text-ink">
-        {WORDS.map((word, index) => (
+        {words.map((word, index) => (
           <Fragment key={index}>
             {index > 0 && " "}
             <span role="none" className="hero-word-mask">
@@ -517,26 +530,26 @@ function HeroCopy() {
 
       <motion.div data-reveal="" variants={PITCH} initial="hidden" animate={state} className="mt-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center min-[1024px]:items-start">
         <div>
-          <h2 className="text-xl font-medium text-ink">{HOME.pitch.title}</h2>
-          <p className="mx-auto mt-1 max-w-xs text-[13px] text-mut-2">{HOME.pitch.text}</p>
+          <h2 className="text-xl font-medium text-ink">{home.pitch.title}</h2>
+          <p className="mx-auto mt-1 max-w-xs text-[13px] text-mut-2">{home.pitch.text}</p>
         </div>
         {/* Magnetic and sweeping on fine-pointer desktops, like the site's other flame buttons (ui.tsx
             FlameButton); everywhere else a plain link. transition-[filter,box-shadow], not transition-all:
             the magnetic pull writes transform every frame. */}
         <MagneticLink
-          href={HOME.cta.href}
+          href={localizedHref(home.cta.href, locale)}
           className="fx-sweep pointer-events-auto inline-flex w-fit items-center gap-2 rounded-xl bg-flame px-5 py-3 text-[13px] font-medium text-[#161719] transition-[filter,box-shadow] hover:brightness-110 hover:shadow-[0_10px_30px_-8px_rgba(250,110,67,0.6)]"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
             <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
             <path d="M2 6.5h12M5.5 2v2M10.5 2v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
-          {HOME.cta.label}
+          {home.cta.label}
         </MagneticLink>
       </motion.div>
 
       <motion.div data-reveal="" variants={STATS} initial="hidden" animate={state} className="hero-backing mt-10 flex flex-wrap justify-center gap-8 sm:gap-10 min-[1024px]:justify-start">
-        {HOME.stats.map((stat) => (
+        {home.stats.map((stat) => (
           <Stat key={stat.label} {...stat} />
         ))}
       </motion.div>
@@ -595,6 +608,8 @@ export default function OrbitalCinematic() {
       progress.set(0);
     };
   }, [cinematic, progress]);
+  const locale = useLocale();
+  const home = getContent(locale).HOME;
 
   // Mobile / reduced motion / no JS / Save-Data / first paint: the static hero (no three.js fetched until
   // a phone or tablet qualifies for the 1k globe, MobileScene). Until hydration, eligible desktops reserve
@@ -646,12 +661,12 @@ export default function OrbitalCinematic() {
 
           <Link
             prefetch={false}
-            href={HOME.corner.href}
+            href={localizedHref(home.corner.href, locale)}
             className="pointer-events-auto absolute bottom-10 right-8 hidden w-72 items-center justify-between rounded-xl border border-line bg-card/80 px-4 py-3 backdrop-blur min-[1024px]:flex"
           >
             <div>
-              <p className="text-[13px] text-ink">{HOME.corner.title}</p>
-              <p className="font-mono text-[11px] text-mut-3">{HOME.corner.sub}</p>
+              <p className="text-[13px] text-ink">{home.corner.title}</p>
+              <p className="font-mono text-[11px] text-mut-3">{home.corner.sub}</p>
             </div>
             <span aria-hidden className="text-flame">→</span>
           </Link>
@@ -661,14 +676,14 @@ export default function OrbitalCinematic() {
         <Choreo progress={progress} opacity={[[0, 0.12], [1, 0]]} className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2">
           <span className="flex items-center gap-2 rounded-full border border-line bg-card/60 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-flame pulse-dot" />
-            {HOME.scrollHint}
+            {home.scrollHint}
           </span>
         </Choreo>
 
         {/* statement, fills word-by-word over the centred globe */}
         <Choreo progress={progress} opacity={[[0.5, 0.6], [0, 1]]} className="pointer-events-none absolute inset-0 flex items-center">
           <Container className="relative">
-            <ScrollFillText text={HOME.statement} className="max-w-4xl" progress={progress} range={[0.58, 0.9]} />
+            <ScrollFillText text={home.statement} className="max-w-4xl" progress={progress} range={[0.58, 0.9]} />
           </Container>
         </Choreo>
       </div>

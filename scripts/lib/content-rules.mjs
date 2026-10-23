@@ -88,21 +88,29 @@ export function teamProblems({ TEAM_ROLES }) {
   ]);
 }
 
+/** The words that label the sample dashboard, per language (Vietnamese writes "minh họa" with either tone placement). */
+const ILLUSTRATIVE = {
+  en: { section: [/illustrative/i, /not client results/i], sectionWords: '"illustrative" and "not client results"', card: /illustrative|example|sample/i, cardWords: "illustrative, an example or a sample", footer: /illustrative/i, footerWord: '"illustrative"' },
+  vi: { section: [/minh h(?:ọa|oạ)/iu, /không phải kết quả của khách hàng/iu], sectionWords: '"minh họa" and "không phải kết quả của khách hàng"', card: /minh h(?:ọa|oạ)|ví dụ|mẫu/iu, cardWords: '"minh họa", "ví dụ" or "mẫu"', footer: /minh h(?:ọa|oạ)/iu, footerWord: '"minh họa"' },
+};
+
 /**
  * The sample dashboard shows made-up figures, so its section and each of its cards must say so: the
  * section description says "illustrative" and "not client results", each card names itself an
- * illustrative figure, an example or a sample, and the stages footer says "illustrative".
+ * illustrative figure, an example or a sample, and the stages footer says "illustrative" (in Vietnamese:
+ * "minh họa", "không phải kết quả của khách hàng", "ví dụ", "mẫu").
  */
-export function illustrativeProblems({ SECTIONS, MEASURE }) {
+export function illustrativeProblems({ SECTIONS, MEASURE }, locale = "en") {
+  const words = ILLUSTRATIVE[locale];
   const problems = [];
   const description = SECTIONS.analytics.description;
-  if (!/illustrative/i.test(description) || !/not client results/i.test(description)) {
-    problems.push(`content/sections.json: analytics.description must say that the figures are illustrative and not client results (both words "illustrative" and "not client results"), because the dashboard shows sample data`);
+  if (!words.section.every((pattern) => pattern.test(description))) {
+    problems.push(`content/sections.json: analytics.description must say that the figures are illustrative and not client results (both words ${words.sectionWords}), because the dashboard shows sample data`);
   }
   for (const card of ["workflow", "accuracy", "throughput", "readiness", "coverage"]) {
-    if (!/illustrative|example|sample/i.test(JSON.stringify(MEASURE[card]))) problems.push(`content/measure.json: ${card} must call itself illustrative, an example or a sample in one of its texts`);
+    if (!words.card.test(JSON.stringify(MEASURE[card]))) problems.push(`content/measure.json: ${card} must call itself ${words.cardWords} in one of its texts`);
   }
-  if (!/illustrative/i.test(MEASURE.stagesFooter)) problems.push(`content/measure.json: stagesFooter must say "illustrative"`);
+  if (!words.footer.test(MEASURE.stagesFooter)) problems.push(`content/measure.json: stagesFooter must say ${words.footerWord}`);
   return problems;
 }
 
@@ -141,14 +149,23 @@ export function linkProblems(content, routes) {
   return problems;
 }
 
-/** Every rule above, in the order check-content prints them. */
-export function contentRuleProblems(content, routes) {
-  return [
+/** Every rule above, in the order check-content prints them. A Vietnamese problem names its file under content/vi/. */
+export function contentRuleProblems(content, routes, { locale = "en" } = {}) {
+  const problems = [
     ...stageNumberProblems(content.ENGAGEMENTS),
     ...countProblems(content),
     ...teamProblems(content),
-    ...illustrativeProblems(content),
+    ...illustrativeProblems(content, locale),
     ...stockImageProblems(content),
     ...linkProblems(content, routes),
   ];
+  return locale === "en" ? problems : problems.map((problem) => problem.replace(/^content\//, "content/vi/").replace(/^link in export /, "link in Vietnamese export "));
+}
+
+/** The full address begins with the street line, so the page and the structured data never disagree. */
+export function addressProblems(site, file) {
+  const { full, street } = site.address ?? {};
+  return typeof full === "string" && typeof street === "string" && !full.startsWith(street)
+    ? [`${file}: address.full must begin with address.street (${quote(street)}), the street line that the structured data and Google Business Profile use`]
+    : [];
 }

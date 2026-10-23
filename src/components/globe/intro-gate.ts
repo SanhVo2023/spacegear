@@ -6,7 +6,7 @@ export const INTRO_QUERY = "(min-width: 1024px) and (prefers-reduced-motion: no-
  * page), so the CSS gives those desktops the static hero from first paint: no cinematic reserve, the poster
  * fading into the page (globals.css). And it decides whether the intro plays, by setting
  * html[data-intro="play"]. It plays only on:
- * - the home page without a hash;
+ * - the home page (`/` or `/vi/`) without a hash;
  * - a desktop width with motion allowed (INTRO_QUERY);
  * - no Save-Data and no slow connection (slow-2g, 2g or 3g, as in canStream4k);
  * - WebGL2 present;
@@ -21,7 +21,7 @@ export const INTRO_GATE_SCRIPT =
   "(function(k,q,w){try{" +
   "var d=w.document.documentElement,c=w.navigator.connection;" +
   'if(c&&c.saveData)d.setAttribute("data-save-data","");' +
-  'if(w.location.pathname!=="/"||w.location.hash)return;' +
+  'var p=w.location.pathname;if(p!=="/"&&p!=="/vi/"||w.location.hash)return;' +
   "if(!w.matchMedia(q).matches)return;" +
   "if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType)))return;" +
   'if(typeof w.WebGL2RenderingContext!=="function")return;' +

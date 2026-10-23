@@ -9,10 +9,12 @@ import { validatePublication } from "../src/lib/publication.ts";
 import { parseContent } from "../src/lib/content-schema.ts";
 import { siteSchema } from "../src/lib/content-model.ts";
 import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
+import { contentParityProblems } from "../src/lib/content-parity.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 import { imageReferenceProblems, missingImageFiles } from "./lib/content-assets.mjs";
-import { contentRuleProblems } from "./lib/content-rules.mjs";
+import { addressProblems, contentRuleProblems } from "./lib/content-rules.mjs";
+import { readLocaleFiles } from "./lib/content-input.mjs";
 import { pathsFromRoot } from "./lib/project-path.mjs";
 import { CACHE_DIR, locationProblems, uploadProblems } from "./lib/uploads.mjs";
 const mode = process.argv.includes("--production") ? "production" : process.env.SITE_MODE || "preview";
@@ -70,8 +72,19 @@ await attempt(() => { if (readIndex() !== renderIndex()) errors.push(`${INDEX_FI
 // Loading the module validates every content file and lists all problems at once. src/lib/site.ts
 // validates content/site.json the same way when the site builds.
 const content = await attempt(() => import("../src/lib/content.ts"));
-await attempt(() => parseContent(siteSchema, readJson("content/site.json"), "content/site.json"));
-for (const page of LEGAL_PAGES) await attempt(() => legalSections(page, ROOT));
+// Building the Vietnamese copy validates content/vi/ the same way (problems name content/vi/ files).
+const vietnamese = content ? await attempt(() => content.getContent("vi")) : undefined;
+// Site identity in both languages; the full address must begin with the street line (scripts/lib/content-rules.mjs).
+for (const file of ["content/site.json", "content/vi/site.json"]) {
+  await attempt(() => { errors.push(...addressProblems(parseContent(siteSchema, readJson(file), file), file)); });
+}
+for (const page of LEGAL_PAGES) {
+  const english = await attempt(() => legalSections(page, ROOT, "en"));
+  const translated = await attempt(() => legalSections(page, ROOT, "vi"));
+  if (english && translated && english.length !== translated.length) errors.push(`content/vi/legal/${page}.md has ${translated.length} sections, but content/legal/${page}.md has ${english.length}: translate every section`);
+}
+// content/vi/ mirrors content/: the same files and entries, and only text may differ (src/lib/content-parity.ts).
+await attempt(() => { errors.push(...contentParityProblems(readLocaleFiles(ROOT, "content"), readLocaleFiles(ROOT, "content/vi"))); });
 let routes = [];
 if (content) {
   const { SERVICES, CASE_STUDIES } = content;
@@ -88,6 +101,10 @@ if (content) {
   // Honesty (scripts/lib/honesty.mjs): no invented prices, clients, results, offices, press or
   // timelines in any loaded export (each scanned on its own, for the scoped rules)...
   for (const problem of scanExports(content)) errors.push(`forbidden claim in export ${problem}`);
+  if (vietnamese) {
+    errors.push(...contentRuleProblems(vietnamese, routes, { locale: "vi" }));
+    for (const problem of scanExports(vietnamese)) errors.push(`forbidden claim in Vietnamese export ${problem}`);
+  }
   // Every image the content points at must exist with exactly that name (a CMS upload also needs
   // its generated variants, in the variant cache), and every path must be one the site can serve:
   // not a variant, not out of /images/ or /uploads/.

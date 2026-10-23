@@ -5,7 +5,10 @@ import { useState, type CSSProperties } from "react";
 import Reveal from "@/components/Reveal";
 import DotField from "@/components/DotField";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
-import { CORE_PANEL, PILLARS, SECTIONS } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent } from "@/lib/content";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 import { contentImage } from "@/lib/content-images";
 
 /**
@@ -36,6 +39,8 @@ function accordion(count: number) {
 }
 
 function CorePanel() {
+  const locale = useLocale();
+  const { CORE_PANEL } = getContent(locale);
   return (
     <div className="flex h-full flex-col gap-5 rounded-2xl border border-line bg-card/50 p-6">
       <div className="flex items-center justify-between border-b border-line-soft pb-4">
@@ -50,13 +55,16 @@ function CorePanel() {
         <span aria-hidden className="grid h-6 w-6 place-items-center rounded bg-card-3 text-flame">⠿</span>
         <span className="text-[13px] font-medium text-ink">{CORE_PANEL.line}</span>
       </div>
-      <FlameButton href={CORE_PANEL.href} className="w-full">{CORE_PANEL.cta}</FlameButton>
+      <FlameButton href={localizedHref(CORE_PANEL.href, locale)} className="w-full">{CORE_PANEL.cta}</FlameButton>
     </div>
   );
 }
 
 export default function Services() {
   const [active, setActive] = useState(0);
+  const locale = useLocale();
+  const { PILLARS, SECTIONS } = getContent(locale);
+  const open = dictionary(locale).cursor.open;
   const geometry = accordion(PILLARS.length);
 
   return (
@@ -76,8 +84,8 @@ export default function Services() {
                   <Link
                     prefetch={false}
                     key={s.no}
-                    href={`/services/${s.slug}/`}
-                    data-cursor="Open"
+                    href={localizedHref(`/services/${s.slug}/`, locale)}
+                    data-cursor={open}
                     data-active={isActive ? "true" : "false"}
                     onMouseEnter={() => setActive(i)}
                     onFocus={() => setActive(i)}
@@ -125,7 +133,7 @@ export default function Services() {
         <div className="mt-10 space-y-3 lg:hidden">
           {PILLARS.map((s, i) => (
             <Reveal as="div" key={s.no} delay={60 + i * 50}>
-              <Link prefetch={false} href={`/services/${s.slug}/`} className="block rounded-2xl border border-line bg-card/50 p-5">
+              <Link prefetch={false} href={localizedHref(`/services/${s.slug}/`, locale)} className="block rounded-2xl border border-line bg-card/50 p-5">
                 <div className="flex items-center justify-between">
                   <span className="display text-2xl text-flame">{s.no}</span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-mut-3">{s.tag}</span>

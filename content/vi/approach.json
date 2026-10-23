@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "step": "Giai đoạn 1",
+      "name": "Đánh giá",
+      "desc": "Chúng tôi tìm hiểu công việc của bạn và lập sơ đồ hiện trạng về quy trình, hệ thống, các ràng buộc cùng những người liên quan. Hai bên thống nhất vấn đề trước khi chọn giải pháp.",
+      "outputs": [
+        "Sơ đồ hiện trạng",
+        "Bản mô tả vấn đề"
+      ]
+    },
+    {
+      "step": "Giai đoạn 2",
+      "name": "Xác định ưu tiên",
+      "desc": "Chúng tôi giúp bạn chọn một bước tiếp theo hữu ích bằng cách so sánh các cơ hội theo giá trị, tính khả thi và mức độ phụ thuộc. Hai bên thống nhất mốc cơ sở và thế nào là thành công.",
+      "outputs": [
+        "Danh sách cơ hội ưu tiên",
+        "Lộ trình triển khai"
+      ]
+    },
+    {
+      "step": "Giai đoạn 3",
+      "name": "Kiểm chứng",
+      "desc": "Chúng tôi kiểm chứng các giả định quan trọng bằng một nguyên mẫu hoặc một đợt thí điểm có trọng tâm, đối chiếu kết quả với mốc cơ sở rồi quyết định hạng mục nào đáng đầu tư tiếp.",
+      "outputs": [
+        "Bằng chứng đánh giá",
+        "Quyết định tiếp tục hay dừng"
+      ]
+    },
+    {
+      "step": "Giai đoạn 4",
+      "name": "Triển khai",
+      "desc": "Chúng tôi xây dựng giải pháp bám sát quy trình thực tế, thiết kế và phát triển theo từng phần nhỏ có thể xem xét, rồi kiểm thử tích hợp, các ngoại lệ và trải nghiệm người dùng trước khi đưa vào vận hành.",
+      "outputs": [
+        "Giải pháp đã được kiểm thử",
+        "Kế hoạch triển khai"
+      ]
+    },
+    {
+      "step": "Giai đoạn 5",
+      "name": "Đưa vào sử dụng",
+      "desc": "Chúng tôi chuẩn bị để hệ thống đi vào sử dụng hằng ngày: viết tài liệu vận hành, làm rõ trách nhiệm quản lý, hỗ trợ bàn giao và cùng bạn thống nhất cách đo lường, cải tiến hệ thống.",
+      "outputs": [
+        "Hướng dẫn vận hành",
+        "Danh sách hạng mục cải tiến"
+      ]
+    }
+  ]
+}

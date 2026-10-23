@@ -1,0 +1,140 @@
+{
+  "illustrative": true,
+  "imageCard": {
+    "img": "/images/suite/shield-core.webp",
+    "accent": "Minh họa",
+    "label": "Ví dụ"
+  },
+  "workflow": {
+    "title": "Quy trình xử lý hồ sơ",
+    "sub": "Lượt chạy mẫu · minh họa",
+    "center": "62%",
+    "segments": [
+      {
+        "label": "Tự động xử lý",
+        "value": 62,
+        "color": "#fa6e43"
+      },
+      {
+        "label": "Con người kiểm duyệt",
+        "value": 29,
+        "color": "#888891"
+      },
+      {
+        "label": "Ngoại lệ",
+        "value": 9,
+        "color": "#434346"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "Tiếp nhận",
+      "note": "Bước 01",
+      "status": "Tự động",
+      "detail": "12 phút → 2 phút",
+      "hands": [
+        300,
+        65
+      ]
+    },
+    {
+      "name": "Trích xuất",
+      "note": "Bước 02",
+      "status": "Có hỗ trợ",
+      "detail": "9 phút → 3 phút",
+      "hands": [
+        210,
+        150
+      ]
+    },
+    {
+      "name": "Kiểm duyệt",
+      "note": "Bước 03",
+      "status": "Do người xử lý",
+      "detail": "Vẫn trong tầm kiểm soát",
+      "hands": [
+        120,
+        20
+      ]
+    }
+  ],
+  "stagesFooter": "Thời gian mỗi hồ sơ · minh họa",
+  "accuracy": {
+    "label": "Độ chính xác so với mốc cơ sở",
+    "value": "94.6",
+    "unit": "%",
+    "sub": "Ví dụ về mục tiêu"
+  },
+  "throughput": {
+    "title": "Số hồ sơ đã xử lý",
+    "sub": "Có hỗ trợ so với thủ công · ví dụ",
+    "legend": [
+      {
+        "value": "+68%",
+        "label": "Có hỗ trợ"
+      },
+      {
+        "value": "Cơ sở",
+        "label": "Thủ công"
+      }
+    ]
+  },
+  "readiness": {
+    "title": "Mức sẵn sàng triển khai",
+    "sub": "Mức mà một dự án thí điểm có thể đạt tới · ví dụ",
+    "score": "82",
+    "scoreLabel": "Điểm sẵn sàng",
+    "bars": [
+      {
+        "label": "Dữ liệu",
+        "v": 38
+      },
+      {
+        "label": "Tích hợp",
+        "v": 79
+      },
+      {
+        "label": "Kiểm duyệt",
+        "v": 92
+      },
+      {
+        "label": "Đào tạo",
+        "v": 84
+      },
+      {
+        "label": "Giám sát",
+        "v": 96
+      }
+    ]
+  },
+  "coverage": {
+    "tag": "Ví dụ: bộ dữ liệu đánh giá",
+    "value": "99.1%",
+    "label": "Độ phủ ca kiểm thử",
+    "progress": 99.1
+  },
+  "connectors": {
+    "tag": "Kết nối với hệ thống hiện có",
+    "glyphs": [
+      "◇",
+      "◎",
+      "△",
+      "⬡"
+    ]
+  },
+  "ticker": [
+    "Lập sơ đồ quy trình",
+    "Rà soát mức sẵn sàng dữ liệu",
+    "Đánh giá AI",
+    "Con người tham gia kiểm duyệt",
+    "Tích hợp hệ thống",
+    "Triển khai & đào tạo",
+    "Giám sát & cải tiến",
+    "Phát triển sản phẩm"
+  ],
+  "cta": {
+    "label": "Xem cách chúng tôi đánh giá AI",
+    "href": "/services/applied-ai/"
+  }
+}

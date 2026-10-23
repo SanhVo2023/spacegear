@@ -736,7 +736,10 @@ test("check-content refuses SVG and HTML uploads, variant references and missing
     const env = { ...process.env, SITE_MODE: "preview", NEXT_PUBLIC_SHOW_SAMPLES: "" };
     const run = () => spawnSync(process.execPath, ["--experimental-strip-types", path.join(root, "scripts", "check-content.mjs")], { cwd: path.join(root, "src"), encoding: "utf8", env });
     const listed = (result) => result.stderr.split(/\r?\n/).filter((line) => line.startsWith("  - ")).map((line) => line.slice(4));
-    const setImage = (file, img) => fs.writeFileSync(path.join(root, file), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(root, file), "utf8")), img }, null, 2));
+    // Images are the same in both languages (src/lib/content-parity.ts), so the Vietnamese twin gets each image too.
+    const setImage = (file, img) => {
+      for (const twin of [file, file.replace(/^content\//, "content/vi/")]) fs.writeFileSync(path.join(root, twin), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(root, twin), "utf8")), img }, null, 2));
+    };
     const uploads = path.join(root, "public", "uploads");
     const cache = path.join(root, ".cache", "upload-variants"); // where the copied scripts/lib/uploads.mjs looks
     fs.mkdirSync(path.join(uploads, "team"), { recursive: true });

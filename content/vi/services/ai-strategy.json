@@ -1,0 +1,32 @@
+{
+  "order": 2,
+  "slug": "ai-strategy",
+  "name": "Chiến lược AI & xây dựng năng lực",
+  "shortName": "Chiến lược AI",
+  "category": "Định hướng",
+  "image": "/images/suite/neural-core.webp",
+  "summary": "Chúng tôi giúp bạn đi từ sự quan tâm đến AI tới một quyết định có cơ sở: AI có thể hỗ trợ ở đâu, cần những gì và nên bắt đầu thế nào.",
+  "buyerProblem": "Một bản demo đầy hứa hẹn vẫn chưa đủ để chứng minh giá trị kinh doanh. Chúng tôi gắn các tình huống ứng dụng AI tiềm năng với dữ liệu sẵn có, các ràng buộc vận hành và một cách đánh giá rõ ràng để biết giải pháp có thực sự hữu ích hay không.",
+  "deliverables": [
+    "Đánh giá cơ hội và mức sẵn sàng cho AI",
+    "Các tình huống ứng dụng được xếp ưu tiên, kèm yêu cầu dữ liệu",
+    "Tiêu chí đánh giá, rủi ro và các điểm cần con người kiểm duyệt",
+    "Kế hoạch thí điểm và phương án xây dựng năng lực"
+  ],
+  "process": [
+    "Chúng tôi tìm hiểu các quyết định, đầu việc và luồng thông tin.",
+    "Chúng tôi so sánh các phương án AI với những cách làm đơn giản hơn.",
+    "Hai bên xác định dự án thí điểm, quy trình đánh giá và kế hoạch đưa vào sử dụng."
+  ],
+  "faqs": [
+    {
+      "question": "Nếu dữ liệu của tôi chưa sẵn sàng thì sao?",
+      "answer": "Đó lại là một điểm khởi đầu hữu ích. Chúng tôi sẽ xác định những việc cần làm về dữ liệu và quy trình trước khi có thể đánh giá một dự án thí điểm AI một cách có trách nhiệm."
+    },
+    {
+      "question": "spacegear.tech có đề xuất dùng AI cho mọi vấn đề không?",
+      "answer": "Không. Các quy tắc nghiệp vụ, việc tích hợp tốt hơn hoặc một quy trình đơn giản hơn có thể phù hợp hơn. Đề xuất của chúng tôi xuất phát từ chính vấn đề cần giải quyết."
+    }
+  ],
+  "relatedInsightSlugs": []
+}
