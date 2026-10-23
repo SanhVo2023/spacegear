@@ -11,6 +11,15 @@
 /api/*
   Cache-Control: no-store
 
+# Labs feeds (Part 3): RSS 2.0 per language, sent with the RSS media type instead of the asset's own XML type
+# (FEED_HEADERS in scripts/lib/headers.mjs). Only these two paths get a Content-Type from this file. A language
+# without articles has no feed: its feed path is then a 404 that carries this type too, and no page links to it.
+/labs/rss.xml
+  Content-Type: application/rss+xml; charset=utf-8
+
+/vi/labs/rss.xml
+  Content-Type: application/rss+xml; charset=utf-8
+
 # >>> CMS (showcase Part 3): /admin/ runs the vendored Sveltia CMS. It swaps the site CSP for its own
 # and is never indexed. Each directive is explained in README.md, "The admin Content-Security-Policy".
 /admin/*

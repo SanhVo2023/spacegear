@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ADMIN_CSP, ADMIN_HEADERS, UPLOADS_CSP, UPLOADS_HEADERS, headerProblems, headersFor, parseHeaders, sitePaths } from "../scripts/lib/headers.mjs";
+import { ADMIN_CSP, ADMIN_HEADERS, FEEDS, FEED_HEADERS, UPLOADS_CSP, UPLOADS_HEADERS, headerProblems, headersFor, parseHeaders, sitePaths } from "../scripts/lib/headers.mjs";
 import { wranglerHeaders, workerHeaders } from "./helpers/wrangler-headers.mjs";
 
 const HEADERS = fs.readFileSync("public/_headers", "utf8");
@@ -64,7 +64,8 @@ const SYNTH = "/*\n  X-A: site\n  Cache-Control: from-site-rule\n/order/*\n  X-A
 const CORPUS = { "public/_headers": HEADERS, preview: PREVIEW, edges: EDGES, "102 rules": MANY, synthetic: SYNTH };
 const PATHS = ["/", "/ok", "/ok/", "/c/x", "/b/x", "/a/b/x", "/x/y/z", "/x//y/z", "/ünï/q", "/%41dmin/x", "/Admin/x", "/q/q/x", "/ph/a/deep", "/ph/a/b/deep", "/ph/a/deep/more", "/s/one/two", "/long/x", "/r5/x", "/r101/x",
   "/order/x", "/both/x", "/dup/x", "/rm/x", "/after/x/y/z", "/after/x/z", "/after/q",
-  "/admin", "/admin/", "/admin/config.yml", "/administrator/", "/uploads", "/uploads/", "/uploads/x.webp", "/_next/static/chunks/a.js", "/api/contact"];
+  "/admin", "/admin/", "/admin/config.yml", "/administrator/", "/uploads", "/uploads/", "/uploads/x.webp", "/_next/static/chunks/a.js", "/api/contact",
+  "/labs/rss.xml", "/vi/labs/rss.xml", "/labs/", "/labs/rss.xml/", "/labs/how/rss.xml"];
 
 test("the reader agrees with wrangler's own _headers parser", () => {
   for (const [name, text] of Object.entries(CORPUS)) {
@@ -138,7 +139,25 @@ test("/admin/ and /uploads/ get exactly their pinned headers; every other path k
       assert.deepEqual(headersFor(rules, pathname), { ...site, ...UPLOADS_HEADERS }, `${pathname}: the uploads headers, each once, and the site's other headers`);
     }
     assert.equal(headersFor(rules, "/_next/static/chunks/x.js")["cache-control"], "public, max-age=31536000, immutable");
+    for (const pathname of FEEDS) {
+      assert.deepEqual(headersFor(rules, pathname), { ...site, ...FEED_HEADERS }, `${pathname}: served as RSS, with exactly the site's headers otherwise`);
+    }
+    for (const pathname of ["/labs/", "/vi/labs/", "/labs/rss.xml/", "/labs/how/rss.xml", "/", "/llms.txt", "/sitemap.xml"]) {
+      assert.equal(headersFor(rules, pathname)["content-type"], undefined, `${pathname}: keeps the asset's own type`);
+    }
   }
+});
+
+test("the Labs feeds are served as RSS", () => {
+  assert.deepEqual(FEEDS, ["/labs/rss.xml", "/vi/labs/rss.xml"]);
+  assert.deepEqual(FEED_HEADERS, { "content-type": "application/rss+xml; charset=utf-8" });
+  assert.deepEqual(headerProblems(PREVIEW, FEEDS), []);
+  // The checkout may use CRLF (core.autocrlf), so a swap never spans a line break.
+  const without = PREVIEW.replace(/^\/vi\/labs\/rss\.xml(?=\r?$)/m, "/vi/labs/feed.xml");
+  assert.notEqual(without, PREVIEW);
+  assert.deepEqual(headerProblems(without, []), ['/vi/labs/rss.xml gets Content-Type nothing, not "application/rss+xml; charset=utf-8"'], "a feed that loses its type");
+  const stray = headerProblems(`${PREVIEW}\n/privacy/*\n  Content-Type: text/plain\n`, ["/privacy/"]);
+  assert.deepEqual(stray, ['/privacy/ gets Content-Type "text/plain", not the asset\'s own type'], "no other path gets a Content-Type from _headers");
 });
 
 test("the header check names a CMS header that leaks, goes missing, loosens or comes too early", () => {
