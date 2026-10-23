@@ -3,6 +3,7 @@
     "APPROACH_STEPS",
     "ARTICLES",
     "CASE_STUDIES",
+    "CONTENT_DIRS",
     "CORE_PANEL",
     "ENGAGEMENTS",
     "ENGAGEMENTS_FOOTER",
@@ -22,7 +23,9 @@
     "TEAM_ROLES",
     "TESTIMONIALS",
     "WORK",
-    "serviceBySlug"
+    "getContent",
+    "serviceBySlug",
+    "serviceFor"
   ],
   "values": {
     "APPROACH_STEPS": [
@@ -74,6 +77,10 @@
     ],
     "ARTICLES": [],
     "CASE_STUDIES": [],
+    "CONTENT_DIRS": {
+      "en": "content",
+      "vi": "content/vi"
+    },
     "CORE_PANEL": {
       "label": "Core Services",
       "count": "5/5",
