@@ -149,3 +149,35 @@ test("createIdleLoop caps a long frame and stop() cancels the pending frame", ()
   assert.equal(loop.running, false);
   assert.equal(scheduler.queue.length, 0);
 });
+
+test("trailStep comes to rest on a pointer that stops from 1000 px/s in about 100 ms, without overshoot", () => {
+  const dt = 1 / 60;
+  let trail = { x: 0, y: 0, vx: 0, vy: 0 };
+  let target = 0;
+  for (let i = 0; i < 30; i++) {
+    target += 1000 * dt;
+    trail = math.trailStep(trail, target, 0, dt).trail;
+    assert.ok(trail.x <= target, "the ring never passes the pointer");
+  }
+  let settle = 0;
+  for (let moving = true; moving; settle += dt) {
+    const step = math.trailStep(trail, target, 0, dt);
+    trail = step.trail;
+    moving = step.moving;
+    assert.ok(trail.x <= target, "no overshoot after the stop");
+  }
+  assert.ok(settle >= 0.06 && settle <= 0.125, `settles in about 100 ms (${(settle * 1000).toFixed(0)} ms)`);
+  assert.deepEqual(trail, { x: target, y: 0, vx: 0, vy: 0 }, "lands exactly on the pointer");
+});
+
+test("trailStep gives the same path at any frame rate", () => {
+  const start = { x: 0, y: 0, vx: 300, vy: -200 };
+  const one = math.trailStep(start, 120, 80, 0.032).trail;
+  const half = math.trailStep(math.trailStep(start, 120, 80, 0.016).trail, 120, 80, 0.016).trail;
+  for (const key of ["x", "y", "vx", "vy"]) near(one[key], half[key], key);
+});
+
+test("trailStep keeps a ring at rest on the pointer at rest", () => {
+  const step = math.trailStep({ x: 40, y: 50, vx: 0, vy: 0 }, 40, 50, 1 / 60);
+  assert.deepEqual(step, { trail: { x: 40, y: 50, vx: 0, vy: 0 }, moving: false });
+});
