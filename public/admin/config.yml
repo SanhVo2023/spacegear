@@ -40,8 +40,10 @@ media_libraries:
     config:
       max_file_size: 10485760
       # File names follow the slug rules below: lowercase ASCII letters, digits, - and _, so
-      # "Ảnh đẹp.JPG" is saved as anh-dep.webp. A name that is taken gets -1, -2…; check-content
-      # asks for a rename if a name still does not fit (a ~, or the dotless ı of a Turkish browser).
+      # "Ảnh đẹp.JPG" is saved as anh-dep.webp. A name that is taken gets -1, -2…. A name that still
+      # does not fit (a ~, or the dotless ı of a Turkish browser) is refused by an image field's
+      # pattern before the entry is saved, and check-content asks for a rename if one arrives anyway
+      # (uploaded from the Assets page).
       slugify_filename: true
       # Chrome re-encodes JPEG, PNG, AVIF and HEIC uploads as WebP through a canvas, which drops
       # camera metadata (GPS). GIF and WebP are kept as they are, so an animation keeps playing;
@@ -348,7 +350,12 @@ collections:
             widget: object
             i18n: true
             fields:
-              - &image_field { name: img, label: Image, widget: image, i18n: duplicate, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+              # Every image field uses this pattern (&image_pattern): IMAGE from src/lib/content-schema.ts, or a file
+              # name without a folder that IMAGE accepts under /uploads/. While an upload is pending, Sveltia 0.230.1
+              # tests the pattern against the new file's name as the media library named it (slug rules, .webp after
+              # a re-encode) with no /uploads/ yet, so IMAGE alone refused every new upload. Once saved, the value
+              # is /uploads/<name>, and check-content checks it with IMAGE alone.
+              - &image_field { name: img, label: Image, widget: image, i18n: duplicate, choose_url: true, hint: "Upload a new image, pick one under Site images, or type a path such as /images/suite/neural-net.webp.", pattern: &image_pattern ['^(?:(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)|(?!(?:con|prn|aux|nul|com\d|lpt\d)\.)[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif))$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
               - { name: accent, label: Accent, widget: string, maxlength: 20, i18n: true, use_emoji_autocomplete: false }
               - { name: label, label: Label, widget: string, maxlength: 20, i18n: true, use_emoji_autocomplete: false }
           - name: workflow
@@ -582,7 +589,7 @@ collections:
       - { name: name, label: Name, widget: string, maxlength: 60, i18n: true, use_emoji_autocomplete: false }
       - { name: shortName, label: Short name, widget: string, maxlength: 40, i18n: true, use_emoji_autocomplete: false }
       - { name: category, label: Category, widget: string, maxlength: 20, i18n: true, use_emoji_autocomplete: false }
-      - { name: image, label: Image, widget: image, i18n: duplicate, choose_url: true, hint: "Shown wherever the service appears.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - { name: image, label: Image, widget: image, i18n: duplicate, choose_url: true, hint: "Shown wherever the service appears.", pattern: *image_pattern }
       - { name: summary, label: Summary, widget: text, maxlength: 160, i18n: true, use_emoji_autocomplete: false }
       - { name: buyerProblem, label: Buyer problem, widget: text, maxlength: 320, i18n: true, use_emoji_autocomplete: false }
       - name: deliverables
@@ -707,7 +714,7 @@ collections:
     reorder: true
     sortable_fields: { fields: [order, name], default: { field: order } }
     fields:
-      - { name: img, label: Photo, widget: image, i18n: duplicate, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - { name: img, label: Photo, widget: image, i18n: duplicate, choose_url: true, hint: "The client's own approved photo, uploaded here.", pattern: *image_pattern }
       - { name: name, label: Name, widget: string, maxlength: 60, i18n: true, use_emoji_autocomplete: false }
       - { name: role, label: Role, widget: string, maxlength: 60, i18n: true, use_emoji_autocomplete: false }
       - { name: company, label: Company, widget: string, maxlength: 80, i18n: true, use_emoji_autocomplete: false }
@@ -743,10 +750,8 @@ collections:
     fields:
       - { name: title, label: Title, widget: string, maxlength: 120, required: false, i18n: true, use_emoji_autocomplete: false }
       - { name: summary, label: Summary, widget: text, maxlength: 200, required: false, i18n: true, hint: "One or two sentences for the index, the home page and search results.", use_emoji_autocomplete: false }
-      # The pattern is IMAGE from src/lib/content-schema.ts, or a file name without a folder: while an upload is
-      # pending, Sveltia 0.230.1 tests the pattern against the new file's name (no /uploads/ yet), so IMAGE alone
-      # would refuse every new upload. Once saved, the value is /uploads/<name> and check-content checks it again.
-      - { name: cover, label: Cover image, widget: image, choose_url: true, i18n: duplicate, hint: "The article's own image, uploaded here; it is also the social preview.", pattern: ['^(?:(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)|(?![^/]*\.[Ss][Vv][Gg]$)[^/]+)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      # The shared image pattern (&image_pattern, at "Home: What We Measure"): it also accepts a file being uploaded.
+      - { name: cover, label: Cover image, widget: image, choose_url: true, i18n: duplicate, hint: "The article's own image, uploaded here; it is also the social preview.", pattern: *image_pattern }
       - { name: coverAlt, label: Cover description, widget: string, maxlength: 160, required: false, i18n: true, hint: "Describe the cover for screen readers.", use_emoji_autocomplete: false }
       - { name: date, label: Published, widget: datetime, format: YYYY-MM-DD, time_format: false, i18n: duplicate }
       - { name: updated, label: Updated, widget: datetime, format: YYYY-MM-DD, time_format: false, required: false, i18n: duplicate, hint: "Only when the article changed in substance." }

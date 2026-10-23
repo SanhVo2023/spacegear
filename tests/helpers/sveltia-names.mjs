@@ -39,6 +39,17 @@ const PIECES = [
 ];
 /** How Zxe picks a transformation: the sniffed format, the declared one, then raster_image. */
 export const TRANSFORMATION_CHOICE = "s=o[i]??(a?o[a]:void 0)??t.raster_image";
+/**
+ * How a field pattern meets a pending upload. K2 renames and re-encodes the new file (AY) and keeps it as
+ * draft.files[blobURL]; until the entry is saved the field's value is that blob: URL, and validation (ZQ)
+ * tests the pattern against the file's name instead, with no /uploads/ folder.
+ */
+export const PENDING_UPLOAD = [
+  "let{file:t,oversized:i,invalid:a}=await AY(l,n??{});if(l=t,a)",
+  "e.files[u]={file:l,folder:r",
+  "hM=[`file`,`image`]",
+  "ZQ=({fieldType:e,value:t,files:n})=>hM.includes(e)&&typeof t==`string`&&t.startsWith(`blob:`)?n[t]?.file?.name:t",
+];
 
 function piece(bundle, [what, start, end, inclusive = false]) {
   const at = bundle.indexOf(start);
