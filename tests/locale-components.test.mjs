@@ -24,3 +24,16 @@ test("PageIntro's back link defaults to the page language's home", () => {
   assert.match(renderToStaticMarkup(h(PageIntro, { eyebrow: "E", title: "T", description: "D" })), /href="\/"[^>]*>← (?:<!-- -->)?Home/);
   assert.match(renderToStaticMarkup(h(PageIntro, { eyebrow: "E", title: "T", description: "D", locale: "vi" })), /href="\/vi\/"[^>]*>← (?:<!-- -->)?Trang chủ/);
 });
+
+const { default: ContactDetails } = await import("../src/components/ContactDetails.tsx");
+
+test("the contact details show the owner's address and phone in the page's language, the phone as a tel: link", () => {
+  const en = renderToStaticMarkup(h(ContactDetails, {}));
+  assert.match(en, /11 B4 Street, Sala Urban Area, An Khanh Ward, Ho Chi Minh City, Vietnam/);
+  assert.match(en, /href="tel:\+84386749799"[^>]*>\+84 386 749 799</);
+  assert.match(en, /class="sr-only">Address: </, "labels are for screen readers unless asked for");
+  const vi = renderToStaticMarkup(h(ContactDetails, { locale: "vi", labels: true }));
+  assert.match(vi, /Số 11, đường B4, Khu đô thị Sala, phường An Khánh, TP\. Hồ Chí Minh, Việt Nam/);
+  assert.match(vi, /href="tel:\+84386749799"[^>]*>0386 749 799</);
+  assert.match(vi, /class="text-mut">Địa chỉ: </);
+});
