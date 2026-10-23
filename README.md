@@ -1,6 +1,6 @@
 # spacegear.tech
 
-Digital transformation and AI consultancy website, in English and Vietnamese. Next.js exports 24 visible HTML pages, 12 in each language; Cloudflare Workers Static Assets serves them. A same-origin Worker sends first-time visitors from Vietnam to the Vietnamese pages, validates inquiries with Turnstile, stores them in D1 and queues owner notifications through Cloudflare Email Service.
+Digital transformation and AI consultancy website, in English and Vietnamese. Next.js exports 24 core HTML pages, 12 in each language, plus the Labs articles and their index in each language that has articles; Cloudflare Workers Static Assets serves them. A same-origin Worker sends first-time visitors from Vietnam to the Vietnamese pages, validates inquiries with Turnstile, stores them in D1 and queues owner notifications through Cloudflare Email Service.
 
 Customer eligibility is open across industries, regions and company sizes. Public copy and schema contain no company-scale claims or fictional clients, staff, testimonials or results.
 
@@ -47,7 +47,8 @@ Most of the site's copy is kept in [content/](content/) (English) and [content/v
 - the five services, which also fill each service page's introduction, title and description;
 - the three engagements;
 - the site name, description and social profiles, and the owner's address and phone number;
-- the text sections of the privacy and terms pages.
+- the text sections of the privacy and terms pages;
+- the Labs articles, one Markdown file per article and language (see "Publishing a Labs article").
 
 Some copy still lives in the code, in the UI dictionary (`src/lib/i18n/en.ts` and `vi.ts`), and changing it needs a developer: the introductions of the About, Approach, Services and Contact pages, the fixed headings on the service pages (such as "What you receive"), the navigation labels, a few labels inside the home sections (such as the footer's "Discuss a project" link), the headers and notices of the privacy and terms pages, the form labels and messages, the 404 page, and the title and description of every page except the service pages (see "Languages").
 
@@ -95,6 +96,50 @@ On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-i
 - **Contact details.** The owner's address and phone number live only in Site identity (`content/site.json` and `content/vi/site.json`). The address is written in each language: the full line that the site shows, and the street and the city for the structured data. The phone number is written once, in international format without spaces, and copied to Vietnamese; the site shows `0386 749 799` on Vietnamese pages and `+84 386 749 799` on English ones. The honesty scan refuses the address and the number anywhere else.
 - **Writing Vietnamese.** Write natural Vietnamese, in full sentences with a subject and a predicate. Say a claim the way Vietnamese people say it instead of translating it word for word, and keep the facts exactly as in English, with nothing added. Body text writes thousands with a dot and decimals with a comma (`3.000`, `1,5`); the figures of the sample dashboard stay exactly as in English. The terms, the forms of address and worked examples are in [docs/i18n/glossary-vi.md](docs/i18n/glossary-vi.md).
 
+### Publishing a Labs article
+
+Labs articles are Markdown files: `content/articles/<slug>.md` in English and `content/vi/articles/<slug>.md` in Vietnamese, with the same name. An article can exist in both languages or in one only. A language without a single article has no Labs pages at all: no `/labs/` (or `/vi/labs/`), no feed, and no Labs section on its home page.
+
+1. **Open the editor.** On the live site, open https://spacegear.tech/admin/ and sign in with GitHub; on your computer, use **Work with Local Repository** (see "Edit on the live site" and "Edit locally"). Choose **Labs**, then **New**.
+2. **The address.** Before the first save the CMS asks for the slug, the end of the article's address: `measuring-a-workflow` gives `/labs/measuring-a-workflow/` and `/vi/labs/measuring-a-workflow/`. Use lowercase letters, digits and single hyphens. Both languages share it, and it cannot change after the first save, because links to the article would break. Type it yourself: it is not made from the title.
+3. **The fields.** Fill in each language's side:
+   - **Title**, up to 120 characters.
+   - **Summary**, one or two sentences, 50 to 200 characters. It is the article's description in search results and link previews, and its text on the index, on the home page and in the feed.
+   - **Cover image**: the article's own image, uploaded here (not the original site's stock art). It is also the social preview image.
+   - **Cover description**, up to 160 characters, for screen readers.
+   - **Published**: the date, such as `2026-10-23`. **Updated**: leave it empty, unless the article later changes in substance.
+   - **Author**: a real person's name, up to 60 characters.
+
+   The cover, the dates and the author are copied from English to Vietnamese; the Vietnamese side shows them read-only.
+4. **The text.** The **Article** field is Markdown, written in the rich-text editor or as raw Markdown:
+   - headings `##` to `####` (the title is the page's only `#`), bold, italic, inline code and code blocks, links, quotes, bulleted and numbered lists, and images;
+   - every image needs a description (the text in `![…]`), and must be an upload (the CMS saves new images in `/uploads/`) or a site image;
+   - a link is a site path such as `/contact/` or a full `https://` address. Site paths follow the page's language by themselves: `/contact/` becomes `/vi/contact/` in the Vietnamese article. External links open with `rel="noopener noreferrer"`;
+   - no raw HTML, no tables and no strikethrough: the site does not show them.
+
+   Each heading gets an anchor link, and the page shows an estimated reading time.
+5. **Vietnamese.**
+   - Write the Vietnamese side in the right-hand pane, in natural Vietnamese: full sentences with a subject and a predicate, claims said the way Vietnamese people say them rather than translated word for word, and the facts exactly as in English, with nothing added. The terms and forms of address are in [docs/i18n/glossary-vi.md](docs/i18n/glossary-vi.md) (see "Editing in two languages").
+   - For an English-only article, switch Vietnamese off in the pane's menu.
+   - For a Vietnamese-only article, leave the English title, summary, cover description and text empty. The CMS cannot switch English off, so it still writes an English file with only the shared fields; the site reads an empty English title as "not in English".
+6. **Save.** On the live site a save is a commit to `main`, and Workers Builds builds, checks and deploys it (see "What a save does" under "Editing from GitHub"). The article is live when that build finishes: a full build takes under a minute on a developer's machine, and Workers Builds adds the checkout, `npm ci` and the deploy, so expect a few minutes. That time has not been measured yet, because Workers Builds is still to be connected (see "One-time setup by the owner"); until it is, a saved article goes live only with the next manual deploy. The article then appears:
+   - at `/labs/<slug>/` and/or `/vi/labs/<slug>/`, and on the Labs index of its language (`/labs/`, `/vi/labs/`), newest first;
+   - in the Labs section of the home page in its language, which shows the three newest articles;
+   - in the feed of its language (`/labs/rss.xml`, `/vi/labs/rss.xml`), in the sitemap with its other language version, and in `/llms.txt`.
+7. **What the build refuses.** The content check lists every problem with the file and what to change (see "Reading the content check"):
+   - a language half filled in: a title without a summary, a cover description or text, or text without a title;
+   - a summary under 50 characters;
+   - a Vietnamese file with no text (switch Vietnamese off instead), or an article with no text in either language;
+   - shared fields that differ between the languages (the cover, the dates, the author);
+   - an impossible date, or an update earlier than the publication;
+   - a file name that is not a slug;
+   - a heading `#` or `#####`, raw HTML, a table or strikethrough;
+   - an image without a description, or one that is not an upload or a site image, or is missing, or whose size cannot be read;
+   - a link that is not a site path or a full `https://` address;
+   - invented claims: the honesty scan reads every article's front matter and text in both languages, with the same rules as the rest of the site (see "The honesty scan");
+   - a test article (a slug that starts with `zz-probe-`) in a production build.
+8. **Updating and removing.** Edit the article and save. Set **Updated** only for a change in substance, not for a typo. An article cannot be renamed: publish it again under a new slug and delete the old one, whose address then returns 404.
+
 ### What the build checks
 
 - No prices, invented metrics, clients, press, offices, ratings or experience claims, in any field of any content file, in either language (see "The honesty scan").
@@ -108,6 +153,7 @@ On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-i
 - Services and engagements cannot be added or removed in the CMS: each service has its own page, and the engagements are the three stages the page counts.
 - The site uses some values to tell items apart, so they must be unique: questions, engagement names, the services that the work tiles point at, the name and company of each testimonial, and the items of each deliverables and outcomes list. Exactly one engagement is featured.
 - Every image that a field points at must exist, with exactly that name and letter case.
+- Labs articles (`src/lib/labs-files.ts` and `src/lib/markdown.ts`): their front matter, the rules across both languages, their Markdown and their images, in both languages (see "Publishing a Labs article"). After the build, the export check compares the exported Labs pages, feeds and sitemap entries with the published articles.
 
 #### Images and uploads
 
@@ -185,7 +231,8 @@ English keeps today's URLs. Vietnamese mirrors every page under `/vi/` with the 
 - **Views.** Every page body is a view in `src/views/`, a server component that takes the language, and its title and description are in `src/views/metadata.ts`. The route files are thin wrappers that pass the language: `src/app/(en)/…` for English and `src/app/(vi)/vi/…` for Vietnamese. Each group has its own root layout, so every exported page has the right `<html lang>`. Moving between the two root layouts is a full page load, so the curtain transition plays only within a language.
 - **A new UI string** goes into `src/lib/i18n/en.ts` and `src/lib/i18n/vi.ts` under the same key. `npm run typecheck` fails when a key is missing or extra in Vietnamese, and `tests/i18n-dictionary.test.mjs` checks lists, placeholders and the honesty scan. `format()` and `formatParts()` fill placeholders such as `{n}`.
 - **One 404 for both languages.** `src/app/global-not-found.tsx` (`experimental.globalNotFound` in `next.config.ts`, since the site has two root layouts) serves every unknown URL in either language, in English first, then in Vietnamese.
-- **Search engines.** Every page has its own canonical URL and hreflang links to both versions (`en`, `vi`, and `x-default` for English); `og:locale` names the page's language and `og:locale:alternate` the other. The sitemap lists all 24 pages with their language versions. In the structured data, the Organization is "spacegear" (alternate name "spacegear.tech") with the owner's address and phone number, and every page names its language (`inLanguage`).
+- **Search engines.** Every page has its own canonical URL and hreflang links to both versions (`en`, `vi`, and `x-default` for English); `og:locale` names the page's language and `og:locale:alternate` the other. A Labs article names only the versions that exist, and `x-default` only when it has an English one. The sitemap lists the 24 core pages and the Labs pages, each with its language versions.
+- **Labs pages exist only for a language with articles.** Their route files are named `page.en-labs.tsx`, `page.vi-labs.tsx` (and `route.en-labs.ts`, `route.vi-labs.ts` for the feeds). `next.config.ts` adds those extensions to `pageExtensions` only for the languages that have a published article (`labsLocales()` in `src/lib/labs-files.ts`), so a language without one has no Labs route; a dynamic route with no pages would fail the static export. Any other address under `/labs/` or `/vi/labs/` is the 404 page. The feeds are sent as `application/rss+xml` (`public/_headers`). In the structured data, the Organization is "spacegear" (alternate name "spacegear.tech") with the owner's address and phone number, and every page names its language (`inLanguage`).
 
 ### The region redirect and the switch
 
@@ -220,10 +267,10 @@ Vietnamese words stack marks above and below letters, so three rules in `src/app
 
 ### Checks for the Vietnamese pages
 
-- **`npm run check:locale -- <base URL>`** (`scripts/locale-checks.mjs`, 17 checks) runs against the preview and reads the routes from its sitemap. On every `/vi/` page at 320, 390, 768, 1024 and 1440 px it checks that no stacked mark is cut by a mask or a clipping box and that no mark runs into the line above or below it; that nothing overflows; that the hero headline keeps clear of the pitch and fits the screen; that the cursor's labels (Xem, Kéo, Mở) fit the orange disc; that no English string or sentence shows on a Vietnamese page, with and without JavaScript; and that Vietnamese pages link only to Vietnamese pages. It also checks the fonts (English pages never download the Vietnamese subsets, and every Vietnamese letter is drawn by the site's own fonts), the switch (by keyboard, with and without JavaScript, and in the phone menu) and the redirect (the country, the browser language, the cookie, and `/vi/` never moved).
+- **`npm run check:locale -- <base URL>`** (`scripts/locale-checks.mjs`, 17 checks, and one or two more when there are Labs articles) runs against the preview and reads the routes from its sitemap, so the Vietnamese Labs pages are covered too, and a visitor from Vietnam stays on an English-only article. On every `/vi/` page at 320, 390, 768, 1024 and 1440 px it checks that no stacked mark is cut by a mask or a clipping box and that no mark runs into the line above or below it; that nothing overflows; that the hero headline keeps clear of the pitch and fits the screen; that the cursor's labels (Xem, Kéo, Mở) fit the orange disc; that no English string or sentence shows on a Vietnamese page, with and without JavaScript; and that Vietnamese pages link only to Vietnamese pages. It also checks the fonts (English pages never download the Vietnamese subsets, and every Vietnamese letter is drawn by the site's own fonts), the switch (by keyboard, with and without JavaScript, and in the phone menu) and the redirect (the country, the browser language, the cookie, and `/vi/` never moved).
 - **`npm run test:browser`** runs the same checks and adds four Vietnamese profiles (desktop, phone at 390 px, reduced motion and no JavaScript) on `/vi/`, `/vi/contact/` and `/vi/services/applied-ai/`: clean hydration, layout shift under 0.05, the headline in its word masks, and accessible names that hold the visible text. Its hidden-text sweeps cover every `/vi/` page, and the identity check expects the logo link to be named "Trang chủ spacegear" there.
 - **`FX_LOCALE=vi node --experimental-strip-types scripts/fx-checks.mjs <base URL>`** runs the motion checks on the Vietnamese pages with the Vietnamese copy and UI strings. `test:browser` runs only the English set.
-- **`npm run check:seo`** crawls both languages: hreflang both ways, canonicals, one H1 and visible content without JavaScript.
+- **`npm run check:seo`** crawls both languages: hreflang both ways, canonicals, one H1 and visible content without JavaScript. It expects the 24 core pages plus exactly the published Labs pages, and checks that `/labs/` and `/vi/labs/` and their feeds exist exactly when their language has articles, that any other `/labs/` address is a 404, and that `/llms.txt` lists every article.
 - **`npm test`** covers the language rules without a browser: the Worker's decisions (`tests/worker-locale.test.mjs`), the path rules, the dictionary, the content parity, the fonts, the phone formats, the routes and the Vietnamese honesty patterns.
 
 ## Maintaining the CMS
