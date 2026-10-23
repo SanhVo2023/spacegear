@@ -10,6 +10,17 @@ for(const route of ROUTES){
   const file=path.join(root,route,"index.html");try{const html=await fs.readFile(file,"utf8");if(!html.includes("spacegear.tech"))errors.push(`Missing identity: ${route}`);if((html.match(/<h1(?:\s|>)/g)||[]).length!==1)errors.push(`H1 count: ${route}`);if(!html.includes('rel="canonical"'))errors.push(`No canonical: ${route}`);if(!html.includes(`<html lang="${lang}"`))errors.push(`html lang is not ${lang}: ${route}`);}catch{errors.push(`Missing HTML: ${route}`);}
 }
 await fs.access(path.join(root,"404.html")).catch(()=>errors.push("Missing 404"));
+// Labs (Part 3): the exported Labs pages, feeds and sitemap entries must be exactly the published articles' in each
+// language (scripts/lib/labs-export.mjs), each page with one H1, a canonical to itself and its language. labsLocales()
+// never throws, so a build whose next.config.ts read no article exports no Labs page and fails only here.
+// /llms.txt always ships. labs-files.ts is erasable TypeScript: this script runs under --experimental-strip-types.
+const {LOCALES}=await import("../src/lib/i18n/locales.ts");
+const {publishedArticles,readArticleFiles}=await import("../src/lib/labs-files.ts");
+const {labsExportProblems}=await import("./lib/labs-export.mjs");
+const articleFiles=readArticleFiles().files;
+const published=Object.fromEntries(LOCALES.map(locale=>[locale,publishedArticles(articleFiles,locale)]));
+errors.push(...labsExportProblems(root,published));
+await fs.access(path.join(root,"llms.txt")).catch(()=>errors.push("Missing llms.txt"));
 // Every exported text file: no sample preview content (src/lib/samples.ts) and no old identity.
 // The brand strings mirror FORBIDDEN in tests/content.test.mjs. The real service name
 // "Digital Product & Platform Delivery" does not match them. "space—gear" is the retired dash
@@ -60,4 +71,4 @@ errors.push(...headerProblems(await fs.readFile(path.join(root,"_headers"),"utf8
 errors.push(...uploadProblems(path.join(root,"uploads"),{label:`${root}/uploads`,variants:true}));
 errors.push(...wrongCaseReferences(root,{skip:["admin"]}));
 // <<< CMS
-if(errors.length){console.error(errors.join("\n"));process.exitCode=1;}else console.log(`Export valid: ${ROUTES.length} core pages, ${count} files, ${(bytes/1048576).toFixed(2)} MiB total.`);
+if(errors.length){console.error(errors.join("\n"));process.exitCode=1;}else console.log(`Export valid: ${ROUTES.length} core pages, ${LOCALES.map(locale=>`${published[locale].length} ${locale} Labs article${published[locale].length===1?"":"s"}`).join(", ")}, ${count} files, ${(bytes/1048576).toFixed(2)} MiB total.`);
