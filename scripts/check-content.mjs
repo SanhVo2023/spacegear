@@ -9,6 +9,7 @@ import { validatePublication } from "../src/lib/publication.ts";
 import { parseContent } from "../src/lib/content-schema.ts";
 import { siteSchema } from "../src/lib/content-model.ts";
 import { LEGAL_PAGES, legalSections } from "../src/lib/legal.ts";
+import { labsProblems, readArticleFiles } from "../src/lib/labs-files.ts";
 import { contentParityProblems } from "../src/lib/content-parity.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
@@ -83,6 +84,15 @@ for (const page of LEGAL_PAGES) {
   const translated = await attempt(() => legalSections(page, ROOT, "vi"));
   if (english && translated && english.length !== translated.length) errors.push(`content/vi/legal/${page}.md has ${translated.length} sections, but content/legal/${page}.md has ${english.length}: translate every section`);
 }
+// Labs articles (content/articles, content/vi/articles; src/lib/labs-files.ts): front matter, the per-language
+// rules and their covers, named by file. Their text in both languages goes through the honesty scan below.
+await attempt(() => {
+  const { files, issues } = readArticleFiles(ROOT);
+  errors.push(...issues, ...labsProblems(files, { production: mode === "production" }));
+  const covers = Object.fromEntries(files.map((item) => [item.file, item.data.cover]));
+  for (const problem of imageReferenceProblems(covers)) errors.push(`image path in a Labs article ${problem}`);
+  for (const missing of missingImageFiles(covers, path.join(ROOT, "public"), CACHE_DIR)) errors.push(missing.endsWith(")") ? `missing image variant: ${missing}` : `missing image: public${missing}`);
+});
 // content/vi/ mirrors content/: the same files and entries, and only text may differ (src/lib/content-parity.ts).
 await attempt(() => { errors.push(...contentParityProblems(readLocaleFiles(ROOT, "content"), readLocaleFiles(ROOT, "content/vi"))); });
 let routes = [];
