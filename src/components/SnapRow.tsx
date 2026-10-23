@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, Children, type ReactNode } from "react";
+import { useLocale } from "@/components/LocaleProvider";
+import { dictionary, format } from "@/lib/i18n/dictionary";
 
 /**
  * Mobile horizontal snap-carousel. Each child becomes a snap card; an optional
@@ -18,6 +20,7 @@ export default function SnapRow({
   itemClassName?: string;
   dots?: boolean;
 }) {
+  const goToLabel = dictionary(useLocale()).snapRow.goTo;
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const items = Children.toArray(children);
@@ -81,7 +84,7 @@ export default function SnapRow({
             <button
               key={i}
               onClick={() => goTo(i)}
-              aria-label={`Go to item ${i + 1}`}
+              aria-label={format(goToLabel, { n: i + 1 })}
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 i === active ? "w-5 bg-flame" : "w-1.5 bg-mut-3/50"
               }`}

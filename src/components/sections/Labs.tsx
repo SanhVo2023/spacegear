@@ -2,16 +2,24 @@ import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import SnapRow from "@/components/SnapRow";
 import { Container, SectionHeader } from "@/components/ui";
-import { ARTICLES, SECTIONS, type Article } from "@/lib/content";
+import { getContent, type Article } from "@/lib/content";
 import { contentImage } from "@/lib/content-images";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref, type Locale } from "@/lib/i18n/locales";
 import { SAMPLE_ARTICLES, SAMPLE_MARKER, SHOW_SAMPLES } from "@/lib/samples";
 
-const USING_SAMPLES = ARTICLES.length === 0 && SHOW_SAMPLES;
-const ITEMS = ARTICLES.length ? ARTICLES : USING_SAMPLES ? SAMPLE_ARTICLES : [];
-/** Whether the section renders (the home progress rail lists it only then). */
-export const HAS_LABS = ITEMS.length > 0;
+/** The entries the section shows in `locale`: real published articles, or the dev samples. */
+function labsFor(locale: Locale) {
+  const { ARTICLES } = getContent(locale);
+  const usingSamples = ARTICLES.length === 0 && SHOW_SAMPLES;
+  return { usingSamples, items: ARTICLES.length ? ARTICLES : usingSamples ? SAMPLE_ARTICLES : [] };
+}
+/** Whether the section renders in `locale` (the home progress rail lists it only then). */
+export const hasLabs = (locale: Locale) => labsFor(locale).items.length > 0;
+export const HAS_LABS = hasLabs("en");
 
-function ArticleCard({ a }: { a: Article }) {
+function ArticleCard({ a, locale }: { a: Article; locale: Locale }) {
+  const t = dictionary(locale).labs;
   const external = /^https?:\/\//.test(a.href);
   const className = "group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-card/50 transition-colors hover:border-flame/40";
   const body = (
@@ -23,13 +31,13 @@ function ArticleCard({ a }: { a: Article }) {
       </div>
       <div className="flex flex-1 flex-col p-6">
         <div className="flex items-center gap-2 font-mono text-[11px] text-mut-3">
-          <span>Written by</span>
+          <span>{t.writtenBy}</span>
           <span className="text-mut">{a.author}</span>
         </div>
         <h3 className="mt-4 text-lg font-medium leading-snug text-ink transition-colors group-hover:text-ink-strong">{a.title}</h3>
         <p className="mt-2 flex-1 text-[13px] leading-relaxed text-mut-2">{a.sub}</p>
         <span className="mt-5 inline-flex items-center gap-2 text-[13px] text-flame">
-          Read article
+          {t.read}
           <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
         </span>
       </div>
@@ -38,30 +46,31 @@ function ArticleCard({ a }: { a: Article }) {
   return external ? (
     <a href={a.href} target="_blank" rel="noopener noreferrer" className={className}>{body}</a>
   ) : (
-    <Link prefetch={false} href={a.href} className={className}>{body}</Link>
+    <Link prefetch={false} href={localizedHref(a.href, locale)} className={className}>{body}</Link>
   );
 }
 
-export default function Labs() {
+export default function Labs({ locale = "en" }: { locale?: Locale }) {
   // Renders only real published articles (or dev samples).
-  if (!HAS_LABS) return null;
+  const { usingSamples, items } = labsFor(locale);
+  if (items.length === 0) return null;
   return (
-    <section id="labs" data-sample={USING_SAMPLES ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
+    <section id="labs" data-sample={usingSamples ? SAMPLE_MARKER : undefined} className="relative scroll-mt-2 py-24">
       <Container>
-        {USING_SAMPLES && <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.16em] text-flame">Sample content — not a real article</p>}
-        <SectionHeader {...SECTIONS.labs} />
+        {usingSamples && <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.16em] text-flame">{dictionary(locale).labs.sample}</p>}
+        <SectionHeader {...getContent(locale).SECTIONS.labs} />
 
         <div className="mt-12 hidden gap-4 sm:grid sm:grid-cols-2">
-          {ITEMS.map((a, i) => (
+          {items.map((a, i) => (
             <Reveal key={a.slug} delay={80 + i * 70}>
-              <ArticleCard a={a} />
+              <ArticleCard a={a} locale={locale} />
             </Reveal>
           ))}
         </div>
 
         <SnapRow className="mt-10 sm:hidden" itemClassName="w-[85%]">
-          {ITEMS.map((a) => (
-            <ArticleCard key={a.slug} a={a} />
+          {items.map((a) => (
+            <ArticleCard key={a.slug} a={a} locale={locale} />
           ))}
         </SnapRow>
       </Container>

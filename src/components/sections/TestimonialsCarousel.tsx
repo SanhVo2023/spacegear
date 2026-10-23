@@ -2,9 +2,11 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { useLocale } from "@/components/LocaleProvider";
 import Reveal from "@/components/Reveal";
 import type { Testimonial } from "@/lib/content";
 import { contentImage } from "@/lib/content-images";
+import { dictionary, format } from "@/lib/i18n/dictionary";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /** Stable React key for an entry (index keys would reuse nodes across entries). */
@@ -14,6 +16,8 @@ const keyOf = (t: Testimonial) => `${t.name}|${t.company}`;
  *  from the server component, so dev-only sample data never enters a client bundle. */
 export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Testimonial[] }) {
   const [i, setI] = useState(0);
+  const strings = dictionary(useLocale());
+  const t = strings.testimonials;
   if (REVIEWS.length === 0) return null;
   const r = REVIEWS[i];
   const go = (d: number) => setI((p) => (p + d + REVIEWS.length) % REVIEWS.length);
@@ -47,7 +51,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
                 className="pointer-events-none absolute inset-0 h-full w-full object-cover grayscale"
               />
             </AnimatePresence>
-            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-bg/60 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur lg:hidden">‹ swipe ›</span>
+            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-bg/60 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-mut-2 backdrop-blur lg:hidden">{strings.team.swipe}</span>
           </motion.div>
 
           <div className="flex flex-col justify-between p-8">
@@ -74,21 +78,21 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
           </div>
 
           <div className="hidden flex-col items-center justify-center gap-4 border-l border-line-soft lg:flex">
-            <button type="button" onClick={() => go(-1)} aria-label="Previous" className="grid h-10 w-10 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">←</button>
-            <button type="button" onClick={() => go(1)} aria-label="Next" className="grid h-10 w-10 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">→</button>
+            <button type="button" onClick={() => go(-1)} aria-label={t.previous} className="grid h-10 w-10 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">←</button>
+            <button type="button" onClick={() => go(1)} aria-label={t.next} className="grid h-10 w-10 place-items-center rounded-lg text-mut-2 transition-colors hover:text-flame">→</button>
           </div>
         </div>
 
         <div className="flex items-center gap-3 border-t border-line-soft px-5 py-4">
-          <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] text-mut-3 sm:block">Reviews</span>
+          <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] text-mut-3 sm:block">{t.reviews}</span>
           <div aria-hidden className="flex items-center gap-1.5">
             {REVIEWS.map((rv, k) => (
               <span key={keyOf(rv)} className={`h-1.5 rounded-full transition-all duration-300 ${k === i ? "w-5 bg-flame" : "w-1.5 bg-mut-3/50"}`} />
             ))}
           </div>
           <div className="ml-auto flex gap-2 lg:hidden">
-            <button type="button" onClick={() => go(-1)} aria-label="Previous" className="grid h-8 w-8 place-items-center rounded-lg border border-line text-mut-2">←</button>
-            <button type="button" onClick={() => go(1)} aria-label="Next" className="grid h-8 w-8 place-items-center rounded-lg border border-line text-mut-2">→</button>
+            <button type="button" onClick={() => go(-1)} aria-label={t.previous} className="grid h-8 w-8 place-items-center rounded-lg border border-line text-mut-2">←</button>
+            <button type="button" onClick={() => go(1)} aria-label={t.next} className="grid h-8 w-8 place-items-center rounded-lg border border-line text-mut-2">→</button>
           </div>
         </div>
 
@@ -99,7 +103,7 @@ export default function TestimonialsCarousel({ reviews: REVIEWS }: { reviews: Te
               key={keyOf(rv)}
               onClick={() => setI(k)}
               aria-current={k === i ? "true" : undefined}
-              aria-label={`Show ${rv.name}`}
+              aria-label={format(t.show, { name: rv.name })}
               className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border transition-all duration-300 ${k === i ? "border-flame ring-1 ring-flame" : "border-line opacity-60 hover:opacity-100"}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

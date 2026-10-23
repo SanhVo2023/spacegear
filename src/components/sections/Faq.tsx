@@ -5,9 +5,11 @@ import { useState } from "react";
 import Reveal from "@/components/Reveal";
 import Parallax from "@/components/fx/Parallax";
 import { ringText } from "@/components/ring-text";
+import { useLocale } from "@/components/LocaleProvider";
 import { Container, SectionHeader, FlameButton } from "@/components/ui";
-import { FAQ_CARD, FAQS, SECTIONS } from "@/lib/content";
+import { getContent } from "@/lib/content";
 import { contentImage } from "@/lib/content-images";
+import { localizedHref } from "@/lib/i18n/locales";
 
 type QA = { question: string; answer: string };
 
@@ -73,20 +75,20 @@ export function FaqAccordion({ items, group, firstOpen = true }: { items: QA[]; 
   );
 }
 
-/** The badge's ring: its copy runs exactly once round the circle (ring-text.ts). */
-const BADGE_RING = ringText(FAQ_CARD.badge, 36, { size: 8 });
-
 /** Rotating circular badge with an orange core (matches the footer mark). The copy is sized to close the
  *  circle exactly, its closing "·" one gap before the first letter. */
 export function CircleBadge() {
+  const { FAQ_CARD } = getContent(useLocale());
+  // The badge's ring: its copy runs exactly once round the circle (ring-text.ts).
+  const ring = ringText(FAQ_CARD.badge, 36, { size: 8 });
   return (
     <div aria-hidden className="relative h-20 w-20">
       <svg viewBox="0 0 100 100" className="spin-16 h-full w-full">
         <defs>
           <path id="faqCircle" d="M50,50 m-36,0 a36,36 0 1,1 72,0 a36,36 0 1,1 -72,0" />
         </defs>
-        <text className="fill-ink/80 font-mono uppercase" style={{ fontSize: BADGE_RING.fontSize, letterSpacing: BADGE_RING.letterSpacing }}>
-          <textPath href="#faqCircle" startOffset="0%" textLength={BADGE_RING.textLength} lengthAdjust="spacing">{FAQ_CARD.badge}</textPath>
+        <text className="fill-ink/80 font-mono uppercase" style={{ fontSize: ring.fontSize, letterSpacing: ring.letterSpacing }}>
+          <textPath href="#faqCircle" startOffset="0%" textLength={ring.textLength} lengthAdjust="spacing">{FAQ_CARD.badge}</textPath>
         </text>
       </svg>
       <span className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-flame shadow-[0_0_20px_rgba(250,110,67,0.6)]" />
@@ -95,6 +97,8 @@ export function CircleBadge() {
 }
 
 export function StillQuestionsCard() {
+  const locale = useLocale();
+  const { FAQ_CARD } = getContent(locale);
   return (
     <div className="lg:sticky lg:top-28">
       <div className="overflow-hidden rounded-2xl border border-line bg-card/50">
@@ -113,7 +117,7 @@ export function StillQuestionsCard() {
           <h3 className="display text-2xl text-ink">{FAQ_CARD.title}</h3>
           <p className="mt-3 text-[13.5px] leading-relaxed text-mut-2">{FAQ_CARD.text}</p>
           <div className="mt-6 flex justify-center lg:justify-start">
-            <FlameButton href={FAQ_CARD.href}>{FAQ_CARD.cta}</FlameButton>
+            <FlameButton href={localizedHref(FAQ_CARD.href, locale)}>{FAQ_CARD.cta}</FlameButton>
           </div>
         </div>
       </div>
@@ -122,6 +126,7 @@ export function StillQuestionsCard() {
 }
 
 export default function Faq() {
+  const { FAQS, SECTIONS } = getContent(useLocale());
   return (
     <section id="faq" className="relative scroll-mt-2 py-24">
       <Container>

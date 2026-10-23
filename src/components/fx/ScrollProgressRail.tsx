@@ -2,6 +2,8 @@
 
 import { motion, useScroll } from "motion/react";
 import { useEffect, useState } from "react";
+import { useLocale } from "@/components/LocaleProvider";
+import { dictionary } from "@/lib/i18n/dictionary";
 import { useFx } from "./env";
 
 export type RailItem = { id: string; label: string };
@@ -21,6 +23,7 @@ export default function ScrollProgressRail({ items }: { items: RailItem[] }) {
 }
 
 function Rail({ items }: { items: RailItem[] }) {
+  const label = dictionary(useLocale()).rail.label;
   const [active, setActive] = useState<string | null>(null);
   // Page progress for the hairline fill: read from scroll events, no spring, so an idle page requests no frames.
   const { scrollYProgress } = useScroll();
@@ -40,7 +43,7 @@ function Rail({ items }: { items: RailItem[] }) {
   }, [items]);
 
   return (
-    <nav aria-label="On this page" data-fx-rail="" data-idle={active ? undefined : ""} className="fx-rail">
+    <nav aria-label={label} data-fx-rail="" data-idle={active ? undefined : ""} className="fx-rail">
       <span aria-hidden className="fx-rail-track">
         <motion.span className="fx-rail-fill" style={{ scaleY: scrollYProgress }} />
       </span>
