@@ -9,7 +9,10 @@ import DotField from "@/components/DotField";
 import Parallax from "@/components/fx/Parallax";
 import ScrollDepth from "@/components/fx/ScrollDepth";
 import Tilt from "@/components/fx/Tilt";
-import { SECTIONS, WORK, type WorkTile } from "@/lib/content";
+import { useLocale } from "@/components/LocaleProvider";
+import { getContent, type WorkTile } from "@/lib/content";
+import { dictionary } from "@/lib/i18n/dictionary";
+import { localizedHref } from "@/lib/i18n/locales";
 import { contentImage } from "@/lib/content-images";
 
 /** small animated drag-handle dots, top-right of each tile */
@@ -31,6 +34,7 @@ function ArrowBtn() {
  *  desktops the image also drifts inside its frame as the tile crosses the viewport (`still` leaves that out:
  *  the mobile card stack never shows at those widths). */
 export function Tile({ name, img, desc, href, still = false }: WorkTile & { still?: boolean }) {
+  const locale = useLocale();
   const image = (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -42,7 +46,7 @@ export function Tile({ name, img, desc, href, still = false }: WorkTile & { stil
     />
   );
   return (
-    <Link prefetch={false} href={href} data-cursor="View" className="group relative block h-full overflow-hidden rounded-2xl border border-line">
+    <Link prefetch={false} href={localizedHref(href, locale)} data-cursor={dictionary(locale).cursor.view} className="group relative block h-full overflow-hidden rounded-2xl border border-line">
       {still ? image : <Parallax className="absolute inset-0">{image}</Parallax>}
       {/* base gradient (legibility); a touch stronger on mobile where the desc is always shown */}
       <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f] via-[#0c0d0f]/30 to-transparent lg:via-transparent" />
@@ -69,7 +73,7 @@ export function Tile({ name, img, desc, href, still = false }: WorkTile & { stil
 }
 
 function LineupPanel({ variant }: { variant: "desktop" | "mobile" }) {
-  const l = WORK.lineup;
+  const l = getContent(useLocale()).WORK.lineup;
   const header = (
     <div className="flex items-center justify-between border-b border-[#161719]/20 pb-3">
       <span className="font-mono text-[10px] uppercase tracking-[0.16em]">{l.label}</span>
@@ -111,7 +115,8 @@ function LineupPanel({ variant }: { variant: "desktop" | "mobile" }) {
 }
 
 function AssessmentCard({ variant }: { variant: "desktop" | "mobile" }) {
-  const a = WORK.assessment;
+  const locale = useLocale();
+  const a = getContent(locale).WORK.assessment;
   const title = (
     <>
       <h3 className="display text-xl text-ink-strong">
@@ -129,7 +134,7 @@ function AssessmentCard({ variant }: { variant: "desktop" | "mobile" }) {
           {a.value}<span className="text-base text-mut-3">{a.unit}</span>
         </p>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-card-3">{bar}</div>
-        <Link prefetch={false} href={a.href} className="group mt-4 flex items-center justify-between">
+        <Link prefetch={false} href={localizedHref(a.href, locale)} className="group mt-4 flex items-center justify-between">
           <span className="text-[13px] text-ink">{a.cta}</span>
           <ArrowBtn />
         </Link>
@@ -148,7 +153,7 @@ function AssessmentCard({ variant }: { variant: "desktop" | "mobile" }) {
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-card-3">{bar}</div>
         </div>
       </div>
-      <Link prefetch={false} href={a.href} className="group flex items-center justify-between">
+      <Link prefetch={false} href={localizedHref(a.href, locale)} className="group flex items-center justify-between">
         <span className="text-[13px] text-ink">{a.cta}</span>
         <ArrowBtn />
       </Link>
@@ -157,8 +162,12 @@ function AssessmentCard({ variant }: { variant: "desktop" | "mobile" }) {
 }
 
 export default function Work() {
+  const locale = useLocale();
+  const { SECTIONS, WORK } = getContent(locale);
   const copy = SECTIONS.work;
   const f = WORK.featured;
+  const featuredHref = localizedHref(f.href, locale);
+  const view = dictionary(locale).cursor.view;
   return (
     <section id="work" className="relative py-24">
       <Container>
@@ -184,7 +193,7 @@ export default function Work() {
           <AppearItem className="sm:col-span-2 sm:row-span-2">
             <ScrollDepth className="h-full">
               <Tilt spotlight className="h-full rounded-2xl">
-                <Link prefetch={false} href={f.href} data-cursor="View" className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
+                <Link prefetch={false} href={featuredHref} data-cursor={view} className="group relative block h-full min-h-[260px] overflow-hidden rounded-2xl border border-line">
                   <Parallax className="absolute inset-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
@@ -246,7 +255,7 @@ export default function Work() {
         {/* mobile: curtain card-stack — featured → services → lineup, each card freezes while the next slides over */}
         <div className="mt-10 lg:hidden">
           <StackCards top={88} step={14} gap={64}>
-            <Link prefetch={false} href={f.href} className="group relative block h-[46vh] overflow-hidden rounded-2xl border border-line">
+            <Link prefetch={false} href={featuredHref} className="group relative block h-[46vh] overflow-hidden rounded-2xl border border-line">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img {...contentImage(f.img)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0f]/85 via-transparent to-[#0c0d0f]/30" />

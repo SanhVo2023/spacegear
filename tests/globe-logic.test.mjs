@@ -506,6 +506,8 @@ const GATE_CASES = [
   ["a 3g connection", { effectiveType: "3g" }, undefined],
   ["a deep link", { hash: "#pricing" }, undefined],
   ["another page", { path: "/services/" }, undefined],
+  ["the Vietnamese home page", { path: "/vi/" }, "play"],
+  ["a Vietnamese page", { path: "/vi/about/" }, undefined],
   ["no WebGL2", { webgl2: false }, undefined],
   ["a repeat view in this tab", { seen: true }, undefined],
   ["getItem throws", { getThrows: true }, undefined],
@@ -542,8 +544,8 @@ test("the gate script is fixed ES5 text with a knowable CSP hash", () => {
   assert.match(script, /^[\x20-\x7e]*$/, "printable ASCII, so the hash does not depend on an encoding");
   assert.ok(!script.includes("<"), "safe inside an inline <script>");
   // A change to the gate changes these pins; a CSP script-src entry would be 'sha256-<this hash>'.
-  assert.equal(script.length, 553);
-  assert.equal(createHash("sha256").update(script).digest("base64"), "gl55GdwTCtdGdnpKy2yPXv6Zyrp6oMpngn6X2DYxSzs=");
+  assert.equal(script.length, 573);
+  assert.equal(createHash("sha256").update(script).digest("base64"), "OhfHyo/NBwIBmjwRlHUgGnf/qnuV436L/2fAxy/GEHI=");
 });
 
 test("the CSS failsafe hides the overlay and releases the held copy only after the caps", async () => {
