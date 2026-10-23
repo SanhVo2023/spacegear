@@ -38,13 +38,13 @@ export function serviceMetadata(locale: Locale, slug: string) {
 }
 /**
  * The Labs index of one language (a route only when the language has an article: next.config.ts). Its hreflang names
- * the languages that have an index. The description is the section's heading and its line: the line alone is too
- * short for a search result.
+ * the languages that have an index. The title is the dictionary's, in the page's language (the section title is the
+ * brand in both). The description is the section's heading and its line: the line alone is too short for a search result.
  */
 export function labsIndexMetadata(locale: Locale) {
   const { SECTIONS } = getContent(locale);
   const languages = Object.fromEntries(LOCALES.filter((other) => labsArticles(other).length > 0).map((other) => [other, localizedHref("/labs/", other)]));
-  return buildMetadata({ title: SECTIONS.labs.title, description: `${SECTIONS.labs.heading} ${SECTIONS.labs.description}`, path: "/labs/", locale, languages, feed: localizedHref("/labs/rss.xml", locale) });
+  return buildMetadata({ title: dictionary(locale).labs.indexTitle, description: `${SECTIONS.labs.heading} ${SECTIONS.labs.description}`, path: "/labs/", locale, languages, feed: localizedHref("/labs/rss.xml", locale) });
 }
 export function labsStaticParams(locale: Locale) {
   return labsArticles(locale).map(({ slug }) => ({ slug }));

@@ -106,7 +106,7 @@ export const vi: Dictionary = {
   process: { output: "đầu ra", outputs: "đầu ra", step: "Bước {n}" },
   team: { roleOf: "Vai trò {i} trên {n}", swipe: "‹ vuốt ›", previous: "Vai trò trước", next: "Vai trò tiếp theo" },
   testimonials: { previous: "Trước", next: "Tiếp", reviews: "Nhận xét", show: "Xem {name}", sample: "Nội dung mẫu — không phải khách hàng thật" },
-  labs: { writtenBy: "Tác giả", read: "Đọc bài viết", anchor: "Liên kết đến mục này: {heading}", readingTime: "{n} phút đọc", updated: "Cập nhật ngày", feed: "Theo dõi Labs qua RSS", allArticles: "Tất cả bài viết" },
+  labs: { indexTitle: "Labs: nhật ký dự án và ghi chép thực tế", writtenBy: "Tác giả", read: "Đọc bài viết", anchor: "Liên kết đến mục này: {heading}", readingTime: "{n} phút đọc", updated: "Cập nhật ngày", feed: "Theo dõi Labs qua RSS", allArticles: "Tất cả bài viết" },
   analytics: { ticker: "Các năng lực" },
   rail: { label: "Trên trang này" },
   snapRow: { goTo: "Đến mục {n}" },

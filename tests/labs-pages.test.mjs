@@ -132,8 +132,10 @@ test("the Labs index: the section's copy as its description, its feed linked, a 
   for (const locale of ["en", "vi"]) {
     const index = meta.labsIndexMetadata(locale);
     assert.ok(index.description.length > 50, `${locale}: a description long enough for a search snippet`);
+    assert.match(index.title.absolute, /^Labs: .+ | spacegear.tech$/, `${locale}: a title in the page's language`);
     assert.deepEqual(index.alternates.types?.["application/rss+xml"]?.map((feed) => feed.url), [`https://spacegear.tech${locale === "vi" ? "/vi" : ""}/labs/rss.xml`]);
   }
+  assert.notEqual(meta.labsIndexMetadata("en").title.absolute, meta.labsIndexMetadata("vi").title.absolute, "the two indexes have distinct titles");
   assert.equal(meta.aboutMetadata("en").alternates.types, undefined, "only the Labs pages link the feed");
   for (const view of ["LabsIndexView", "LabsArticleView"]) assert.match(fs.readFileSync(`src/views/${view}.tsx`, "utf8"), /webPageData\(/, `${view} renders its WebPage node`);
   assert.match(fs.readFileSync("src/views/LabsArticleView.tsx", "utf8"), /blogPostingData\(/);
