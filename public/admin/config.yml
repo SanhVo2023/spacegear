@@ -1,9 +1,12 @@
 # Sveltia CMS configuration for spacegear.tech, served at /admin/config.yml.
 #
-# Today (local): build and start the preview, open /admin/ on it (http://127.0.0.1:<port>/admin/) in
-# Chrome or Edge, choose "Work with Local Repository" and pick the repository folder. Saves write
-# straight into content/ and public/uploads/; rebuild to see them on the preview. See README.md,
-# "Editing content". Written for Sveltia CMS 0.230.1 (public/admin/sveltia/, scripts/vendor-sveltia.mjs).
+# On the live site: open https://spacegear.tech/admin/ and choose "Sign In with GitHub". Every save is
+# a commit to the main branch of the repository below, and that commit rebuilds and deploys the site
+# (Cloudflare Workers Builds). Only GitHub accounts with push access to the repository can save.
+# Locally: build and start the preview, open /admin/ on it (http://127.0.0.1:<port>/admin/) in Chrome
+# or Edge, choose "Work with Local Repository" and pick the repository folder. Saves write straight
+# into content/ and public/uploads/; rebuild to see them on the preview. See README.md, "Editing
+# content". Written for Sveltia CMS 0.230.1 (public/admin/sveltia/, scripts/vendor-sveltia.mjs).
 #
 # Every field mirrors a rule in src/lib/content-model.ts (names, order, required, lengths, options,
 # list sizes); tests/cms-config.test.mjs fails when the two drift apart. The build validates every
@@ -13,10 +16,15 @@
 
 backend:
   name: github
-  # The owner-supplied destination, empty until the code is imported. The local workflow never
-  # contacts it; README.md explains the GitHub setup (OAuth at /api/auth, Workers Builds).
-  repo: SanhVo2023/platform-design-contest
+  # The site's repository and its production branch. The local workflow never contacts it.
+  repo: SanhVo2023/spacegear
   branch: main
+  # Sign-in runs on this site's own Worker (worker/github-auth.ts): the CMS opens
+  # https://spacegear.tech/api/auth in a popup, and the Worker chooses the GitHub scope
+  # (public_repo). No auth_type: Sveltia 0.230.1 refuses PKCE with GitHub (github_pkce_unsupported).
+  # README.md, "Editing from GitHub", has the setup.
+  base_url: https://spacegear.tech
+  auth_endpoint: api/auth
 
 app_title: spacegear.tech content
 logo:

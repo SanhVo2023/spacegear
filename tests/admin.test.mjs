@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { LOCK, MAX_UNPACKED, SCHEMA_FILE, SVELTIA, TARGET, extractSchema, extractVendored, untar, verifyVendored, writeVendored } from "../scripts/vendor-sveltia.mjs";
 import { ADMIN_FILES } from "../scripts/lib/admin.mjs";
-import { ADMIN_CSP, ADMIN_FONTS } from "../scripts/lib/headers.mjs";
+import { ADMIN_CSP, ADMIN_FONTS, ADMIN_GITHUB_CONNECT, ADMIN_GITHUB_IMAGES } from "../scripts/lib/headers.mjs";
 
 test("the vendored Sveltia CMS is byte for byte the pinned release", () => {
   assert.deepEqual(verifyVendored("."), []);
@@ -210,14 +210,31 @@ test("/admin/* swaps the site CSP for its own scoped policy and is noindex", () 
   assert.deepEqual(csp["font-src"], ["'self'", ...bundleFonts], "font-src names exactly the bundle's font files; after a Sveltia upgrade, copy its font URLs into public/_headers and ADMIN_FONTS");
   assert.deepEqual(ADMIN_FONTS, bundleFonts);
   assert.equal(admin.set["content-security-policy"], ADMIN_CSP, "public/_headers carries the pinned ADMIN_CSP (scripts/lib/headers.mjs)");
-  assert.deepEqual(csp["connect-src"], ["'self'", "blob:", "data:"], "no API or CDN until the GitHub setup");
+  assert.deepEqual(csp["connect-src"], ["'self'", "blob:", "data:", "https://api.github.com", "https://www.githubstatus.com"], "the GitHub API and status check, no CDN");
+  assert.deepEqual(csp["img-src"], ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"], "and the editors' GitHub avatars");
+  assert.deepEqual(csp["form-action"], ["'self'"], "sign-in runs in a popup, not through a form");
   for (const [name, values] of Object.entries(csp)) assert.ok(!values.some((value) => /unpkg\.com|'unsafe-eval'|^\*$|^https:$/.test(value)), `${name} allows no CDN code, eval or wildcard`);
   assert.deepEqual([csp["object-src"], csp["frame-ancestors"], csp["base-uri"]], [["'none'"], ["'none'"], ["'self'"]]);
 });
 
+test("the GitHub origins in the admin CSP are the ones the vendored bundle uses, and no others", () => {
+  const bundle = fs.readFileSync("public/admin/sveltia/sveltia-cms.js", "utf8");
+  // The github backend's API root (REST at the root, GraphQL at /graphql, file contents as blobs
+  // through /repos/…/git/blobs) and its status check, by their exact text in 0.230.1.
+  assert.ok(bundle.includes("jR=`https://api.github.com`"), "the default api_root");
+  assert.ok(bundle.includes("/repos/${e}/${t}/git/blobs/${n}"), "file contents come from the API as blobs");
+  assert.ok(bundle.includes("`https://www.githubstatus.com/api/v2/status.json`"), "the status check");
+  assert.ok(bundle.includes("avatarURL:i.avatar_url"), "the signed-in editor's avatar, from GET /user");
+  for (const host of ["raw.githubusercontent.com", "uploads.github.com", "objects.githubusercontent.com", "codeload.github.com", "avatars.githubusercontent.com"]) {
+    assert.ok(!bundle.includes(host), `the bundle names no ${host} (the avatar host comes from GET /user, not from the bundle)`);
+  }
+  assert.deepEqual(ADMIN_GITHUB_CONNECT, ["https://api.github.com", "https://www.githubstatus.com"]);
+  assert.deepEqual(ADMIN_GITHUB_IMAGES, ["https://avatars.githubusercontent.com"]);
+});
+
 test("the site CSP gains nothing from the CMS", () => {
   const site = headerRules(fs.readFileSync("public/_headers", "utf8")).get("/*").set["content-security-policy"];
-  assert.doesNotMatch(site, /jsdelivr|unpkg|api\.github\.com|'unsafe-eval'/);
+  assert.doesNotMatch(site, /jsdelivr|unpkg|github|'unsafe-eval'/);
 });
 
 test("/uploads/* serves every upload as a sandboxed image that is never sniffed (controller amendment)", () => {

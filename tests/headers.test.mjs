@@ -114,7 +114,8 @@ test("every matching rule applies in file order, as in Cloudflare's asset worker
 test("the pinned CMS policies", () => {
   const directives = Object.fromEntries(ADMIN_CSP.split(";").map((part) => part.trim().split(/\s+/)).map(([name, ...values]) => [name, values]));
   assert.deepEqual(directives["script-src"], ["'self'"]);
-  assert.deepEqual(directives["connect-src"], ["'self'", "blob:", "data:"]);
+  assert.deepEqual(directives["connect-src"], ["'self'", "blob:", "data:", "https://api.github.com", "https://www.githubstatus.com"]);
+  assert.deepEqual(directives["img-src"], ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com"]);
   assert.deepEqual(directives["font-src"].slice(1).map((url) => url.replace(/^https:\/\/cdn\.jsdelivr\.net\/fontsource\/fonts\//, "")), ["material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2", "noto-mono@5.3.0/latin-400-normal.woff2", "source-sans-3:vf@5.3.0/latin-wght-normal.woff2"], "three exact font files, not a folder");
   assert.deepEqual(ADMIN_HEADERS, { [CSP]: ADMIN_CSP, "x-robots-tag": "noindex, nofollow", "x-content-type-options": "nosniff", "x-frame-options": "DENY" });
   assert.deepEqual(UPLOADS_HEADERS, { [CSP]: UPLOADS_CSP, "x-content-type-options": "nosniff", "x-frame-options": "DENY" });

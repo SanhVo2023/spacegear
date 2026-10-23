@@ -2,7 +2,7 @@
 
 ## Architecture and current state
 
-Confirmed public name and canonical origin: **spacegear.tech**, **https://spacegear.tech**. Hosting/runtime are Cloudflare Workers Static Assets, Workers, D1, Turnstile and optional Cloudflare Email Service. Fonts and art are self hosted. Turnstile is the only external browser dependency, loaded on configured contact pages. The editor-only /admin/ page (Sveltia CMS, vendored) also loads its interface fonts from jsDelivr under its own CSP; see README.md, "The admin Content-Security-Policy".
+Confirmed public name and canonical origin: **spacegear.tech**, **https://spacegear.tech**. Hosting/runtime are Cloudflare Workers Static Assets, Workers, D1, Turnstile and optional Cloudflare Email Service. Fonts and art are self hosted. Turnstile is the only external browser dependency, loaded on configured contact pages. The editor-only /admin/ page (Sveltia CMS, vendored) also loads its interface fonts from jsDelivr and, for signed-in editors, talks to GitHub's API under its own CSP; see README.md, "The admin Content-Security-Policy" and "Editing from GitHub".
 
 Checked-in configuration is inert: no custom-domain route, public workers.dev URL, live inquiry capture or email sending. Local D1/Workers are testable without remote access. No Cloudflare account, zone, production D1 ID, Turnstile credentials or sender has been verified here.
 
@@ -25,6 +25,9 @@ Checked-in configuration is inert: no custom-domain route, public workers.dev UR
 | NOTIFICATIONS_ENABLED | true only after sending capability is verified |
 | OWNER_EMAIL, SENDER_EMAIL | Fixed verified destinations, never chosen by user input |
 | TURNSTILE_SECRET_KEY | Worker secret |
+| GITHUB_CLIENT_ID | Public client ID of the GitHub OAuth App "spacegear CMS" (production only; empty in preview) |
+| GITHUB_OAUTH_SCOPE | public_repo; repo only if the repository becomes private |
+| GITHUB_CLIENT_SECRET | Worker secret; without it /api/auth answers 503 and only local editing works |
 
 Production build variables: `npm run build:production` sets SITE_MODE=production and reads the public values from [release.env](../../release.env): NEXT_PUBLIC_SITE_URL=https://spacegear.tech, NEXT_PUBLIC_CONTACT_EMAIL=admin@spacegear.tech, the production NEXT_PUBLIC_TURNSTILE_SITE_KEY and POLICIES_APPROVED=true. Workers Builds therefore needs no build variables. A variable that is set, and not empty, in the build environment wins over its line in release.env (for example to build a copy for another origin); the build log names where each value came from. release.env accepts only these four public keys, so a secret cannot be committed through it; secrets stay Worker secrets. It is not named `.env.production` because Next.js would load that file into preview builds (`npm run build:cf`) too. Validation rejects missing facts and known dummy Turnstile keys; it does not independently verify email/domain ownership.
 
@@ -34,7 +37,7 @@ Production build variables: `npm run build:production` sets SITE_MODE=production
 2. Run npm ci, npm run lint, npm run typecheck, npm test, then npm run build:production (its variables come from release.env). Deploy **dist/**, never out/. Use a fresh checkout without dist for a production build to prevent stale output.
 3. Run `wrangler deploy --dry-run --env production`; inspect bindings/size. Run `wrangler d1 migrations apply DB --remote --env production` against the verified database.
 4. Add the production custom domain: routes with pattern spacegear.tech and custom_domain true. If www is actually used, configure a one-hop Cloudflare Redirect Rule to apex preserving path/query.
-5. Connect Cloudflare Workers Builds to the reviewed repository/branch, using the same gates and build command.
+5. Connect Cloudflare Workers Builds to `SanhVo2023/spacegear`, branch `main`: build command `npm run build:production`, deploy command `npx wrangler deploy --env production`, no build variables (release.env), builds for other branches off. Every CMS save is a commit to `main` and so a deploy; see README.md, "Editing from GitHub".
 6. Deploy the tested package using supported Wrangler authentication. Record Worker version ID, source commit, D1 ID, configuration and report hashes. Protect private remote previews with Cloudflare Access; noindex alone is not access control.
 7. Run `node scripts/check-seo.mjs https://spacegear.tech --production`. Check TLS, canonical domain/301s, retired/unknown 404s, robots/sitemap, CSP, assets/fonts and caching. Production must have no preview noindex.
 8. Submit an explicitly authorized test inquiry. Verify one inquiry/outbox row, the owner's operational access and retry semantics. Confirm actual email delivery if enabled. Handle test records under the agreed retention process.

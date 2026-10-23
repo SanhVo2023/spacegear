@@ -35,8 +35,15 @@ export const ADMIN_FONTS = [
   "https://cdn.jsdelivr.net/fontsource/fonts/noto-mono@5.3.0/latin-400-normal.woff2",
   "https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:vf@5.3.0/latin-wght-normal.woff2",
 ];
+/**
+ * What the GitHub backend of the vendored bundle loads from GitHub, and nothing more (README.md,
+ * "Editing from GitHub"): connect-src for the REST and GraphQL API (which also serves file contents,
+ * as blobs) and for the status check on the sign-in screen; img-src for the editors' avatars.
+ */
+export const ADMIN_GITHUB_CONNECT = ["https://api.github.com", "https://www.githubstatus.com"];
+export const ADMIN_GITHUB_IMAGES = ["https://avatars.githubusercontent.com"];
 /** /admin/*: the vendored CMS only (README.md, "The admin Content-Security-Policy"). public/_headers must carry exactly this. */
-export const ADMIN_CSP = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' ${ADMIN_FONTS.join(" ")}; connect-src 'self' blob: data:; media-src 'self' blob:; frame-src blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`;
+export const ADMIN_CSP = `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${ADMIN_GITHUB_IMAGES.join(" ")}; font-src 'self' ${ADMIN_FONTS.join(" ")}; connect-src 'self' blob: data: ${ADMIN_GITHUB_CONNECT.join(" ")}; media-src 'self' blob:; frame-src blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`;
 const CSP = "content-security-policy";
 /** Exactly these values, each sent once, on every /admin/ path; every other header of /* must reach it unchanged. */
 export const ADMIN_HEADERS = { [CSP]: ADMIN_CSP, "x-robots-tag": "noindex, nofollow", "x-content-type-options": "nosniff", "x-frame-options": "DENY" };

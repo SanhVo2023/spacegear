@@ -52,9 +52,25 @@ Some copy still lives in the code (`src/app/` and `src/components/`), and changi
 
 Images that editors add go to `public/uploads/`. The site reads all of these files when it is built, so nothing is fetched while a visitor reads a page.
 
-The editor is [Sveltia CMS](https://sveltiacms.app/) 0.230.1. A copy of it is kept in this repository (`public/admin/sveltia/`), so none of its code comes from another site; only its interface fonts load from jsDelivr. `/admin/` is not linked from the site and is hidden from search engines.
+The editor is [Sveltia CMS](https://sveltiacms.app/) 0.230.1. A copy of it is kept in this repository (`public/admin/sveltia/`), so none of its code comes from another site; only its interface fonts load from jsDelivr, and on the live site it reads and saves through GitHub's API. `/admin/` is not linked from the site and is hidden from search engines.
 
-### Edit locally (today)
+There are two ways to edit: on the live site, signed in with GitHub, or on your own computer.
+
+### Edit on the live site
+
+You need a GitHub account with write access to the repository [SanhVo2023/spacegear](https://github.com/SanhVo2023/spacegear), and a desktop browser.
+
+1. Open https://spacegear.tech/admin/ and choose **Sign In with GitHub**. A small GitHub window opens. The first time, GitHub asks you to authorize "spacegear CMS"; the window then closes by itself.
+2. Edit and **Save**. Each save is a commit to the `main` branch, made in your name.
+3. The commit starts a build in Cloudflare Workers Builds. The build checks every file (see "What the build checks"), then builds and deploys the site; the change is live when that build finishes. If the check fails, the build stops and the live site keeps the previous version. The build log in the Cloudflare dashboard lists what to fix (see "Reading the content check"): fix it in the editor and save again.
+
+Who can save: only GitHub accounts with write (push) access to the repository. Anyone can reach the sign-in button, but the CMS tells an account without that access that it has no access to the repository, and GitHub refuses its commits.
+
+A sign-in lasts about 8 hours, because the GitHub tokens of this sign-in expire. After that, the CMS asks you to sign in again when it next loads, and a save made with the expired sign-in fails; sign in again before you save. **Sign Out** in the account menu removes the sign-in from this browser.
+
+How it works and how it is set up: see "Editing from GitHub".
+
+### Edit locally
 
 You need Chrome or Edge on a desktop computer. The editor saves into a folder on your computer through a browser feature that Firefox and Safari lack, and it only works on `localhost` or `127.0.0.1`.
 
@@ -67,7 +83,7 @@ You need Chrome or Edge on a desktop computer. The editor saves into a folder on
 
 The editor's own menus follow the browser language. Translations other than English would come from another site, which the editor's security settings block. If the editor reports a translation error, choose English in its settings.
 
-Later, editors will sign in with GitHub on the live site instead, and every save will be a commit that rebuilds the site (see "Setting up editing from GitHub").
+On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-in works only on https://spacegear.tech: use **Work with Local Repository** here.
 
 ### What the build checks
 
@@ -163,19 +179,16 @@ The CMS configuration is [public/admin/config.yml](public/admin/config.yml). It 
 | `script-src` | `'self'` | The vendored bundle and the chunk it loads next to itself. Sveltia needs no `unsafe-eval` or `unsafe-inline`. |
 | `style-src` | `'self' 'unsafe-inline'` | Sveltia adds its styles at run time. |
 | `font-src` | `'self' https://cdn.jsdelivr.net/fontsource/fonts/material-symbols-outlined:vf@5.3.8/latin-wght-normal.woff2 https://cdn.jsdelivr.net/fontsource/fonts/noto-mono@5.3.0/latin-400-normal.woff2 https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:vf@5.3.0/latin-wght-normal.woff2` | The bundle's `@font-face` rules load its interface and icon fonts from these three files and no others. A source with a path and no trailing slash allows exactly that file. Without them, the icons show as words. |
-| `img-src` | `'self' data: blob:` | Previews of new uploads, and inline icons. |
-| `connect-src` | `'self' blob: data:` | The configuration and local files. |
+| `img-src` | `'self' data: blob: https://avatars.githubusercontent.com` | Previews of new uploads, inline icons, and the signed-in editor's GitHub avatar. |
+| `connect-src` | `'self' blob: data: https://api.github.com https://www.githubstatus.com` | The configuration and local files; GitHub's REST and GraphQL API, which also serves the files' contents; GitHub's status, which Sveltia checks on the sign-in screen. |
 | `media-src`, `frame-src`, `manifest-src` | `'self' blob:`, `blob:`, `'self' blob:` | As in Sveltia's CSP guide. |
 | `default-src`, `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'self'`, `'none'`, `'self'`, `'self'`, `'none'` | Hardening, the same values as the site's own policy. `/admin/` also keeps the site's `X-Frame-Options: DENY` header, for browsers that ignore `frame-ancestors`. |
 
-Two optional requests are blocked on purpose, and both fail quietly:
+The GitHub sources are exactly what the vendored bundle's GitHub backend uses. Its API root is `https://api.github.com` (REST, and GraphQL at `/graphql`), and it reads file contents through the API as blobs (`/repos/…/git/blobs/…`), so it needs neither `raw.githubusercontent.com` nor `uploads.github.com`; an upload is saved as part of the commit, through the API. The avatar address comes from GitHub's `GET /user` answer, on `avatars.githubusercontent.com`. Sign-in happens in a popup window (see "Editing from GitHub"), so `form-action` stays `'self'` and nothing is framed. `npm test` checks these sources against the bundle's own text.
 
-- the update check, `https://unpkg.com/@sveltia/cms/package.json`;
-- the GitHub status check, `https://www.githubstatus.com/api/v2/status.json`, which Sveltia makes on the sign-in screen because the backend is GitHub. Version 0.230.1 has no setting to turn it off.
+One optional request is blocked on purpose and fails quietly: the update check, `https://unpkg.com/@sveltia/cms/package.json`. DevTools shows it as a CSP error. `npm run test:browser` accepts exactly this one and fails on any other blocked request. It also checks that the GitHub status check is allowed (answered from a fixture), and that the local workflow calls nothing else on GitHub.
 
-DevTools shows them as CSP errors. `npm run test:browser` accepts exactly these two and fails on any other blocked request.
-
-Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading). The CMS leaves the site's own CSP alone: `public/_headers` removes it for `/admin/*` only. The admin policy is pinned twice, in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the export check in the build fail when the two differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
+Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-up-content-security-policy) and the bundle itself (font URLs, update check, chunk loading, GitHub API root and status check). The CMS leaves the site's own CSP alone: `public/_headers` removes it for `/admin/*` only. The admin policy is pinned twice, in `public/_headers` and as `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs). `npm test` and the export check in the build fail when the two differ, or when `/admin/` would get any other `Content-Security-Policy`, `X-Robots-Tag`, `X-Content-Type-Options` or `X-Frame-Options`.
 
 ### Uploads are sandboxed
 
@@ -186,27 +199,29 @@ Sources: [Sveltia's CSP guide](https://sveltiacms.app/en/docs/security#setting-u
 - A missing upload's 404 page is shown unstyled, under the same rule.
 - The export check (`UPLOADS_CSP` in `scripts/lib/headers.mjs`) and `npm run test:browser` both enforce the rule.
 
-### Setting up editing from GitHub (later)
+### Editing from GitHub
 
-Not built yet. Once the code is in the GitHub repository (`SanhVo2023/platform-design-contest`):
+Editors sign in on https://spacegear.tech/admin/ with GitHub (see "Edit on the live site"). The pieces:
 
-1. **GitHub OAuth App.** Homepage `https://spacegear.tech`, callback `https://spacegear.tech/api/auth/callback`. Store the client ID as a Worker variable `GITHUB_CLIENT_ID` (in `vars` in `wrangler.jsonc`) and the secret with `wrangler secret put GITHUB_CLIENT_SECRET --env production`.
-2. **OAuth endpoint in `worker/index.ts`**, before the `/api` 404 fallback (`assets.run_worker_first` already sends `/api/*` to the Worker). [sveltia-cms-auth](https://github.com/sveltia/sveltia-cms-auth) implements this flow as a Cloudflare Worker and can be ported:
-   - `GET /api/auth?provider=github&site_id=…&scope=repo`: create a random state, store it in an `HttpOnly; Secure; SameSite=Lax` cookie for 10 minutes and redirect to `https://github.com/login/oauth/authorize?client_id=…&scope=repo&state=…`.
-   - `GET /api/auth/callback?code=…&state=…`: compare the state with the cookie, exchange the code at `https://github.com/login/oauth/access_token` (POST, `Accept: application/json`) and return a small HTML page. The page posts `authorizing:github` to `window.opener`, and when the CMS answers from `https://spacegear.tech` it replies `authorization:github:success:{"provider":"github","token":"…"}` to that origin only. Give the page its own CSP header with a hash for its inline script, because `_headers` rules do not apply to Worker responses.
-   - **Types:** after adding `GITHUB_CLIENT_ID` to `wrangler.jsonc`, regenerate `worker-configuration.d.ts` with `npx wrangler types --strict-vars=false`. Secrets are not in the generated types: add `GITHUB_CLIENT_SECRET?: string` to `RuntimeEnv` in `worker/types.ts`, next to `TURNSTILE_SECRET_KEY`.
-3. **`public/admin/config.yml`:** add `base_url: https://spacegear.tech` and `auth_endpoint: api/auth` under `backend`. Do not set `auth_type: pkce`: Sveltia 0.230.1 itself reports that PKCE is not supported with GitHub (`github_pkce_unsupported`).
-4. **Admin CSP.** The CMS then talks to GitHub, so the policy needs:
-   - `connect-src`: add `https://api.github.com` (the API) and `https://www.githubstatus.com` (the status check, which is then allowed instead of blocked);
-   - `img-src`: add `https://avatars.githubusercontent.com`, the host of the user avatars.
+- **The CMS** ([public/admin/config.yml](public/admin/config.yml)): backend `github`, repository `SanhVo2023/spacegear`, branch `main`, `base_url: https://spacegear.tech` and `auth_endpoint: api/auth`, so the CMS opens `https://spacegear.tech/api/auth` in a popup. There is no `auth_type: pkce`: Sveltia 0.230.1 reports that PKCE is not supported with GitHub (`github_pkce_unsupported`).
+- **The sign-in endpoints** ([worker/github-auth.ts](worker/github-auth.ts), a port of [sveltia-cms-auth](https://github.com/sveltia/sveltia-cms-auth)'s flow into this site's Worker; `assets.run_worker_first` sends `/api/*` to it):
+  - `GET /api/auth?provider=github&…` makes a random state, keeps it in the cookie `__Secure-cms-oauth-state` (`HttpOnly; Secure; SameSite=Lax; Path=/api/auth`, 10 minutes) and sends the popup to GitHub's authorize page, with the callback `https://spacegear.tech/api/auth/callback` (from `SITE_ORIGIN`).
+  - `GET /api/auth/callback?code=…&state=…` compares the state with the cookie in constant time and clears the cookie, then exchanges the code at `https://github.com/login/oauth/access_token`. GitHub reports a refused code with status 200 and an `error` field; that counts as a failure. It returns a small page that posts `authorizing:github` to the window that opened it. When that window answers from exactly `SITE_ORIGIN`, the page sends `authorization:github:success:{"provider":"github","token":"…"}` to that origin only, or `authorization:github:error:{…}` with a short message and one of Sveltia's error codes. Only the access token goes to the CMS; GitHub's refresh token is dropped, so a sign-in lasts as long as the access token, about 8 hours.
+  - The page has its own headers, because `public/_headers` covers only the files in `dist/`, not Worker responses: `Content-Security-Policy: default-src 'none'; script-src 'sha256-…'` (the hash of its one inline script, which is the same text in every response; `npm test` recomputes it), plus `base-uri`, `form-action` and `frame-ancestors 'none'`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `X-Frame-Options: DENY`.
+  - Only `GET` on `SITE_ORIGIN` is served (others get 405 or 403), only the provider `github` (400), and without `GITHUB_CLIENT_ID` or `GITHUB_CLIENT_SECRET` both routes answer 503 "GitHub sign-in is not configured.". The code, the token and the secret are never logged.
+- **The scope** is the Worker's choice, not the CMS's: `public_repo`, which is enough to commit to a public repository. Sveltia asks for `repo,user`, but `repo` would also open every private repository of the editor, and `user` would allow changes to the editor's GitHub profile; the CMS only reads the public profile (name, login, avatar), which needs no scope. If the repository ever becomes private, set `GITHUB_OAUTH_SCOPE` to `repo` in `wrangler.jsonc`; any other value means `public_repo`.
+- **Who can save:** GitHub decides. A commit needs write (push) access to `SanhVo2023/spacegear`. To add an editor, invite their GitHub account as a collaborator with write access; to remove one, remove that access.
+- **The Worker variables** (`env.production.vars` in `wrangler.jsonc`): `GITHUB_CLIENT_ID`, the public client ID of the OAuth App "spacegear CMS", and `GITHUB_OAUTH_SCOPE`. Local previews keep the client ID empty, so they never start a real GitHub sign-in: on `localhost`, use **Work with Local Repository**. After changing `vars`, regenerate `worker-configuration.d.ts` with `npx wrangler types --strict-vars=false`. The secret `GITHUB_CLIENT_SECRET` is not in `wrangler.jsonc` or the generated types: it is typed in `RuntimeEnv` in [worker/types.ts](worker/types.ts).
+- **The admin CSP** allows GitHub's API, its status check and the avatars (see "The admin Content-Security-Policy").
 
-   Sign-in happens in a popup window, so `form-action` stays `'self'`. The policy is pinned exactly, so change it in all of these places in one commit:
-   - `public/_headers`;
-   - `ADMIN_CSP` in [scripts/lib/headers.mjs](scripts/lib/headers.mjs);
-   - the `connect-src` assertions in `tests/admin.test.mjs` and `tests/headers.test.mjs`;
-   - in `scripts/admin-check.mjs`: remove the GitHub status check from `TOLERATED`, and accept responses from `https://www.githubstatus.com` in the check that allows nothing from another origin but the three font files.
-5. **Cloudflare Workers Builds:** connect the repository and the `main` branch. Build command `npm run build:production`, with the production variables from [the release runbook](docs/operations/cloudflare-release.md); deploy command `npx wrangler deploy --env production`. Every CMS save is a commit, so it triggers a build. A content error fails the build, and the live site keeps the previous version. That build runs the content check, with every rule in "What the build checks", but not `npm test`.
-6. **Optional:** protect `/admin/*` with Cloudflare Access. The CMS cannot write without a GitHub login, but Access also hides the page.
+What a save does: the CMS commits the changed files to `main` through GitHub's API, in the editor's name. Cloudflare Workers Builds sees the commit and runs `npm run build:production`, which takes its public values from `release.env`. That build runs the content check, with every rule in "What the build checks", but not `npm test`. If it passes, Workers Builds deploys with `npx wrangler deploy --env production`. A content error fails the build, and the live site keeps the previous version.
+
+**One-time setup by the owner.** Done: the GitHub OAuth App "spacegear CMS" (homepage `https://spacegear.tech`, callback `https://spacegear.tech/api/auth/callback`, expiring user tokens), its client ID in `wrangler.jsonc`, and the repository `SanhVo2023/spacegear` with `main`. Still to do:
+
+1. **The client secret.** In GitHub, Settings, Developer settings, OAuth Apps, "spacegear CMS": generate a client secret. In the Cloudflare dashboard, Workers & Pages, `spacegear-tech`, Settings, Variables and Secrets: add `GITHUB_CLIENT_SECRET` with the type **Secret**. (With Wrangler instead: `npx wrangler secret put GITHUB_CLIENT_SECRET --env production`.) A secret stays across deploys; `vars` come from `wrangler.jsonc` on every deploy.
+2. **Workers Builds.** In the same Worker, Settings, Build: connect the GitHub repository `SanhVo2023/spacegear`, production branch `main`, root directory `/`, build command `npm run build:production`, deploy command `npx wrangler deploy --env production`. No build variables are needed (`release.env`). Turn off builds for other branches: the CMS commits to `main` only.
+3. **Check it.** Push or merge to `main` and wait for the build to deploy. Open https://spacegear.tech/admin/, choose **Sign In with GitHub**, approve "spacegear CMS", make a small edit and save. A commit appears on `main`, a new build starts, and the change is live when it finishes.
+4. **Optional:** protect `/admin/*` (only that path, not `/api/*`, which also serves the contact form) with Cloudflare Access. The CMS cannot write without a GitHub sign-in, but Access also hides the page.
 
 ### Upgrading Sveltia
 
@@ -214,7 +229,7 @@ Not built yet. Once the code is in the GitHub repository (`SanhVo2023/platform-d
 2. In `SVELTIA` in `scripts/vendor-sveltia.mjs`, set `version`, `tarball` and `integrity` from `npm view @sveltia/cms@<version> dist.tarball dist.integrity`, and empty `files` and `schema`.
 3. Run `npm run cms:vendor`. It downloads the tarball, checks its integrity, extracts the files into `public/admin/sveltia/` and the release's configuration schema into `scripts/sveltia-cms.schema.json`, and writes their hashes to `scripts/sveltia-cms.lock.json`. Review what it extracted.
 4. Copy the hashes from the lock into `SVELTIA.files` and `SVELTIA.schema`, which are the second pin. Then `npm run cms:vendor -- --check` must print `Vendored @sveltia/cms@<version> matches scripts/sveltia-cms.lock.json and the pinned hashes.` The schema never ships: `/admin/` serves `SVELTIA.files` only.
-5. Fonts and CSP. If the new bundle names other font files, `npm test` lists them. Put them in `ADMIN_FONTS` in `scripts/lib/headers.mjs` and in `font-src` in `public/_headers`, whose admin policy must stay exactly `ADMIN_CSP`. `npm test` also runs the changed file through Cloudflare's own `_headers` code (see "Upgrading wrangler or miniflare"). Read the release notes for new requests: the browser check fails on any blocked request other than the two above.
+5. Fonts and CSP. If the new bundle names other font files, `npm test` lists them. Put them in `ADMIN_FONTS` in `scripts/lib/headers.mjs` and in `font-src` in `public/_headers`, whose admin policy must stay exactly `ADMIN_CSP`. `npm test` also runs the changed file through Cloudflare's own `_headers` code (see "Upgrading wrangler or miniflare"). Read the release notes for new requests: the browser check fails on any blocked request other than the update check, and `npm test` fails when the bundle's GitHub API root or status check moves.
 6. Run `node scripts/check-sveltia-config.mjs`. It validates `public/admin/config.yml` against the new schema, offline, with ajv; fix what it refuses. `npm test` runs the same check.
 7. Some tests run Sveltia's own code, taken from the vendored bundle: how uploads and entries are named, and how a field pattern is applied (`tests/helpers/sveltia-names.mjs`). They find that code by exact text in the minified file. After an upgrade the text may move. Update the anchors, then check again that the names the CMS writes fit `UPLOAD_PATH` in `scripts/lib/uploads.mjs`.
 8. Run `npm test`, rebuild, run `npm run check:seo` and `npm run test:browser`, and check `/admin/` in Chrome with the local workflow.

@@ -13,10 +13,13 @@
 //    headers does run (so the probe can see a script run). The preview's own 404 page, which has
 //    scripts, runs none of them under /uploads/.
 // 3. /admin/. The vendored Sveltia CMS boots under its CSP with no page error and loads code only
-//    from /admin/sveltia/ (byte-identical to the pins in scripts/vendor-sveltia.mjs). Exactly two
-//    optional requests may be blocked, matched by their whole URL (Task 9 review): the update check
-//    on unpkg.com and the GitHub status check on the github-backend sign-in screen (inside try/catch
-//    in 0.230.1; no setting turns it off). Then "Work with Local Repository" opens a copy of content/
+//    from /admin/sveltia/ (byte-identical to the pins in scripts/vendor-sveltia.mjs). Exactly one
+//    optional request may be blocked, matched by its whole URL (Task 9 review): the update check on
+//    unpkg.com (inside try/catch in 0.230.1). The GitHub status check that the github backend makes
+//    on the sign-in screen must be allowed now (the admin CSP names www.githubstatus.com for GitHub
+//    sign-in); it is answered from a fixture, so the check needs no network for it. Nothing else
+//    may come from GitHub: the local workflow never calls the API.
+//    Then "Work with Local Repository" opens a copy of content/
 //    and public/images/ (an Origin Private File System folder stands in for the native folder
 //    picker; nothing on disk is written): the eight collections from config.yml are listed and the
 //    icons render with the Material Symbols font, not as words. Every font face the bundle declares
@@ -34,7 +37,8 @@ import { SVELTIA } from "./vendor-sveltia.mjs";
 
 const CSP = "content-security-policy";
 const SECURITY_HEADERS = [CSP, "x-robots-tag", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy"];
-const TOLERATED = ["connect-src blocked https://unpkg.com/@sveltia/cms/package.json", "connect-src blocked https://www.githubstatus.com/api/v2/status.json"];
+const TOLERATED = ["connect-src blocked https://unpkg.com/@sveltia/cms/package.json"];
+const GITHUB_STATUS = "https://www.githubstatus.com/api/v2/status.json";
 const COLLECTIONS = ["Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Articles", "Legal pages"];
 const PROBE = "/uploads/__browser-check";
 const FONT_CACHE = "artifacts/cms-fonts";
@@ -220,6 +224,13 @@ export async function checkAdmin(browser, base, { csp = ADMIN_CSP } = {}) {
     const seen = await violations(context);
     const fonts = [], fontFailures = [];
     await serveFonts(context, fonts, fontFailures);
+    // The sign-in screen's GitHub status check, answered as githubstatus.com does (CORS-readable JSON).
+    // The CSP is enforced before a request reaches a route, so a policy that blocks it still fails.
+    const statusChecks = [];
+    await context.route(GITHUB_STATUS, (route) => {
+      statusChecks.push(route.request().url());
+      return route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ status: { indicator: "none", description: "All Systems Operational" } }) });
+    });
     // The native folder picker cannot be automated: the stand-in returns the page's Origin Private
     // File System, filled with a copy of the repository files the CMS edits (served from disk to
     // this context only).
@@ -291,13 +302,14 @@ export async function checkAdmin(browser, base, { csp = ADMIN_CSP } = {}) {
     assert.deepEqual(words, [], "/admin/: icons render as glyphs, not as their names");
     await page.screenshot({ path: "artifacts/admin-collections.png" });
     const blocked = seen.map(({ entry }) => entry);
-    assert.deepEqual(blocked.filter((entry) => !TOLERATED.includes(entry)), [], "/admin/: nothing but the two optional requests is blocked by the admin CSP");
+    assert.deepEqual(blocked.filter((entry) => !TOLERATED.includes(entry)), [], "/admin/: nothing but the update check is blocked by the admin CSP");
+    assert.ok(statusChecks.length > 0, "/admin/: the sign-in screen's GitHub status check is made, and the admin CSP lets it through");
     assert.deepEqual(cspConsole, [], "/admin/: the browser accepts every source in the admin CSP");
     assert.deepEqual(pageErrors, [], "/admin/: no page errors");
     assert.ok(scripts.length > 0 && scripts.every((url) => url.startsWith(`${base}/admin/sveltia/`)), `/admin/: code only from /admin/sveltia/ (${scripts.join(", ")})`);
-    assert.deepEqual(external.filter((entry) => !ADMIN_FONTS.some((url) => entry === `font ${url}`)), [], "/admin/: nothing from another origin but the three font files");
+    assert.deepEqual(external.filter((entry) => !ADMIN_FONTS.some((url) => entry === `font ${url}`) && entry !== `fetch ${GITHUB_STATUS}`), [], "/admin/: nothing from another origin but the three font files and the GitHub status check (the local workflow never calls the GitHub API)");
     const sources = [...new Set(fonts.map(({ from }) => from))].join(" and ");
-    return `/admin/: Sveltia CMS ${SVELTIA.version} boots under its own CSP (code from /admin/sveltia/ only: ${scripts.map((url) => url.slice(base.length)).join(", ")}), lists the ${COLLECTIONS.length} collections, loads its ${icons.faces.length} font faces from exactly the ${requested.length} pinned files (from the ${sources}: ${requested.map((url) => url.slice(url.indexOf("/fonts/") + 7)).join(", ")}) and draws ${icons.glyphs.length} icons with the icon font; blocked by design: ${blocked.length ? [...new Set(blocked)].map((entry) => entry.replace(/^connect-src blocked /, "")).join(", ") : "none"}`;
+    return `/admin/: Sveltia CMS ${SVELTIA.version} boots under its own CSP (code from /admin/sveltia/ only: ${scripts.map((url) => url.slice(base.length)).join(", ")}), lists the ${COLLECTIONS.length} collections, loads its ${icons.faces.length} font faces from exactly the ${requested.length} pinned files (from the ${sources}: ${requested.map((url) => url.slice(url.indexOf("/fonts/") + 7)).join(", ")}) and draws ${icons.glyphs.length} icons with the icon font; GitHub status check allowed (${statusChecks.length}x, fixture); blocked by design: ${blocked.length ? [...new Set(blocked)].map((entry) => entry.replace(/^connect-src blocked /, "")).join(", ") : "none"}`;
   } finally {
     await context.close();
   }
