@@ -23,8 +23,10 @@ Tài liệu này giúp mọi người sửa nội dung tiếng Việt (trong CMS
 - Thông tin liên hệ (địa chỉ, điện thoại, email) chỉ dùng đúng nguyên văn do chủ website cung cấp, và chỉ ở các trường nhận diện của site.
 
 ### Từ cần tránh vì trình kiểm tra trung thực
-- Không dùng chữ **đồng** đứng riêng thành một từ (đồng ý, hợp đồng, đồng bộ, đồng thời, đồng hành, cộng đồng): trình kiểm tra hiểu "đồng" là đơn vị tiền tệ và chặn bản dựng. Thay bằng: thống nhất, thỏa thuận, kết nối, cùng lúc, làm việc cùng.
-- Trong bảng số liệu, nhãn đứng ngay sau một con số không nên bắt đầu bằng chữ x, k, m hoặc b (ví dụ "62 Xử lý…"), vì trình kiểm tra đọc nhầm thành "62x" hay "62M". Vì vậy nhãn đầu tiên là "Tự động xử lý".
+- Chữ **đồng** chỉ bị coi là giá tiền khi nó đứng ngay sau một con số ("15 đồng", "3 triệu đồng"). Vì vậy "hợp đồng", "đồng ý" hay "đồng bộ" vẫn dùng được bình thường. Trình kiểm tra cũng chặn những cụm như "3 đồng sáng lập" vì đó là tuyên bố về quy mô đội ngũ.
+- Trình kiểm tra đã hiểu chữ có dấu, nên nhãn đứng sau con số như "62 Xử lý" hay "100 ký tự" không còn bị đọc nhầm thành "62x" hay "100k". Dù vậy, trong bảng số liệu, nhãn vẫn nên là một cụm từ trọn nghĩa ("Tự động xử lý"), vì người đọc dễ hiểu hơn.
+- Ngày tháng viết theo kiểu "ngày 23 tháng 10 năm 2026" là hợp lệ. Trình kiểm tra không coi "10 năm" trong ngày tháng là số năm kinh nghiệm, còn "hơn 10 năm hoạt động" thì vẫn bị chặn.
+- Trình kiểm tra là thước đo cuối cùng: trước khi lưu, hãy chạy kiểm tra nội dung và sửa câu theo gợi ý của nó, chứ đừng bỏ đi một dữ kiện có thật.
 
 ### Viết hoa và tên riêng
 - Tiêu đề, nhãn, nút bấm viết hoa kiểu câu: chỉ viết hoa chữ đầu và tên riêng ("Dịch vụ của chúng tôi", "Trao đổi về dự án").
