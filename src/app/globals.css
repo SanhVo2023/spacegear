@@ -468,22 +468,25 @@ html.lenis,
 html.lenis body { height: auto; }
 .lenis.lenis-smooth iframe { pointer-events: none; }
 
-/* Cursor (Cursor.tsx): dot + spring ring inverted against the page; the native caret over fields. It sits
-   above the skip link (100): it takes no pointer events. FxLayer does not mount it in forced colours. */
+/* Cursor (Cursor.tsx): a dot written straight from the input events and a ring on a critically damped
+   follower; the native caret over fields. Nothing blends (a difference blend over the WebGL globe made the
+   compositor blend every frame): the white dot and ring carry a dark hairline, so they read on light and
+   dark grounds, and the hover fill is translucent, so the link under it stays legible. Only the two moving
+   layers are promoted and contained. It sits above the skip link (100): it takes no pointer events. FxLayer
+   does not mount it in forced colours. */
 html[data-fx-cursor],
 html[data-fx-cursor] * { cursor: none !important; }
 html[data-fx-cursor] :is(input, textarea, select, [contenteditable]) { cursor: auto !important; }
-.fx-cursor { position: fixed; left: 0; top: 0; z-index: 110; width: 0; height: 0; pointer-events: none; mix-blend-mode: difference; }
-.fx-cursor[data-state="label"] { mix-blend-mode: normal; }
+.fx-cursor { position: fixed; left: 0; top: 0; z-index: 110; width: 0; height: 0; pointer-events: none; }
 .fx-cursor-dot-pos,
-.fx-cursor-ring { position: absolute; left: 0; top: 0; }
-.fx-cursor-dot { display: block; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
+.fx-cursor-ring { position: absolute; left: 0; top: 0; transform: translate3d(-100px, -100px, 0); will-change: transform; contain: layout style; }
+.fx-cursor-dot { display: block; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 9999px; background: #fff; box-shadow: 0 0 0 1px rgba(22, 23, 25, 0.55); transition: opacity 0.2s, scale 0.3s var(--fx-ease); }
 .fx-cursor-ring { display: grid; place-items: center; width: 40px; height: 40px; margin: -20px 0 0 -20px; }
-.fx-cursor-disc { position: absolute; inset: 0; border: 1.5px solid #fff; border-radius: 9999px; transition: opacity 0.2s, scale 0.4s var(--fx-ease), background-color 0.25s, border-color 0.25s; }
+.fx-cursor-disc { position: absolute; inset: 0; border: 1.5px solid #fff; border-radius: 9999px; box-shadow: 0 0 0 1px rgba(22, 23, 25, 0.45), inset 0 0 0 1px rgba(22, 23, 25, 0.45); transition: opacity 0.2s, scale 0.4s var(--fx-ease), background-color 0.25s, border-color 0.25s, box-shadow 0.25s; }
 .fx-cursor-label { position: relative; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #161719; opacity: 0; transition: opacity 0.2s; }
 .fx-cursor:is([data-state="hover"], [data-state="label"]) .fx-cursor-dot { scale: 0; }
-.fx-cursor[data-state="hover"] .fx-cursor-disc { scale: 1.6; background: #fff; }
-.fx-cursor[data-state="label"] .fx-cursor-disc { scale: 2.2; border-color: #fa6e43; background: #fa6e43; }
+.fx-cursor[data-state="hover"] .fx-cursor-disc { scale: 1.6; background: rgba(255, 255, 255, 0.16); }
+.fx-cursor[data-state="label"] .fx-cursor-disc { scale: 2.2; border-color: #fa6e43; background: #fa6e43; box-shadow: none; }
 .fx-cursor[data-state="label"] .fx-cursor-label { opacity: 1; }
 .fx-cursor:is([data-state="hidden"], [data-state="text"]) :is(.fx-cursor-dot, .fx-cursor-disc) { opacity: 0; }
 
@@ -574,7 +577,7 @@ html[data-fx-motion] [data-split-title]:not([data-in]) .fx-split-char { translat
 html:active-view-transition body > header { view-transition-name: fx-nav; }
 html:active-view-transition footer#contact { view-transition-name: fx-footer; }
 /* The cursor's root box is 0 × 0 (its parts are offset from it), which a snapshot cannot capture: while the
-   transition runs it spans the viewport instead, still click-through, and its difference blend carries over. */
+   transition runs it spans the viewport instead, still click-through. */
 html:active-view-transition .fx-cursor { view-transition-name: fx-cursor; inset: 0; width: auto; height: auto; }
 ::view-transition-group(.fx-page-in) { z-index: 1; animation: none; }
 /* The footer group keeps the browser's own group animation, which starts from the old footer's box, and holds

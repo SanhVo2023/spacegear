@@ -71,3 +71,29 @@ export function cellAt(px: number, py: number, w: number, h: number, cols: numbe
 export function ringDistance(r0: number, c0: number, r: number, c: number) {
   return Math.max(Math.abs(r - r0), Math.abs(c - c0));
 }
+
+/** A point that trails a target (the cursor ring): position in px, velocity in px/s. */
+export type Trail = { x: number; y: number; vx: number; vy: number };
+
+/** One axis of a critically damped spring, solved exactly over `dt` seconds: [position, velocity]. */
+function critical(position: number, velocity: number, target: number, omega: number, dt: number): [number, number] {
+  const offset = position - target;
+  const c = velocity + omega * offset;
+  const decay = Math.exp(-omega * dt);
+  return [target + (offset + c * dt) * decay, (velocity - omega * c * dt) * decay];
+}
+
+/**
+ * Moves `trail` toward (tx, ty) over `dt` seconds on a critically damped spring of natural frequency `omega`
+ * (1/s). It never overshoots, and the closed form gives the same path at any frame rate. With omega 60, a
+ * pointer stopping from 1000 px/s is reached in about 100 ms. Within `rest` px and below 40·rest px/s it
+ * lands exactly on the target and reports `moving: false`.
+ */
+export function trailStep(trail: Trail, tx: number, ty: number, dt: number, omega = 60, rest = 0.25) {
+  const [x, vx] = critical(trail.x, trail.vx, tx, omega, dt);
+  const [y, vy] = critical(trail.y, trail.vy, ty, omega, dt);
+  if (Math.hypot(x - tx, y - ty) < rest && Math.hypot(vx, vy) < rest * 40) {
+    return { trail: { x: tx, y: ty, vx: 0, vy: 0 }, moving: false };
+  }
+  return { trail: { x, y, vx, vy }, moving: true };
+}
