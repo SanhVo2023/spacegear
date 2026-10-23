@@ -47,6 +47,17 @@ test("ordinary Vietnamese and English copy passes", () => {
   for (const text of NEUTRAL) assert.deepEqual(refused(text), [], text);
 });
 
+test("a Vietnamese date (the glossary's format) is not a period of experience", () => {
+  for (const text of ["Cập nhật ngày 23 tháng 10 năm 2026.", "tháng 10 năm 2026", "Tháng 1 năm 2025, chúng tôi viết bài này.", "ngày 1 tháng 12 năm 2026", "tháng 09 năm 2026", "23/10/2026", "Bài viết ngày 5  tháng 3  năm 2026 kể lại cách làm."]) {
+    assert.deepEqual(refused(text), [], text);
+  }
+  // Only a real month before a four-digit year makes a date; claims around a date are still refused.
+  for (const text of ["10 năm hoạt động", "hơn 10 năm", "Hơn 10 năm đồng hành cùng doanh nghiệp.", "tháng 13 năm 2026", "tháng 10 năm hoạt động", "10 năm 2026", "Tháng 10 năm 2026 đánh dấu 10 năm hoạt động.", "15 năm"]) {
+    assert.ok(refused(text).some((problem) => problem.startsWith("an experience claim")), `${text} (got ${JSON.stringify(refused(text))})`);
+  }
+  assert.ok(refused("tháng 10 năm 2026, 10 năm kinh nghiệm").some((problem) => problem.startsWith("an experience claim")));
+});
+
 test("the legal pages may state periods in Vietnamese too, but never a delivery promise", () => {
   assert.deepEqual(refused("Các yêu cầu đã đóng được lưu giữ tối đa 90 ngày.", "content/vi/legal/privacy.md"), []);
   assert.deepEqual(refused("Website này không hàm ý quan hệ đối tác.", "content/vi/legal/terms.md"), []);
@@ -67,7 +78,7 @@ test("the owner's contact details may appear only in Site identity", () => {
 
 test("the Vietnamese patterns stay linear on long pathological input", () => {
   const n = 200_000;
-  const inputs = ["1 ".repeat(n / 2), "năm ".repeat(n / 4), `${"1".repeat(n)}x`, "giá ".repeat(n / 4), `${"tăng ".repeat(n / 5)}5%`, `bàn giao ${"a ".repeat(n / 2)}`, "đối tác ".repeat(n / 8), "1 đồng ".repeat(n / 7)];
+  const inputs = ["1 ".repeat(n / 2), "năm ".repeat(n / 4), `${"1".repeat(n)}x`, "giá ".repeat(n / 4), `${"tăng ".repeat(n / 5)}5%`, `bàn giao ${"a ".repeat(n / 2)}`, "đối tác ".repeat(n / 8), "1 đồng ".repeat(n / 7), "tháng 1 năm ".repeat(n / 12)];
   const start = performance.now();
   for (const text of inputs) refused(text);
   assert.ok(performance.now() - start < 3000);

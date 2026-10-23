@@ -55,6 +55,9 @@ const VI_SPELLED = "một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mươi
 const VI_COUNTED = "khách hàng|dự án|doanh nghiệp|công ty|tổ chức|nhân sự|nhân viên|chuyên gia|kỹ sư|lập trình viên|đối tác|thương hiệu|quốc gia|người dùng|đồng sáng lập|nhà sáng lập|đồng nghiệp|thành viên".replaceAll(" ", String.raw`\s{1,3}`);
 const VI_PRESS = "VnExpress|Tuổi Trẻ|Thanh Niên|CafeF|CafeBiz|VTV|VietnamNet|Dân Trí|Zing|Forbes Việt Nam|Người Lao Động";
 const vi = (source) => new RegExp(source, "iu");
+// A date in the glossary's format ("tháng 10 năm 2026", "ngày 23 tháng 10 năm 2026") names a month, not ten years:
+// a month from 1 to 12 right after "tháng" and right before a four-digit year.
+const VI_DATE_MONTH = String.raw`(?<=${L}tháng\s{1,3})(?:0?[1-9]|1[0-2])\s{1,3}năm\s{1,3}\d{4}${R}`;
 // The owner's contact details (bilingual spec, decision 4) are facts that only Site identity holds.
 const NAP_FIELD = (where, field) => /^content\/(?:vi\/)?site\.json$/.test(where) && /^(?:address\.(?:full|street|locality)|telephone)$/.test(field);
 
@@ -121,9 +124,10 @@ export const FORBIDDEN = [
   [/\b(?:in|within|under)\s{1,3}(?:just\s{1,3}|only\s{1,3})?\d{1,3}\s?(?:days?|weeks?|months?|hours?)\b|(?<![\w.,])\d{1,3}\s?(?:-|–|to)\s?\d{1,3}\s?(?:days?|weeks?|months?)\b/i, "a delivery timeline", { skip: LEGAL }],
   // Vietnamese counts of khách hàng, dự án, doanh nghiệp, nhân sự, chuyên gia, đồng sáng lập…, also "hàng trăm" and spelled numbers.
   [vi(String.raw`${NUM}\s{0,3}\+?\s{0,3}(?:${VI_COUNTED})${R}|${L}(?:hàng|vài|hơn|trên)\s{1,3}(?:chục|trăm|nghìn|ngàn|triệu)\s{1,3}(?:${VI_COUNTED})${R}|${L}(?:hơn|trên)\s{1,3}(?:${VI_SPELLED})(?:\s{1,3}(?:${VI_SPELLED})){0,3}\s{1,3}(?:${VI_COUNTED})${R}`), "a client or scale claim"],
-  // Năm kinh nghiệm, founding years and decades are refused everywhere; "N năm" periods are allowed on the legal pages.
+  // Năm kinh nghiệm, founding years and decades are refused everywhere; "N năm" periods are allowed on the legal pages,
+  // and a date ("tháng 10 năm 2026") is not a period.
   [vi(String.raw`${NUM}\s{0,3}\+?\s{0,3}năm\s{1,3}kinh\s{1,3}nghiệm|${L}(?:${VI_SPELLED})(?:\s{1,3}(?:${VI_SPELLED})){0,3}\s{1,3}năm\s{1,3}kinh\s{1,3}nghiệm|${L}(?:thành\s{1,3}lập|ra\s{1,3}đời)\s{1,3}(?:(?:từ|vào)\s{1,3})?(?:năm\s{1,3})?(?:19|20)\d{2}${R}|${L}(?:kể\s{1,3})?từ\s{1,3}năm\s{1,3}(?:19|20)\d{2}${R}|${L}thập\s{1,3}(?:kỷ|niên)${R}`), "an experience claim"],
-  [vi(String.raw`${NUM}\s{0,3}\+?\s{0,3}năm${R}`), "an experience claim", { skip: LEGAL }],
+  [vi(String.raw`(?!${VI_DATE_MONTH})${NUM}\s{0,3}\+?\s{0,3}năm${R}`), "an experience claim", { skip: LEGAL }],
   // Đối tác, giải thưởng, chứng nhận, báo chí. "Không hàm ý quan hệ đối tác" (the terms) and "công cụ của đối tác" are not claims.
   [vi(String.raw`${L}đối\s{1,3}tác\s{1,3}(?:chính\s{1,3}thức|chiến\s{1,3}lược|vàng|bạc|bạch\s{1,3}kim|kim\s{1,3}cương|cấp\s{1,3}cao|được\s{1,3}chứng\s{1,3}nhận|ưu\s{1,3}tiên|hàng\s{1,3}đầu|độc\s{1,3}quyền)${R}|${L}đối\s{1,3}tác\s{1,3}(?:của|với)\s{1,3}(?:${VENDORS})${R}|${L}(?:${VENDORS})\s{1,3}(?:chứng\s{1,3}nhận|công\s{1,3}nhận|ủy\s{1,3}quyền)${R}`), "an unverified partnership claim"],
   [vi(String.raw`${L}(?:giải\s{1,3}thưởng|đạt\s{1,3}giải|đoạt\s{1,3}giải|được\s{1,3}vinh\s{1,3}danh|top\s{1,3}\d{1,3}\s{1,3}(?:công\s{1,3}ty|doanh\s{1,3}nghiệp|đơn\s{1,3}vị|nhà\s{1,3}cung\s{1,3}cấp|agency|thương\s{1,3}hiệu)|(?:đơn\s{1,3}vị|công\s{1,3}ty|doanh\s{1,3}nghiệp|nhà\s{1,3}cung\s{1,3}cấp|agency|thương\s{1,3}hiệu)\s{1,3}số\s{1,3}1|số\s{1,3}1\s{1,3}(?:Việt\s{1,3}Nam|thị\s{1,3}trường|khu\s{1,3}vực|châu\s{1,3}Á|thế\s{1,3}giới|về)|hàng\s{1,3}đầu\s{1,3}(?:Việt\s{1,3}Nam|thị\s{1,3}trường|khu\s{1,3}vực|châu\s{1,3}Á|thế\s{1,3}giới)|được\s{1,3}(?:đánh\s{1,3}giá|xếp\s{1,3}hạng)\s{1,3}\d|${NUM}\s{0,3}sao)${R}`), "an unverified rating or award"],
