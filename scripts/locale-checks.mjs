@@ -359,12 +359,17 @@ function englishOnPage(strings) {
   const text = document.body.innerText;
   foreign.forEach((el, i) => (display[i] ? el.style.setProperty("display", display[i]) : el.style.removeProperty("display")));
   const NAMES = ["aria-label", "placeholder", "data-cursor", "alt", "title", "aria-description", "aria-roledescription"];
-  const labels = [...document.body.querySelectorAll(NAMES.map((name) => `[${name}]`).join(","))].filter((el) => !foreign.some((f) => f.contains(el))).flatMap((el) => NAMES.map((name) => el.getAttribute(name)).filter(Boolean));
+  // A Labs article's images are often screenshots of the English site, and their Vietnamese descriptions may quote
+  // the English labels the picture shows ("nút Discuss a project"). Those descriptions are held to the English
+  // sentence rule below (an untranslated description is still refused), not to the list of English UI strings.
+  const screenshots = new Set(document.querySelectorAll(".labs-prose img[alt]"));
+  const labels = [...document.body.querySelectorAll(NAMES.map((name) => `[${name}]`).join(","))].filter((el) => !foreign.some((f) => f.contains(el))).flatMap((el) => NAMES.filter((name) => !(name === "alt" && screenshots.has(el))).map((name) => el.getAttribute(name)).filter(Boolean));
+  const descriptions = [...screenshots].map((img) => img.getAttribute("alt"));
   const head = [document.title, document.querySelector('meta[name="description"]')?.getAttribute("content") ?? ""];
   const all = [text, ...labels, ...head].join("\n");
   const STOP = new Set("the and with your our we you for of to in on is are this that from by or it be an at as can will what how who when not all more about into its their they them us".split(" "));
   const vietnamese = /[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯưẠ-ỹ]/;
-  const sentences = all.split("\n").map((line) => line.trim()).filter((line) => line && !vietnamese.test(line)).filter((line) => {
+  const sentences = [all, ...descriptions].join("\n").split("\n").map((line) => line.trim()).filter((line) => line && !vietnamese.test(line)).filter((line) => {
     const words = line.toLowerCase().match(/\p{L}+/gu) ?? [];
     return words.length >= 3 && words.filter((word) => STOP.has(word)).length >= 2;
   });
