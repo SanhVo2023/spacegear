@@ -1,7 +1,6 @@
 {
   "exports": [
     "APPROACH_STEPS",
-    "ARTICLES",
     "CASE_STUDIES",
     "CONTENT_DIRS",
     "CORE_PANEL",
@@ -75,7 +74,6 @@
         ]
       }
     ],
-    "ARTICLES": [],
     "CASE_STUDIES": [],
     "CONTENT_DIRS": {
       "en": "content",
