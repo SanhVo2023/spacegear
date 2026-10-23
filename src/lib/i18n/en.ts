@@ -105,7 +105,7 @@ export const en = {
   process: { output: "output", outputs: "outputs", step: "Step {n}" },
   team: { roleOf: "Role {i} of {n}", swipe: "‹ swipe ›", previous: "Previous role", next: "Next role" },
   testimonials: { previous: "Previous", next: "Next", reviews: "Reviews", show: "Show {name}", sample: "Sample content — not a real client" },
-  labs: { writtenBy: "Written by", read: "Read article" },
+  labs: { writtenBy: "Written by", read: "Read article", anchor: "Link to this section: {heading}" },
   analytics: { ticker: "Capabilities" },
   rail: { label: "On this page" },
   snapRow: { goTo: "Go to item {n}" },
