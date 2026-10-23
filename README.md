@@ -43,7 +43,7 @@ Tests cover durable capture, same-key races against local D1, transactional roll
 
 Most of the site's copy is kept in [content/](content/) (English) and [content/vi/](content/vi/) (Vietnamese, the same files with the same names), as JSON and Markdown files that the editor at `/admin/` changes for you:
 
-- the home page: the hero, the section headings and the copy of every home section, including the illustrative dashboard, the questions and answers, the team, the testimonials, the articles and the footer;
+- the home page: the hero, the section headings and the copy of every home section, including the illustrative dashboard, the questions and answers, the team, the testimonials and the footer;
 - the five services, which also fill each service page's introduction, title and description;
 - the three engagements;
 - the site name, description and social profiles, and the owner's address and phone number;
@@ -101,12 +101,12 @@ On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-i
 - The owner's address and phone number appear only in Site identity.
 - `content/vi/` mirrors `content/`: the same files and entries, the same fields and list lengths. Only text may differ. Text that holds no letter in English (a figure, a count, a symbol) or follows a pattern stays exactly as in English, and so do links, images, colours, slugs, numbers, switches and choices (`src/lib/content-parity.ts`). Every rule below applies to the Vietnamese copy too.
 - The counts on the page match the data: the "5/5" badges and the first hero figure count the services, and the "01/03" badge and the second hero figure count the engagements. The second hero figure's line names the engagements in list order.
-- The team cards describe disciplines, not people. A card name of two to four words is refused when it reads like a person's name: it starts with a title such as "Dr", or every word is a capitalised name word ("Ada Lovelace", "J. Smith", "Nguyễn Văn An", "Ludwig van Beethoven") and none of them is a discipline word such as "Engineering", "Design" or "Data". So "Data Engineering", "Product Design" and "Applied AI" pass. If a real discipline is refused, write it in sentence case ("Brand storytelling") or with "&" ("Brand & Story"); a developer can also add the word to `DISCIPLINE_WORDS` in `scripts/lib/content-rules.mjs`. A real person goes in the founder card. Team cards may not use the original site's stock portraits (`/images/team/`), and testimonials and articles may not use its stock reviews and labs images.
+- The team cards describe disciplines, not people. A card name of two to four words is refused when it reads like a person's name: it starts with a title such as "Dr", or every word is a capitalised name word ("Ada Lovelace", "J. Smith", "Nguyễn Văn An", "Ludwig van Beethoven") and none of them is a discipline word such as "Engineering", "Design" or "Data". So "Data Engineering", "Product Design" and "Applied AI" pass. If a real discipline is refused, write it in sentence case ("Brand storytelling") or with "&" ("Brand & Story"); a developer can also add the word to `DISCIPLINE_WORDS` in `scripts/lib/content-rules.mjs`. A real person goes in the founder card. Team cards may not use the original site's stock portraits (`/images/team/`), and testimonials may not use its stock reviews (`/images/reviews/`).
 - The sample dashboard stays labelled: its section description must say "illustrative" and "not client results", and each of its cards must call itself illustrative, an example or a sample. In Vietnamese the description says "minh họa" and "không phải kết quả của khách hàng", and each card "minh họa", "ví dụ" or "mẫu".
 - A testimonial is shown only after its permission box is ticked.
 - Every link points at a page of the site (such as `/contact/`), optionally with a section or a query after it (`/#faq`, `/about/#team`, `/contact/?service=applied-ai`), or at a full `https://` address.
 - Services and engagements cannot be added or removed in the CMS: each service has its own page, and the engagements are the three stages the page counts.
-- The site uses some values to tell items apart, so they must be unique: questions, engagement names, article slugs, the services that the work tiles point at, the name and company of each testimonial, and the items of each deliverables and outcomes list. Exactly one engagement is featured.
+- The site uses some values to tell items apart, so they must be unique: questions, engagement names, the services that the work tiles point at, the name and company of each testimonial, and the items of each deliverables and outcomes list. Exactly one engagement is featured.
 - Every image that a field points at must exist, with exactly that name and letter case.
 
 #### Images and uploads
@@ -127,7 +127,7 @@ On `localhost` the editor also offers **Sign In with GitHub**, but GitHub sign-i
 
 #### New entries and file names
 
-- New entries get a file name made from one of their fields, with the same rules as uploads: a question from its question, a team discipline from its name, a testimonial from its company and name, and an article from its slug field. A name that starts with `_` (`_underscore start` gives `_underscore-start.json`), or that contains `~` or the dotless `ı`, gives a file name that the build refuses. `npm run content:index` names the file; rename it to lowercase letters, digits, `-` and `_`, starting with a letter or a digit.
+- New entries get a file name made from one of their fields, with the same rules as uploads: a question from its question, a team discipline from its name, and a testimonial from its company and name. A name that starts with `_` (`_underscore start` gives `_underscore-start.json`), or that contains `~` or the dotless `ı`, gives a file name that the build refuses. `npm run content:index` names the file; rename it to lowercase letters, digits, `-` and `_`, starting with a letter or a digit.
 - If you add, rename or delete an entry file by hand, run `npm run content:index`. The build does this too.
 
 #### Engagement stage numbers

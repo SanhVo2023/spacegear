@@ -112,14 +112,12 @@ test("the sample dashboard is labelled illustrative, in its section and on every
   assert.deepEqual(illustrativeProblems(sample((input) => { input.sections.analytics.description = "Illustrative figures, not client results."; })), []);
 });
 
-test("testimonials and articles use their own images, not the original site's stock art", () => {
+test("testimonials use their own photos, not the original site's stock art", () => {
   const edited = sample((input) => {
     input.collections.testimonials = [{ file: "a.json", data: { img: "/images/reviews/review-1.webp", name: "Ada Client", role: "COO", company: "Example Ltd", quote: "They helped.", permissionConfirmed: true, order: 1 } }];
-    input.collections.articles = [{ file: "first-note.json", data: { slug: "first-note", author: "Ada Writer", title: "A first note", sub: "What we learned.", img: "/images/labs/lab-1.webp", href: "https://example.org/first-note", order: 1 } }];
   });
   assert.deepEqual(stockImageProblems(edited), [
     "content/testimonials: the testimonial by \"Ada Client\" uses a stock portrait (/images/reviews/review-1.webp); use the client's own approved photo",
-    'content/articles: "A first note" uses a stock image (/images/labs/lab-1.webp); use the article\'s own image',
   ]);
 });
 

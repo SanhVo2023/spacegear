@@ -19,7 +19,6 @@ export type ContentContract = [
   Expect<Same<Before.ProcessStep, After.ProcessStep>>,
   Expect<Same<Before.Person, After.Person>>,
   Expect<Same<Before.Testimonial, After.Testimonial>>,
-  Expect<Same<Before.Article, After.Article>>,
   Expect<Same<Before.FooterLink, After.FooterLink>>,
   Expect<Same<typeof Before.SERVICES, typeof After.SERVICES>>,
   Expect<Same<typeof Before.ENGAGEMENTS, typeof After.ENGAGEMENTS>>,
@@ -42,6 +41,5 @@ export type ContentContract = [
   Expect<Same<typeof Before.TEAM, typeof After.TEAM>>,
   Expect<Same<typeof Before.TEAM_ROLES, typeof After.TEAM_ROLES>>,
   Expect<Same<typeof Before.TESTIMONIALS, typeof After.TESTIMONIALS>>,
-  Expect<Same<typeof Before.ARTICLES, typeof After.ARTICLES>>,
   Expect<Same<typeof Before.FOOTER, typeof After.FOOTER>>,
 ];

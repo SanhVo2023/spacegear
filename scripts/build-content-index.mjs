@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const COLLECTIONS = ["services", "engagements", "faqs", "team-roles", "testimonials", "articles"];
+export const COLLECTIONS = ["services", "engagements", "faqs", "team-roles", "testimonials"];
 export const INDEX_FILE = "src/lib/content-index.generated.ts";
 /** The project folder (the parent of scripts/), wherever the command runs from. */
 export const ROOT = fileURLToPath(new URL("..", import.meta.url));

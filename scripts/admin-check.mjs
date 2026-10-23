@@ -21,7 +21,7 @@
 //    may come from GitHub: the local workflow never calls the API.
 //    Then "Work with Local Repository" opens a copy of content/
 //    and public/images/ (an Origin Private File System folder stands in for the native folder
-//    picker; nothing on disk is written): the eight collections from config.yml are listed and the
+//    picker; nothing on disk is written): the collections from config.yml are listed and the
 //    icons render with the Material Symbols font, not as words. Every font face the bundle declares
 //    must load, and the font requests must be exactly ADMIN_FONTS. Fonts are served from a cache in
 //    artifacts/cms-fonts/ (filled from jsDelivr on first use), so the check does not depend on the
@@ -39,7 +39,7 @@ const CSP = "content-security-policy";
 const SECURITY_HEADERS = [CSP, "x-robots-tag", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy"];
 const TOLERATED = ["connect-src blocked https://unpkg.com/@sveltia/cms/package.json"];
 const GITHUB_STATUS = "https://www.githubstatus.com/api/v2/status.json";
-const COLLECTIONS = ["Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Articles", "Legal pages"];
+const COLLECTIONS = ["Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Legal pages"];
 const PROBE = "/uploads/__browser-check";
 const FONT_CACHE = "artifacts/cms-fonts";
 const sha256 = (data) => crypto.createHash("sha256").update(data).digest("hex");

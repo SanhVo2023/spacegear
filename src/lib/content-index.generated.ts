@@ -76,7 +76,6 @@ export const COLLECTION_FILES: Record<CollectionName, CollectionFile[]> = {
     { file: "strategy-and-discovery.json", data: team_roles_4 },
   ],
   "testimonials": [],
-  "articles": [],
 };
 
 export const COLLECTION_FILES_VI: Record<CollectionName, CollectionFile[]> = {
@@ -110,5 +109,4 @@ export const COLLECTION_FILES_VI: Record<CollectionName, CollectionFile[]> = {
     { file: "strategy-and-discovery.json", data: vi_team_roles_4 },
   ],
   "testimonials": [],
-  "articles": [],
 };

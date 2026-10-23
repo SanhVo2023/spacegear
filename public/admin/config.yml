@@ -715,28 +715,6 @@ collections:
       - { name: permissionConfirmed, label: The client gave written permission to publish this quote, widget: boolean, i18n: duplicate, default: false }
       - *order
 
-  - name: articles
-    label: Articles
-    label_singular: Article
-    icon: article
-    description: Published articles that the Labs section links to. Write the Vietnamese version in the right-hand pane; links, images, numbers and the order are copied from English.
-    i18n: true
-    folder: content/{{locale}}/articles
-    extension: json
-    format: json
-    identifier_field: title
-    slug: "{{slug}}"
-    reorder: true
-    sortable_fields: { fields: [order, title], default: { field: order } }
-    fields:
-      - { name: slug, label: Slug, widget: string, maxlength: 60, i18n: duplicate, pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', "Use lowercase letters, digits and single hyphens"], use_emoji_autocomplete: false }
-      - { name: author, label: Author, widget: string, maxlength: 60, i18n: true, use_emoji_autocomplete: false }
-      - { name: title, label: Title, widget: string, maxlength: 120, i18n: true, use_emoji_autocomplete: false }
-      - { name: sub, label: Summary, widget: text, maxlength: 200, i18n: true, use_emoji_autocomplete: false }
-      - { name: img, label: Image, widget: image, i18n: duplicate, choose_url: true, hint: "The article's own image, uploaded here.", pattern: ['^(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
-      - *link_href
-      - *order
-
   - name: legal
     label: Legal pages
     icon: gavel

@@ -14,7 +14,7 @@ const { buildContent, SINGLETON_FILES } = await import("../src/lib/content-model
 // Tests that change entries by name work on the frozen sample, never on the live copy.
 const SAMPLE_CONTENT = path.join(SAMPLE_ROOT, "content");
 
-const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "ARTICLES", "FOOTER", "SERVICES", "serviceBySlug"];
+const PUBLIC_KEYS = ["HOME", "SECTIONS", "WORK", "PILLARS", "CORE_PANEL", "PROCESS_STEPS", "PROCESS_CTA", "APPROACH_STEPS", "MEASURE", "ENGAGEMENTS", "ENGAGEMENTS_FOOTER", "FAQS", "FAQ_CARD", "TEAM", "TEAM_ROLES", "FOUNDER", "TESTIMONIALS", "FOOTER", "SERVICES", "serviceBySlug"];
 
 test("every public content export exists", () => {
   for (const key of PUBLIC_KEYS) assert.ok(key in content, `${key} is exported`);
@@ -385,14 +385,15 @@ test("the team section shows roles, not invented people", () => {
   if (content.FOUNDER) assert.ok(content.FOUNDER.name && content.FOUNDER.img && content.FOUNDER.bio, "founder card needs a real name, photo and bio");
 });
 
-test("testimonials and articles only hold publishable entries", () => {
+test("testimonials only hold publishable entries", () => {
   for (const item of content.TESTIMONIALS) {
     assert.equal(item.permissionConfirmed, true);
     assert.ok(item.name && item.company && item.quote && item.img);
   }
-  for (const article of content.ARTICLES) {
-    assert.ok(article.href && article.title && article.author);
-  }
+});
+
+test("the old link-card articles collection is gone (Labs articles are Markdown files)", () => {
+  assert.equal("ARTICLES" in content, false);
 });
 
 test("sample preview data is not part of public content", () => {
