@@ -8,7 +8,7 @@ const sitemapResponse = await fetch(`${base}/sitemap.xml`);
 assert.equal(sitemapResponse.status, 200);
 const sitemap = await sitemapResponse.text();
 const routes = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => new URL(m[1]).pathname);
-assert.equal(routes.length, 12, "core sitemap route count");
+assert.equal(routes.length, 24, "core sitemap route count (12 pages in English and Vietnamese)");
 assert.equal(new Set(routes).size, routes.length);
 const browser = await launchBrowser();
 const page = await browser.newPage({ javaScriptEnabled: false });

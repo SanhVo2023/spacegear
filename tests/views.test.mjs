@@ -19,8 +19,8 @@ test("each page gives English the metadata it had, and Vietnamese its own canoni
   assert.equal(meta.notFoundMetadata().title.absolute, "Page not found · Không tìm thấy trang | spacegear.tech");
 });
 
-test("every route file is a thin wrapper around its view", () => {
-  for (const [file, view] of [["src/app/page.tsx", "HomeView"], ["src/app/about/page.tsx", "AboutView"], ["src/app/approach/page.tsx", "ApproachView"], ["src/app/contact/page.tsx", "ContactView"], ["src/app/privacy/page.tsx", "PrivacyView"], ["src/app/terms/page.tsx", "TermsView"], ["src/app/services/page.tsx", "ServicesView"], ["src/app/services/[slug]/page.tsx", "ServiceView"]]) {
+test("every route file is a thin wrapper around its view (the Vietnamese twins: tests/routes.test.mjs)", () => {
+  for (const [file, view] of [["src/app/(en)/page.tsx", "HomeView"], ["src/app/(en)/about/page.tsx", "AboutView"], ["src/app/(en)/approach/page.tsx", "ApproachView"], ["src/app/(en)/contact/page.tsx", "ContactView"], ["src/app/(en)/privacy/page.tsx", "PrivacyView"], ["src/app/(en)/terms/page.tsx", "TermsView"], ["src/app/(en)/services/page.tsx", "ServicesView"], ["src/app/(en)/services/[slug]/page.tsx", "ServiceView"]]) {
     const source = fs.readFileSync(file, "utf8");
     assert.match(source, new RegExp(`from "@/views/${view}"`), file);
     assert.match(source, /from "@\/views\/metadata"/, file);

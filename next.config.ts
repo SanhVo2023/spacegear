@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
   // === FX === React <ViewTransition> on route navigations (the page curtain, src/components/fx/PageTransition.tsx).
-  experimental: { viewTransition: true },
+  // globalNotFound: one 404 (src/app/global-not-found.tsx) for the two root layouts, written to 404.html.
+  experimental: { viewTransition: true, globalNotFound: true },
 };
 
 export default nextConfig;
