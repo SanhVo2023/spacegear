@@ -1,0 +1,48 @@
+{
+  "steps": [
+    {
+      "step": "Bước 1",
+      "name": "Đánh giá",
+      "desc": "Chúng tôi lập sơ đồ hiện trạng về quy trình làm việc, hệ thống, các ràng buộc và những người liên quan, rồi cùng bạn thống nhất vấn đề trước khi chọn giải pháp.",
+      "outputs": [
+        "Sơ đồ hiện trạng",
+        "Bản mô tả vấn đề"
+      ]
+    },
+    {
+      "step": "Bước 2",
+      "name": "Xác định ưu tiên",
+      "desc": "Chúng tôi so sánh các cơ hội theo giá trị, tính khả thi và mức độ phụ thuộc, sau đó cùng bạn thống nhất mốc cơ sở và thế nào là thành công.",
+      "outputs": [
+        "Danh sách cơ hội ưu tiên",
+        "Tiêu chí thành công",
+        "Lộ trình"
+      ]
+    },
+    {
+      "step": "Bước 3",
+      "name": "Xây dựng",
+      "desc": "Chúng tôi kiểm chứng những giả định rủi ro nhất trước, rồi thiết kế và phát triển theo từng phần nhỏ có thể xem xét, bám sát quy trình làm việc thực tế.",
+      "outputs": [
+        "Nguyên mẫu đã được đánh giá",
+        "Giải pháp đã được kiểm thử"
+      ]
+    },
+    {
+      "step": "Bước 4",
+      "name": "Đưa vào sử dụng",
+      "desc": "Chúng tôi hỗ trợ triển khai và bàn giao, viết tài liệu về cách hệ thống vận hành, rồi cùng bạn thống nhất cách đo lường và cải tiến hệ thống.",
+      "outputs": [
+        "Kế hoạch triển khai",
+        "Hướng dẫn vận hành",
+        "Danh sách hạng mục cải tiến"
+      ]
+    }
+  ],
+  "cta": {
+    "title": "Bạn muốn biết quy trình này áp dụng vào công việc của mình như thế nào?",
+    "text": "Nếu bạn có câu hỏi về quy trình, chúng tôi rất sẵn lòng trao đổi kỹ hơn.",
+    "cta": "Trao đổi về dự án",
+    "href": "/contact/"
+  }
+}

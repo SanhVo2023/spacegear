@@ -1,0 +1,85 @@
+{
+  "badge": "chúng tôi xây hệ thống · bạn dẫn dắt thay đổi ·",
+  "tagline": "Chúng tôi giúp bạn hoạch định, xây dựng và mở rộng doanh nghiệp thông minh hơn.",
+  "identity": [
+    "Tư vấn chuyển đổi số",
+    "& AI"
+  ],
+  "identityStrong": "spacegear.tech",
+  "columns": [
+    [
+      {
+        "label": "Trang chủ",
+        "href": "/"
+      },
+      {
+        "label": "Những gì chúng tôi làm",
+        "href": "/#work"
+      },
+      {
+        "label": "Dịch vụ",
+        "href": "/services/"
+      },
+      {
+        "label": "Quy trình",
+        "href": "/#process"
+      },
+      {
+        "label": "Những gì chúng tôi đo lường",
+        "href": "/#analytics"
+      },
+      {
+        "label": "Hình thức hợp tác",
+        "href": "/#pricing"
+      },
+      {
+        "label": "Hỏi đáp",
+        "href": "/#faq"
+      },
+      {
+        "label": "Ai sẽ làm việc cùng bạn",
+        "href": "/#team"
+      }
+    ],
+    [
+      {
+        "label": "Phương pháp",
+        "href": "/approach/"
+      },
+      {
+        "label": "Giới thiệu",
+        "href": "/about/"
+      },
+      {
+        "label": "Liên hệ",
+        "href": "/contact/"
+      },
+      {
+        "label": "AI ứng dụng",
+        "href": "/services/applied-ai/"
+      },
+      {
+        "label": "Tự động hóa",
+        "href": "/services/automation-integration/"
+      },
+      {
+        "label": "Phát triển sản phẩm",
+        "href": "/services/product-delivery/"
+      },
+      {
+        "label": "Quyền riêng tư",
+        "href": "/privacy/"
+      },
+      {
+        "label": "Điều khoản",
+        "href": "/terms/"
+      }
+    ]
+  ],
+  "quickStart": {
+    "title": "Hãy bắt đầu từ một bài toán",
+    "text": "Bạn chỉ cần để lại tên và email, chúng tôi sẽ đưa bạn đến một biểu mẫu ngắn để mô tả nhu cầu.",
+    "note": "Chúng tôi chỉ dùng những thông tin này để phản hồi bạn."
+  },
+  "about": "giúp các tổ chức biến những bài toán kinh doanh thành hệ thống số vận hành thực tế."
+}

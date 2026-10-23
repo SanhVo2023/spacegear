@@ -1,0 +1,21 @@
+{
+  "order": 1,
+  "name": "Đánh giá & xác định ưu tiên",
+  "short": "Đánh giá",
+  "img": "/images/suite/design-engine.webp",
+  "stage": "Định hướng",
+  "stageNo": "01",
+  "deliverables": [
+    "Sơ đồ quy trình hiện tại và các cơ hội",
+    "Yêu cầu về dữ liệu và tích hợp",
+    "Tiêu chí thành công",
+    "Đề xuất dự án thí điểm đầu tiên"
+  ],
+  "outcomes": [
+    "Hai bên cùng hiểu rõ vấn đề",
+    "Các ưu tiên rõ ràng, được hai bên thống nhất",
+    "Các thiếu hụt về dữ liệu đã được xác định",
+    "Một bước đi đầu tiên thiết thực"
+  ],
+  "featured": true
+}

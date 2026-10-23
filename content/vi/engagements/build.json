@@ -1,0 +1,21 @@
+{
+  "order": 2,
+  "name": "Kiểm chứng & xây dựng",
+  "short": "Xây dựng",
+  "img": "/images/suite/shield-core.webp",
+  "stage": "Triển khai",
+  "stageNo": "02",
+  "deliverables": [
+    "Nguyên mẫu và tiêu chí đánh giá",
+    "Giải pháp đã tích hợp và kiểm thử",
+    "Kế hoạch triển khai",
+    "Tài liệu bàn giao"
+  ],
+  "outcomes": [
+    "Có bằng chứng trước khi đầu tư lớn hơn",
+    "Giải pháp phù hợp với quy trình làm việc",
+    "Ít bước chuyển giao thủ công hơn",
+    "Đội ngũ sẵn sàng sử dụng giải pháp"
+  ],
+  "featured": false
+}

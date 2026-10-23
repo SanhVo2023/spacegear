@@ -1,0 +1,48 @@
+{
+  "panel": {
+    "label": "Dịch vụ cốt lõi",
+    "count": "5/5",
+    "title": "Các dịch vụ dạng mô-đun, linh hoạt, phục vụ vận hành số hiện đại",
+    "text": "Chúng tôi giúp bạn hiện đại hóa cách làm việc và ứng dụng AI một cách thiết thực. Các năng lực cốt lõi của spacegear.tech gồm:",
+    "line": "Chúng tôi hoạch định, xây dựng, kết nối và cải tiến.",
+    "cta": "Tìm hiểu chi tiết các dịch vụ",
+    "href": "/services/"
+  },
+  "pillars": [
+    {
+      "no": "01",
+      "slug": "digital-transformation",
+      "name": "Chuyển đổi số",
+      "tag": "định hướng",
+      "glyph": "≈"
+    },
+    {
+      "no": "02",
+      "slug": "ai-strategy",
+      "name": "Chiến lược AI",
+      "tag": "mức sẵn sàng",
+      "glyph": "◇"
+    },
+    {
+      "no": "03",
+      "slug": "applied-ai",
+      "name": "AI ứng dụng",
+      "tag": "trí tuệ",
+      "glyph": "◈"
+    },
+    {
+      "no": "04",
+      "slug": "automation-integration",
+      "name": "Tự động hóa",
+      "tag": "kết nối",
+      "glyph": "△"
+    },
+    {
+      "no": "05",
+      "slug": "product-delivery",
+      "name": "Phát triển sản phẩm",
+      "tag": "triển khai",
+      "glyph": "⬡"
+    }
+  ]
+}

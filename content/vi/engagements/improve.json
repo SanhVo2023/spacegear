@@ -1,0 +1,21 @@
+{
+  "order": 3,
+  "name": "Đưa vào vận hành & cải tiến",
+  "short": "Cải tiến",
+  "img": "/images/suite/scale-matrix.webp",
+  "stage": "Đưa vào sử dụng",
+  "stageNo": "03",
+  "deliverables": [
+    "Hướng dẫn sử dụng và vận hành",
+    "Rà soát hiệu quả hoạt động và các ngoại lệ",
+    "Các hạng mục cải tiến được xếp ưu tiên",
+    "Hỗ trợ triển khai liên tục"
+  ],
+  "outcomes": [
+    "Hệ thống được dùng đều đặn hằng ngày",
+    "Ngoại lệ giảm dần theo thời gian",
+    "Hiệu quả hoạt động được theo dõi rõ ràng",
+    "Danh sách hạng mục cải tiến rõ ràng"
+  ],
+  "featured": false
+}
