@@ -1,17 +1,20 @@
 // Labs article bodies: Markdown to HTML at build time with markdown-it 15.0.2 (pinned), raw HTML off. Headings h2–h4
 // get unique ids and an anchor link; site links follow the page's language; every other link gets
-// rel="noopener noreferrer"; images go through contentImage() (upload variants). Tables and strikethrough are off: the
-// spec allows headings, lists, links, images, blockquotes and code. markdownProblems() refuses what the renderer would
-// not show as intended, naming the file and the line. Server and build only. Erasable TypeScript with explicit .ts
-// imports (scripts/check-content.mjs loads it under --experimental-strip-types).
+// rel="noopener noreferrer"; images go through contentImage() (upload variants) and, given `imageSize`, carry their
+// width and height (src/lib/labs.ts reads them from the files, so nothing moves when they load). Tables and
+// strikethrough are off: the spec allows headings, lists, links, images, blockquotes and code. markdownProblems()
+// refuses what the renderer would not show as intended, naming the file and the line. Server and build only.
+// Erasable TypeScript with explicit .ts imports (scripts/check-content.mjs loads it under --experimental-strip-types).
 import MarkdownIt, { type Token } from "markdown-it";
 import { contentImage } from "./content-images.ts";
 import { HREF, IMAGE } from "./content-schema.ts";
+import type { ImageSize } from "./image-size.ts";
 import { dictionary, format } from "./i18n/dictionary.ts";
 import { localizedHref, type Locale } from "./i18n/locales.ts";
 
 export type RenderedMarkdown = { html: string; headings: { id: string; text: string; level: 2 | 3 | 4 }[]; words: number };
-type LabsEnv = { locale: Locale; headings: RenderedMarkdown["headings"]; words: number };
+export type RenderOptions = { /** An image's intrinsic size by its path, for width and height. */ imageSize?: (src: string) => ImageSize | undefined };
+type LabsEnv = { locale: Locale; headings: RenderedMarkdown["headings"]; words: number } & RenderOptions;
 
 /** The article column is at most 720px wide on a desktop and the full width below 1024px. */
 const IMAGE_SIZES = "(min-width: 1024px) 720px, 100vw";
@@ -64,11 +67,13 @@ md.renderer.rules.image = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const image = contentImage(attr(token, "src"), IMAGE_SIZES);
   const alt = self.renderInlineAsText(token.children ?? [], options, env);
+  const size = (env as LabsEnv).imageSize?.(attr(token, "src"));
   const attrs = [
     `src="${escape(image.src)}"`,
     image.srcSet ? `srcset="${escape(image.srcSet)}"` : "",
     image.sizes ? `sizes="${escape(image.sizes)}"` : "",
     `alt="${escape(alt)}"`,
+    size ? `width="${size.width}" height="${size.height}"` : "",
     'loading="lazy"',
     'decoding="async"',
   ].filter(Boolean);
@@ -76,8 +81,8 @@ md.renderer.rules.image = (tokens, index, options, env, self) => {
 };
 
 /** An article body as HTML, with its headings (for anchors) and its word count (for the reading time). */
-export function renderMarkdown(source: string, locale: Locale): RenderedMarkdown {
-  const env: LabsEnv = { locale, headings: [], words: 0 };
+export function renderMarkdown(source: string, locale: Locale, { imageSize }: RenderOptions = {}): RenderedMarkdown {
+  const env: LabsEnv = { locale, headings: [], words: 0, imageSize };
   const html = md.render(source, env);
   return { html, headings: env.headings, words: env.words };
 }

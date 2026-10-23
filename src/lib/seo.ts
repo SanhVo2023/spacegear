@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { contentImage } from "./content-images";
 import { dictionary } from "./i18n/dictionary";
 import { HTML_LANG, LOCALES, OG_LOCALE, alternatePaths, localizedHref, type Locale } from "./i18n/locales";
+import type { LabsArticle } from "./labs";
 import { BRAND_NAME, SITE, siteFor } from "./site";
 
 export function canonicalUrl(path: string) { return new URL(path, SITE.origin).href; }
@@ -16,6 +18,8 @@ type MetadataInput = {
   /** og:type; an article (Part 3) also gets its dates, and its cover as `image`. */
   type?: "website" | "article"; image?: { url: string; alt: string; width?: number; height?: number };
   publishedTime?: string; modifiedTime?: string;
+  /** The path of the RSS feed the page belongs to (the Labs pages): an alternate link of type application/rss+xml. */
+  feed?: string;
 };
 /** What buildMetadata always sets, typed, so webPageData can read it back. */
 export type PageMetadata = Metadata & { title: { absolute: string }; description: string; alternates: { canonical: string; languages: Record<string, string> } };
@@ -24,7 +28,7 @@ export type PageMetadata = Metadata & { title: { absolute: string }; description
  * A page's metadata in one language: its own canonical; hreflang links to every language version, with x-default
  * pointing at the English one (when there is one); og:locale and og:locale:alternate.
  */
-export function buildMetadata({ title, description, path, locale, languages, type = "website", image, publishedTime, modifiedTime }: MetadataInput): PageMetadata {
+export function buildMetadata({ title, description, path, locale, languages, type = "website", image, publishedTime, modifiedTime, feed }: MetadataInput): PageMetadata {
   const t = dictionary(locale).meta;
   const versions = languages ?? alternatePaths(path);
   const url = canonicalUrl(versions[locale] ?? localizedHref(path, locale));
@@ -41,7 +45,8 @@ export function buildMetadata({ title, description, path, locale, languages, typ
     alternateLocale: LOCALES.filter((version) => version !== locale && versions[version]).map((version) => OG_LOCALE[version]), images: [og],
   };
   return {
-    title: { absolute: fullTitle }, description, alternates: { canonical: url, languages: hreflang },
+    title: { absolute: fullTitle }, description,
+    alternates: { canonical: url, languages: hreflang, ...(feed ? { types: { "application/rss+xml": [{ url: canonicalUrl(feed), title: SITE.name }] } } : {}) },
     openGraph: type === "article" ? { ...common, type: "article", publishedTime, modifiedTime } : { ...common, type: "website" },
     twitter: { card: "summary_large_image", title: fullTitle, description, images: [og.url] },
   };
@@ -88,5 +93,18 @@ export function webPageData(page: PageMetadata, locale: Locale) {
   return {
     "@context": "https://schema.org", "@type": "WebPage", "@id": `${url}#webpage`, url, name: page.title.absolute, description: page.description,
     inLanguage: HTML_LANG[locale], isPartOf: { "@id": websiteId(locale) }, publisher: { "@id": ORGANIZATION_ID },
+  };
+}
+
+/** A Labs article's structured data; the publisher is the site's Organization (organizationData, on every page). */
+export function blogPostingData(article: LabsArticle) {
+  const url = canonicalUrl(article.path);
+  return {
+    "@context": "https://schema.org", "@type": "BlogPosting", "@id": `${url}#article`, mainEntityOfPage: url, url,
+    headline: article.title, description: article.summary, inLanguage: HTML_LANG[article.locale],
+    author: { "@type": "Person", name: article.author },
+    datePublished: article.date, dateModified: article.updated ?? article.date,
+    image: canonicalUrl(contentImage(article.cover).src),
+    publisher: { "@id": ORGANIZATION_ID },
   };
 }

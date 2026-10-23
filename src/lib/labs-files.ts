@@ -48,7 +48,9 @@ export function readArticleFiles(root: string = process.cwd()): { files: Article
   const issues: string[] = [];
   for (const locale of LOCALES) {
     const dir = ARTICLE_DIRS[locale];
-    const full = path.join(root, dir);
+    // The folder spelled out, not path.join(root, dir): Turbopack's file tracing cannot read ARTICLE_DIRS[locale]
+    // and would then trace the whole project (a build warning, "unexpected file in NFT list").
+    const full = path.join(root, locale === "en" ? "content/articles" : "content/vi/articles");
     if (!fs.existsSync(full)) continue;
     const entries = fs.readdirSync(full, { withFileTypes: true }).filter((entry) => !entry.name.startsWith("."));
     for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {

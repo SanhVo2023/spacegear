@@ -683,3 +683,40 @@ html[data-fx] .fx-wordmark[data-in] .brand-tm { transition: opacity 0.6s ease-ou
 html[data-fx] .fx-wordmark:not([data-in]) .brand-tm { opacity: 0; }
 
 /* === /FX === */
+
+/* Labs article bodies (src/views/LabsArticleView.tsx): the HTML markdown-it rendered from the CMS (h2–h4 with their
+   # anchors, lists, links, images, quotes, code). A measure of about 68 characters, in Inter on the night palette.
+   Images take the column's width at their own proportions: their width and height come from the file
+   (src/lib/image-size.ts), so the text below never moves when one loads. The body leading (1.75) leaves room for
+   stacked Vietnamese marks; on Vietnamese pages the headings get more leading, as display type does above.
+   The measure is in em: Inter's "0" is wider than its average letter, so 68ch held about 93 characters a line;
+   34em holds about 75 in English and 68 in Vietnamese (18 px from 1024 px up, 17 px below). */
+.labs-prose { max-width: 34em; color: var(--color-mut); font-size: 17px; line-height: 1.75; overflow-wrap: break-word; }
+@media (min-width: 1024px) { .labs-prose { font-size: 18px; } }
+/* A Labs article's title (PageIntro's H1, smaller than a page title: an article title runs longer). English display
+   leading is 0.92 and lets one line's descenders meet the next line's capitals at this length; Vietnamese keeps the
+   :lang(vi) .display rule above (1.15). */
+.labs-title { line-height: 1.02; text-wrap: balance; }
+.labs-prose > * + * { margin-top: 1.15em; }
+.labs-prose :is(h2, h3, h4) { color: var(--color-ink); font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; margin-top: 2.2em; scroll-margin-top: 96px; text-wrap: balance; }
+.labs-prose :is(h2, h3, h4) + * { margin-top: 0.75em; }
+.labs-prose > :first-child { margin-top: 0; }
+.labs-prose h2 { font-size: clamp(24px, 2.6vw, 32px); }
+.labs-prose h3 { font-size: clamp(20px, 2vw, 24px); }
+.labs-prose h4 { font-size: 18px; }
+.labs-prose .labs-anchor { margin-left: 0.35em; color: var(--color-mut-2); text-decoration: none; }
+.labs-prose .labs-anchor:hover { color: var(--color-flame); }
+.labs-prose a:not(.labs-anchor) { color: var(--color-flame); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.labs-prose strong { color: var(--color-ink); font-weight: 600; }
+.labs-prose :is(ul, ol) { padding-left: 1.4em; }
+.labs-prose ul { list-style: disc; }
+.labs-prose ol { list-style: decimal; }
+.labs-prose li + li { margin-top: 0.45em; }
+.labs-prose li::marker { color: var(--color-mut-2); }
+.labs-prose blockquote { border-left: 2px solid var(--color-flame); padding-left: 1em; color: var(--color-ink); }
+.labs-prose code { font-family: var(--font-mono); font-size: 0.88em; background: var(--color-card-2); border-radius: 6px; padding: 0.1em 0.35em; }
+.labs-prose pre { overflow-x: auto; background: var(--color-card); border: 1px solid var(--color-line); border-radius: 14px; padding: 1em 1.2em; font-size: 14px; line-height: 1.6; }
+.labs-prose pre code { background: none; padding: 0; font-size: inherit; }
+.labs-prose img { display: block; width: 100%; height: auto; border: 1px solid var(--color-line); border-radius: 16px; }
+.labs-prose hr { border: 0; border-top: 1px solid var(--color-line); margin-block: 2.5em; }
+:lang(vi) .labs-prose :is(h2, h3, h4) { line-height: 1.3; }
