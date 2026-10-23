@@ -752,7 +752,13 @@
     "content/site.json": {
       "name": "spacegear.tech",
       "description": "Digital transformation and AI consulting, from strategy to working systems. Modernize operations, connect data and put AI to work.",
-      "socialProfiles": []
+      "socialProfiles": [],
+      "address": {
+        "full": "11 B4 Street, Sala Urban Area, An Khanh Ward, Ho Chi Minh City, Vietnam",
+        "street": "11 B4 Street, Sala Urban Area, An Khanh Ward",
+        "locality": "Ho Chi Minh City"
+      },
+      "telephone": "+84386749799"
     },
     "content/team-roles/adoption-and-support.json": {
       "order": 5,
@@ -1558,7 +1564,13 @@
     "content/vi/site.json": {
       "name": "spacegear.tech",
       "description": "spacegear.tech tư vấn chuyển đổi số và AI, từ chiến lược đến hệ thống vận hành thực tế. Chúng tôi giúp bạn hiện đại hóa vận hành, kết nối dữ liệu và đưa AI vào công việc.",
-      "socialProfiles": []
+      "socialProfiles": [],
+      "address": {
+        "full": "Số 11, đường B4, Khu đô thị Sala, phường An Khánh, TP. Hồ Chí Minh, Việt Nam",
+        "street": "Số 11, đường B4, Khu đô thị Sala, phường An Khánh",
+        "locality": "Thành phố Hồ Chí Minh"
+      },
+      "telephone": "+84386749799"
     },
     "content/vi/team-roles/adoption-and-support.json": {
       "order": 5,
