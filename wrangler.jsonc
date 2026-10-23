@@ -27,6 +27,7 @@
     "production": {
       "name": "spacegear-tech",
       "workers_dev": false,
+      "routes": [{ "pattern": "spacegear.tech", "custom_domain": true }],
       "vars": {
         "SITE_ORIGIN": "https://spacegear.tech",
         "CONTACT_ENABLED": "true",
