@@ -3,7 +3,7 @@ title: "Chúng tôi xây dựng spacegear.tech cùng các agent Claude Code"
 summary: "Các agent Claude Code xây dựng phần lớn spacegear.tech theo bản đặc tả và kế hoạch, còn tôi ra quyết định. Quả địa cầu shader đưa trang chủ trên máy tính từ 7.753 xuống 1.747 KiB."
 cover: /uploads/labs/how-we-built-spacegear-tech/cover.webp
 coverAlt: "Quả địa cầu shader của spacegear.tech: Tây Phi và Đại Tây Dương lúc ban ngày, bầu khí quyển xanh trên nền trời đầy sao"
-date: 2026-10-23
+date: 2026-10-24
 updated: ""
 author: "Sanh Võ"
 ---
@@ -86,11 +86,11 @@ Cùng lúc đó, nội dung được chuyển ra khỏi mã nguồn, sang các t
 
 ![Màn hình đăng nhập của trình soạn nội dung spacegear.tech tại /admin/, với biểu tượng hành tinh bị cắt đôi và hai nút đăng nhập](/uploads/labs/how-we-built-spacegear-tech/admin-sign-in.webp)
 
-Tính năng đăng nhập bằng GitHub trên màn hình này đã được hợp nhất vào mã và sẽ có hiệu lực ở lần triển khai tới.
+Nút GitHub cho phép người biên tập đăng bài từ bất kỳ trình duyệt nào. Khi làm việc trên bản sao ở máy cá nhân, nút còn lại cho phép sửa thẳng các tệp của dự án.
 
 ## Bước 5: spacegear.tech chính thức hoạt động
 
-Ngày 22/10, tôi quyết định hợp nhất toàn bộ công việc vào nhánh phát hành. Hôm sau, tôi yêu cầu đưa site lên mạng. Giờ đây một Cloudflare Worker phục vụ spacegear.tech: 12 trang chính, 181 tệp, tổng cộng 10,67 MiB. Bài kiểm tra SEO cho môi trường production đã đạt trên tên miền thật. Tính năng nhận yêu cầu tư vấn đã bật; thông báo qua email vẫn tắt cho đến khi địa chỉ gửi được xác minh.
+Ngày 22/10, tôi quyết định hợp nhất toàn bộ công việc vào nhánh phát hành. Hôm sau, tôi yêu cầu đưa site lên mạng. Kể từ đó, một Cloudflare Worker đảm nhận việc phục vụ spacegear.tech. Bản phát hành đầu tiên gồm 12 trang chính và 181 tệp, tổng dung lượng 10,67 MiB. Bài kiểm tra SEO cho môi trường production đã đạt trên tên miền thật. Tính năng nhận yêu cầu tư vấn đã bật; thông báo qua email vẫn tắt cho đến khi địa chỉ gửi được xác minh.
 
 ![Phần đầu trang spacegear.tech trên máy tính: tiêu đề The smarter way to plan, build, and scale your business trên nền quả địa cầu ban ngày](/uploads/labs/how-we-built-spacegear-tech/hero-desktop.webp)
 
@@ -102,8 +102,8 @@ Từ ngày 20 đến 23/10, Claude Code đã tạo 222 commit trên nhánh phát
 - **Một bước kiểm tra báo động giả.** Khoảng 0,6 kilobyte mã kiểm tra mới khiến bộ đóng gói tách một chunk. Bài kiểm tra ảnh chụp HTML liền báo cả 15 trang đều thay đổi, dù mã HTML vẫn y nguyên. Chúng tôi viết lại bước kiểm tra để so sánh cây React đã được phân giải.
 - **Một bộ đếm giờ chập chờn.** Lần tải lên đầu tiên của bộ texture lớn nhất được phép mất 120 mili giây. Khi máy đang bận, ba trong bốn lượt chạy sạch đo được 135, 153 và 170 mili giây, rồi dưới 50 mili giây khi chạy lại trên một trang mới. Giờ đây bài kiểm tra đo lại một lần trước khi báo lỗi.
 - **Con số nhỏ, lỗi thật.** Rê chuột lên một thẻ ở mục Dịch vụ từng làm bố cục xê dịch (CLS 0,02 đến 0,04); giờ chỉ số này bằng 0. Hiệu ứng đèn chiếu trên thẻ từng làm chữ xám cỡ nhỏ chỉ còn độ tương phản 3,81:1; giờ mức thấp nhất là 4,57:1. Ở phần đầu trang, trước đây có 14 lớp được đẩy lên GPU ngay khi tải trang; giờ không còn lớp nào.
-- **Tài liệu biến thành CSS.** Tailwind quét mọi tệp mà Git theo dõi, nên tên class được trích trong các bản kế hoạch trở thành style của site. Chỉ riêng việc loại thư mục tài liệu ra đã bỏ được 27 quy tắc. Nhánh song ngữ giờ chỉ quét thư mục mã nguồn.
-- **Con trỏ chuột.** Tôi muốn giữ con trỏ tùy chỉnh nhưng phải phản hồi tức thì. Chúng tôi từng cho rằng chấm con trỏ chậm một khung hình. Số đo cho thấy không phải vậy: chấm đã được vẽ ngay ở khung hình đầu tiên sau mỗi sự kiện. Thứ thực sự thay đổi là vòng tròn. Một bộ bám giảm chấn tới hạn thay cho lò xo, nhờ đó thời gian để vòng dừng hẳn giảm từ 234–358 mili giây xuống 67–114 mili giây trong bảy trường hợp đo. Chúng tôi cũng bỏ chế độ hòa trộn màu trên quả địa cầu và đổi đĩa hiện ra khi rê chuột thành một lớp trắng mờ. Với thay đổi này, số bài kiểm thử đơn vị lên tới 309, so với 15 lúc Claude Code mới nhận việc. Thay đổi đã được hợp nhất và sẽ có hiệu lực ở lần triển khai tới.
+- **Tài liệu biến thành CSS.** Tailwind quét mọi tệp mà Git theo dõi, nên tên class được trích trong các bản kế hoạch trở thành style của site. Chỉ riêng việc loại thư mục tài liệu ra đã bỏ được 27 quy tắc. Giờ đây Tailwind chỉ quét thư mục mã nguồn.
+- **Con trỏ chuột.** Tôi muốn giữ con trỏ tùy chỉnh nhưng phải phản hồi tức thì. Chúng tôi từng cho rằng chấm con trỏ chậm một khung hình. Số đo cho thấy không phải vậy: chấm đã được vẽ ngay ở khung hình đầu tiên sau mỗi sự kiện. Thứ thực sự thay đổi là vòng tròn. Một bộ bám giảm chấn tới hạn thay cho lò xo, nhờ đó thời gian để vòng dừng hẳn giảm từ 234–358 mili giây xuống 67–114 mili giây trong bảy trường hợp đo. Chúng tôi cũng bỏ chế độ hòa trộn màu trên quả địa cầu và đổi đĩa hiện ra khi rê chuột thành một lớp trắng mờ. Với thay đổi này, số bài kiểm thử đơn vị lên tới 309, so với 15 lúc Claude Code mới nhận việc.
 
 ![Biểu đồ cột: thời gian vòng con trỏ dừng hẳn trong bảy trường hợp, từ 234 đến 358 mili giây với lò xo cũ xuống còn 67 đến 114 mili giây với bộ bám mới](/uploads/labs/how-we-built-spacegear-tech/chart-cursor-vi.webp)
 
@@ -116,6 +116,6 @@ Từ ngày 20 đến 23/10, Claude Code đã tạo 222 commit trên nhánh phát
 
 ## Tiếp theo chúng tôi sẽ làm gì
 
-Bản song ngữ đang được làm: nội dung tiếng Việt cho mọi tệp nội dung, bản sao /vi/ có chuyển hướng theo khu vực và nút đổi ngôn ngữ, cùng các mẫu kiểm tra trung thực bằng tiếng Việt. Chuyên mục spacegear Labs, nơi bài viết này sẽ được đăng, cũng đang được xây dựng. Cả hai đều chưa chạy trên site thật.
+Bài viết này lên mạng cùng lúc với hai phần việc khác. Phần thứ nhất là bản song ngữ: nội dung tiếng Việt cho mọi tệp nội dung, phiên bản /vi/ có chuyển hướng theo khu vực và nút đổi ngôn ngữ, cùng các mẫu kiểm tra trung thực dành cho tiếng Việt. Phần thứ hai là spacegear Labs, chuyên mục bạn đang đọc. Việc tiếp theo trong danh sách của tôi là các lượt kiểm tra bằng mắt trên trình duyệt thật, cùng những bài nhật ký dự án khác được viết theo cùng một cách: ảnh chụp thật, số liệu đo được và giữ nguyên cả những ngõ cụt đã gặp.
 
 Hãy [cho chúng tôi biết bạn muốn cải thiện điều gì](/contact/) nếu bạn muốn làm một dự án tương tự mà mọi quyết định vẫn nằm trong tay bạn.
