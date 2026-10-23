@@ -11,7 +11,6 @@ import { labsArticles } from "@/lib/labs";
 
 /** Whether the section renders in `locale`: only when the language has an article (the home rail lists it only then). */
 export const hasLabs = (locale: Locale) => labsArticles(locale).length > 0;
-export const HAS_LABS = hasLabs("en");
 
 /**
  * The home page's Labs section: the three newest articles in the page's language and a link to all of them. It is
