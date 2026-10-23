@@ -1,8 +1,9 @@
 // Browser checks for the spacegear identity (brand kit, docs/brand/), run by scripts/browser-check.mjs
 // against the running preview. No copy the CMS can change is asserted here: the names below live in
-// the components (Nav.tsx, Wordmark.tsx), not in content/.
-// - identityOnPage, on every route: the nav's home link is named "spacegear home" (its logo is an
-//   aria-hidden SVG, so the name is the label and holds no hidden text); the footer wordmark has one
+// the UI dictionary (src/lib/i18n, read by Nav.tsx) and Wordmark.tsx, not in content/.
+// - identityOnPage, on every route: the nav's home link is named in the page's language ("spacegear home",
+//   "Trang chủ spacegear" on /vi/; its logo is an aria-hidden SVG, so the name is the label and holds no
+//   hidden text); the footer wordmark has one
 //   [data-letter] element per drawn glyph, 9 in all, and they spell its screen-reader name; the page
 //   links an icon and the web manifest, sets a theme colour, and nowhere shows the retired dash
 //   wordmark "space—gear".
@@ -10,13 +11,17 @@
 //   every icon the manifest names is a PNG of the size it states.
 import assert from "node:assert/strict";
 
-export const NAV_HOME_NAME = "spacegear home";
+// The nav's names in each language come from the UI dictionary (TypeScript: run under --experimental-strip-types).
+const { dictionary } = await import("../src/lib/i18n/dictionary.ts");
+const localeOf = (route) => (route === "/vi/" || route.startsWith("/vi/") ? "vi" : "en");
+export const NAV_HOME_NAME = dictionary("en").nav.homeLink;
 export const WORDMARK_LETTERS = 9;
 const OLD_WORDMARK = "space—gear";
 
 export async function identityOnPage(page, route) {
-  const home = page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: NAV_HOME_NAME, exact: true });
-  assert.equal(await home.count(), 1, `${route}: the nav's home link is named "${NAV_HOME_NAME}"`);
+  const nav = dictionary(localeOf(route)).nav;
+  const home = page.getByRole("navigation", { name: nav.label }).getByRole("link", { name: nav.homeLink, exact: true });
+  assert.equal(await home.count(), 1, `${route}: the nav's home link is named "${nav.homeLink}"`);
   const logo = await home.evaluate(link => ({ text: link.textContent.trim(), svgs: link.querySelectorAll('svg[aria-hidden="true"]').length }));
   assert.deepEqual(logo, { text: "", svgs: 1 }, `${route}: the nav logo is one aria-hidden SVG with no hidden text`);
   const state = await page.evaluate(() => {
