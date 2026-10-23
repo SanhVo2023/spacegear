@@ -17,7 +17,9 @@
     "CONTACT_ENABLED": "false",
     "NOTIFICATIONS_ENABLED": "false",
     "OWNER_EMAIL": "",
-    "SENDER_EMAIL": ""
+    "SENDER_EMAIL": "",
+    "GITHUB_CLIENT_ID": "",
+    "GITHUB_OAUTH_SCOPE": "public_repo"
   },
   "d1_databases": [{ "binding": "DB", "database_name": "spacegear-preview", "migrations_dir": "./migrations" }],
   "send_email": [{ "name": "EMAIL" }],
@@ -33,7 +35,9 @@
         "CONTACT_ENABLED": "true",
         "NOTIFICATIONS_ENABLED": "false",
         "OWNER_EMAIL": "",
-        "SENDER_EMAIL": ""
+        "SENDER_EMAIL": "",
+        "GITHUB_CLIENT_ID": "Ov23liI3hsIsE2jT7eFc",
+        "GITHUB_OAUTH_SCOPE": "public_repo"
       },
       "d1_databases": [{ "binding": "DB", "database_name": "spacegear-production", "database_id": "b618e082-fb6d-4d78-9b85-c2a5bb350a7d", "migrations_dir": "./migrations" }],
       "send_email": [{ "name": "EMAIL" }],

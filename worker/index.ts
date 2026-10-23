@@ -1,10 +1,12 @@
 import { handleContact, json } from "./contact.ts";
+import { handleGitHubAuth, isGitHubAuthPath } from "./github-auth.ts";
 import { drainNotifications } from "./notifications.ts";
 import type { RuntimeEnv } from "./types.ts";
 export default {
   async fetch(request:Request,env:RuntimeEnv):Promise<Response> {
     const path=new URL(request.url).pathname;
     if(path==="/api/contact"||path==="/api/contact/")return handleContact(request,env);
+    if(isGitHubAuthPath(path))return handleGitHubAuth(request,env);
     if(path==="/api"||path.startsWith("/api/"))return json({ok:false,code:"not_found"},404);
     return env.ASSETS.fetch(request);
   },
