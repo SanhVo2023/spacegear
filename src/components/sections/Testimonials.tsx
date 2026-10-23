@@ -13,7 +13,6 @@ function reviewsFor(locale: Locale) {
 }
 /** Whether the section renders in `locale` (the home progress rail lists it only then). */
 export const hasTestimonials = (locale: Locale) => reviewsFor(locale).reviews.length > 0;
-export const HAS_TESTIMONIALS = hasTestimonials("en");
 
 export default function Testimonials({ locale = "en" }: { locale?: Locale }) {
   // Renders only real, permission-confirmed quotes (or dev samples).

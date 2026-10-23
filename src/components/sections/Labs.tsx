@@ -16,7 +16,6 @@ function labsFor(locale: Locale) {
 }
 /** Whether the section renders in `locale` (the home progress rail lists it only then). */
 export const hasLabs = (locale: Locale) => labsFor(locale).items.length > 0;
-export const HAS_LABS = hasLabs("en");
 
 function ArticleCard({ a, locale }: { a: Article; locale: Locale }) {
   const t = dictionary(locale).labs;
