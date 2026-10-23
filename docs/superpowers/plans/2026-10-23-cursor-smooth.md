@@ -577,3 +577,13 @@ The spec's requirements and where they are handled:
 **One deviation by necessity: the hover fill.** Without blending, the 64 px solid white hover disc would hide the link text under it, so the fill becomes 16% white. The owner should feel-check it.
 
 **One addition: a pointer-down hide.** A non-mouse pointer-down also hides the cursor, so a touch tap on a hybrid laptop hides it even when the browser sends no `pointerrawupdate` for touch.
+
+## Amendments made during execution
+
+1. **The dot was already painted in the first frame after each event.** The BEFORE run used headless Chromium 156 at 1440×900, rendering on ANGLE D3D11 with the NVIDIA GTX 1660 Ti (not the AMD iGPU). The Motion-driven dot showed 0 late frames at p95, and the event-to-frame-ready time was the same as AFTER.
+   - Chromium dispatches frame-aligned `pointermove` before the frame's animation callbacks, so Motion's render runs in the same frame.
+   - So the dot-latency check passes on both versions. It pins the behaviour; it does not prove the change.
+   - What the change does deliver: the ring, no compositor blending, and no Motion work per move.
+2. **The glide is about one step per frame.** An awaited `page.mouse.move` returns only once the page has taken the move, about one frame later, so the fx-checks glide advances about one step per frame. The comments now say so.
+   - The scratch measurement adds a second driver: raw CDP `Input.dispatchMouseEvent` every 8 ms, not awaited. That is a real 125 Hz mouse, with several moves per frame, coalesced.
+3. **The outline is checked per state.** Over the globe the cursor reads Drag, and the orange label disc keeps its outline-free look by design. So the check expects no ring outline in the label state, and checks the white ring's outline over a nav link (hover state).
