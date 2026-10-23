@@ -39,7 +39,7 @@ const CSP = "content-security-policy";
 const SECURITY_HEADERS = [CSP, "x-robots-tag", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy"];
 const TOLERATED = ["connect-src blocked https://unpkg.com/@sveltia/cms/package.json"];
 const GITHUB_STATUS = "https://www.githubstatus.com/api/v2/status.json";
-const COLLECTIONS = ["Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Legal pages"];
+const COLLECTIONS = ["Site and sections", "Services", "Engagements", "Questions & Answers", "Team disciplines", "Testimonials", "Labs", "Legal pages"];
 const PROBE = "/uploads/__browser-check";
 const FONT_CACHE = "artifacts/cms-fonts";
 const sha256 = (data) => crypto.createHash("sha256").update(data).digest("hex");

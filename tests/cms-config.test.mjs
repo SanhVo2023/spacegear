@@ -7,6 +7,7 @@ import { configProblems, loadSchema } from "../scripts/check-sveltia-config.mjs"
 const { contentSchemas, SINGLETON_FILES, COLLECTION_NAMES } = await import("../src/lib/content-model.ts");
 const { SERVICES } = await import("../src/lib/content.ts");
 const { LEGAL_BODY_PATTERN, parseLegalMarkdown } = await import("../src/lib/legal-markdown.ts");
+const { IMAGE, SLUG } = await import("../src/lib/content-schema.ts");
 const config = load(fs.readFileSync("public/admin/config.yml", "utf8"));
 const schemas = contentSchemas(SERVICES.map((service) => service.slug));
 const pages = config.collections.find((collection) => collection.name === "pages");
@@ -175,10 +176,48 @@ test("the legal body pattern mirrors the parser: a '## ' heading first, no inlin
   }
 });
 
+// Labs (bilingual spec, Part 3): Markdown files whose front matter src/lib/labs-files.ts checks. Sveltia
+// writes the fields in this order, then the body after the front matter (body_field: body).
+test("Labs: Markdown articles in content/articles and content/vi/articles; English always kept, Vietnamese optional; the slug fixed after the first save", async () => {
+  const { articleSchema } = await import("../src/lib/labs-files.ts");
+  const labs = config.collections.find((collection) => collection.name === "labs");
+  assert.ok(labs, "labs is a CMS collection");
+  assert.deepEqual([labs.label, labs.folder, labs.extension, labs.format, labs.create], ["Labs", "content/{{locale}}/articles", "md", "frontmatter", true]);
+  for (const locale of ["en", "vi"]) assert.ok(fs.existsSync(localePath(labs.folder, locale)), `${localePath(labs.folder, locale)} exists`);
+  assert.equal(labs.identifier_field, "title");
+  // Typed on creation (no template, so the CMS requires it): "{{title}}" would read the empty English title of a
+  // Vietnamese-only article, and Sveltia 0.230.1 then falls back to a random ID for the file names.
+  const { hint, ...slug } = labs.slug;
+  assert.deepEqual(slug, { editable: ["create"], pattern: [SLUG.source, "Use lowercase letters, digits and single hyphens"] });
+  assert.match(hint, /cannot change after the first save/);
+  assert.deepEqual(labs.sortable_fields, { fields: ["date", "title"], default: { field: "date", direction: "descending" } });
+  assert.deepEqual(labs.fields.map((field) => [field.name, field.widget, field.i18n, field.required ?? true]), [
+    ["title", "string", true, false], ["summary", "text", true, false], ["cover", "image", "duplicate", true], ["coverAlt", "string", true, false],
+    ["date", "datetime", "duplicate", true], ["updated", "datetime", "duplicate", false], ["author", "string", "duplicate", true], ["body", "markdown", true, false],
+  ]);
+  const shape = articleSchema.meta.shape;
+  assert.deepEqual(labs.fields.map((field) => field.name).filter((name) => name !== "body"), Object.keys(shape), "the front matter fields follow articleSchema, in order");
+  for (const name of ["title", "summary", "coverAlt", "author"]) assert.equal(labs.fields.find((field) => field.name === name).maxlength, shape[name].meta.max, `${name}: maxlength`);
+  // While an upload is pending, Sveltia 0.230.1 tests an image field's pattern against the new file's name
+  // (no /uploads/ folder yet), so the cover accepts IMAGE or a file name without a folder that is not an SVG.
+  const cover = labs.fields.find((field) => field.name === "cover");
+  assert.equal(cover.pattern[0], String.raw`^(?:${IMAGE.source.slice(1, -1)}|(?![^/]*\.[Ss][Vv][Gg]$)[^/]+)$`, "cover: IMAGE, or the name of a file being uploaded");
+  const coverAccepts = (value) => new RegExp(cover.pattern[0]).test(value);
+  for (const value of ["/uploads/cover.webp", "/images/suite/neural-net.webp", "cover.webp", "Ảnh bìa.jpg"]) assert.ok(coverAccepts(value), `cover accepts ${value}`);
+  for (const value of ["/uploads/cover.svg", "cover.svg", "Cover.SVG", "/elsewhere/cover.webp", "/uploads/Cover.webp", "uploads/cover.webp", "https://example.com/cover.webp"]) assert.equal(coverAccepts(value), false, `cover refuses ${value}`);
+  for (const name of ["date", "updated"]) assert.deepEqual(["format", "time_format"].map((key) => labs.fields.find((field) => field.name === name)[key]), ["YYYY-MM-DD", false], name);
+  const body = labs.fields.find((field) => field.name === "body");
+  assert.deepEqual(body.buttons, ["bold", "italic", "code", "link", "heading-two", "heading-three", "heading-four", "quote", "bulleted-list", "numbered-list"]);
+  assert.deepEqual(body.editor_components, ["image", "code-block"]);
+  assert.deepEqual(body.modes, ["rich_text", "raw"]);
+  for (const field of labs.fields.filter((item) => ["string", "text", "markdown"].includes(item.widget))) assert.equal(field.use_emoji_autocomplete, false, field.name);
+});
+
 test("i18n: English stays at today's paths, Vietnamese mirrors it under content/vi/, and every Vietnamese entry is required", () => {
   assert.deepEqual(config.i18n, { structure: "multiple_folders", locales: ["en", "vi"], default_locale: "en", omit_default_locale_from_file_path: true });
   for (const collection of config.collections) {
-    assert.equal(collection.i18n, true, `${collection.name}: i18n`);
+    if (collection.name === "labs") assert.deepEqual(collection.i18n, { initial_locales: "all" }, "labs: Vietnamese is optional per article");
+    else assert.equal(collection.i18n, true, `${collection.name}: i18n`);
     for (const file of collection.files ?? []) {
       assert.equal(file.i18n, true, `${collection.name}/${file.name}: i18n`);
       assert.match(file.file, /^content\/\{\{locale\}\}\//, file.file);
@@ -186,7 +225,7 @@ test("i18n: English stays at today's paths, Vietnamese mirrors it under content/
     }
     if (collection.folder) {
       assert.match(collection.folder, /^content\/\{\{locale\}\}\//, collection.folder);
-      assert.equal(collection.initial_locales, undefined, `${collection.name}: both languages are always saved (Vietnamese cannot be switched off)`);
+      if (collection.name !== "labs") assert.equal(collection.initial_locales, undefined, `${collection.name}: both languages are always saved (Vietnamese cannot be switched off)`);
     }
   }
 });

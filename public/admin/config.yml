@@ -715,6 +715,53 @@ collections:
       - { name: permissionConfirmed, label: The client gave written permission to publish this quote, widget: boolean, i18n: duplicate, default: false }
       - *order
 
+  # Labs (bilingual spec, Part 3): Markdown articles at /labs/<slug>/ and /vi/labs/<slug>/. English is always
+  # saved (Sveltia keeps the default language): for an article in Vietnamese only, leave the English title,
+  # summary, cover description and text empty. Switch "Vietnamese" off for an English-only article. The cover, the
+  # dates and the author are shared. Each save is a commit, and the article is live when that build finishes.
+  # scripts/check-content.mjs checks every article (src/lib/labs-files.ts, src/lib/markdown.ts) and the honesty rules.
+  - name: labs
+    label: Labs
+    label_singular: Article
+    icon: article
+    description: Articles in English and/or Vietnamese. Leave the English text empty for a Vietnamese-only article; switch Vietnamese off for an English-only one. No raw HTML.
+    folder: content/{{locale}}/articles
+    extension: md
+    format: frontmatter
+    identifier_field: title
+    create: true
+    i18n:
+      initial_locales: all
+    # The slug is typed when the article is created and shared by both languages. No template: "{{title}}"
+    # reads the English title, which a Vietnamese-only article leaves empty, and Sveltia 0.230.1 then names the
+    # files with a random ID such as 52733b88b8aa. Without a template the CMS asks for the slug before it saves.
+    slug:
+      editable: [create]
+      hint: "Type the end of the article's address, such as measuring-a-workflow for /labs/measuring-a-workflow/ and /vi/labs/measuring-a-workflow/. It cannot change after the first save."
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', "Use lowercase letters, digits and single hyphens"]
+    sortable_fields: { fields: [date, title], default: { field: date, direction: descending } }
+    fields:
+      - { name: title, label: Title, widget: string, maxlength: 120, required: false, i18n: true, use_emoji_autocomplete: false }
+      - { name: summary, label: Summary, widget: text, maxlength: 200, required: false, i18n: true, hint: "One or two sentences for the index, the home page and search results.", use_emoji_autocomplete: false }
+      # The pattern is IMAGE from src/lib/content-schema.ts, or a file name without a folder: while an upload is
+      # pending, Sveltia 0.230.1 tests the pattern against the new file's name (no /uploads/ yet), so IMAGE alone
+      # would refuse every new upload. Once saved, the value is /uploads/<name> and check-content checks it again.
+      - { name: cover, label: Cover image, widget: image, choose_url: true, i18n: duplicate, hint: "The article's own image, uploaded here; it is also the social preview.", pattern: ['^(?:(?!\/uploads\/.*\.svg$)(?!\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*(?:con|prn|aux|nul|com\d|lpt\d)[./])\/(?:images|uploads)\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.(?:webp|png|jpe?g|avif|gif|svg)|(?![^/]*\.[Ss][Vv][Gg]$)[^/]+)$', "Use a lowercase file name (letters, digits, - or _) ending in .webp, .png, .jpg, .jpeg, .avif or .gif under /images/ or /uploads/ (.svg only under /images/), not a Windows device name such as con or nul"] }
+      - { name: coverAlt, label: Cover description, widget: string, maxlength: 160, required: false, i18n: true, hint: "Describe the cover for screen readers.", use_emoji_autocomplete: false }
+      - { name: date, label: Published, widget: datetime, format: YYYY-MM-DD, time_format: false, i18n: duplicate }
+      - { name: updated, label: Updated, widget: datetime, format: YYYY-MM-DD, time_format: false, required: false, i18n: duplicate, hint: "Only when the article changed in substance." }
+      - { name: author, label: Author, widget: string, maxlength: 60, i18n: duplicate, hint: "A real person's name.", use_emoji_autocomplete: false }
+      - name: body
+        label: Article
+        widget: markdown
+        required: false
+        i18n: true
+        hint: "Headings ## to ####, lists, links, images (with a description), quotes and code. No raw HTML."
+        buttons: [bold, italic, code, link, heading-two, heading-three, heading-four, quote, bulleted-list, numbered-list]
+        editor_components: [image, code-block]
+        modes: [rich_text, raw]
+        use_emoji_autocomplete: false
+
   - name: legal
     label: Legal pages
     icon: gavel
