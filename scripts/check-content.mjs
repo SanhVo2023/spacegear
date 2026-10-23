@@ -13,7 +13,7 @@ import { contentParityProblems } from "../src/lib/content-parity.ts";
 import { INDEX_FILE, ROOT, readIndex, renderIndex } from "./build-content-index.mjs";
 import { scanContentTree, scanExports } from "./lib/honesty.mjs";
 import { imageReferenceProblems, missingImageFiles } from "./lib/content-assets.mjs";
-import { contentRuleProblems } from "./lib/content-rules.mjs";
+import { addressProblems, contentRuleProblems } from "./lib/content-rules.mjs";
 import { readLocaleFiles } from "./lib/content-input.mjs";
 import { pathsFromRoot } from "./lib/project-path.mjs";
 import { CACHE_DIR, locationProblems, uploadProblems } from "./lib/uploads.mjs";
@@ -74,8 +74,10 @@ await attempt(() => { if (readIndex() !== renderIndex()) errors.push(`${INDEX_FI
 const content = await attempt(() => import("../src/lib/content.ts"));
 // Building the Vietnamese copy validates content/vi/ the same way (problems name content/vi/ files).
 const vietnamese = content ? await attempt(() => content.getContent("vi")) : undefined;
-await attempt(() => parseContent(siteSchema, readJson("content/site.json"), "content/site.json"));
-await attempt(() => parseContent(siteSchema, readJson("content/vi/site.json"), "content/vi/site.json"));
+// Site identity in both languages; the full address must begin with the street line (scripts/lib/content-rules.mjs).
+for (const file of ["content/site.json", "content/vi/site.json"]) {
+  await attempt(() => { errors.push(...addressProblems(parseContent(siteSchema, readJson(file), file), file)); });
+}
 for (const page of LEGAL_PAGES) {
   const english = await attempt(() => legalSections(page, ROOT, "en"));
   const translated = await attempt(() => legalSections(page, ROOT, "vi"));

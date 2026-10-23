@@ -55,11 +55,18 @@ const count = () => text({ max: 7, pattern: COUNT, message: "use a count such as
 const order = () => number({ min: 1, max: 999, integer: true });
 const link = () => object({ label: text({ max: 30 }), href: href() });
 
-/** content/site.json (read by src/lib/site.ts; the rest of SITE comes from environment variables). */
+/**
+ * content/site.json and content/vi/site.json (read by src/lib/site.ts; the rest of SITE comes from environment
+ * variables). The address and the telephone are the owner's facts (bilingual spec, decision 4). The honesty scan
+ * allows them only in these fields, and they must read exactly as on the Google Business Profile
+ * (docs/operations/google-business-profile.md). `street` and `locality` feed the PostalAddress structured data.
+ */
 export const siteSchema = object({
   name: text({ max: 40 }),
   description: text({ max: 200 }),
   socialProfiles: list(text({ max: 200, pattern: /^https:\/\/\S+$/, message: "use a full https:// profile address" }), { max: 8 }),
+  address: object({ full: text({ max: 120 }), street: text({ max: 80 }), locality: text({ max: 40 }) }),
+  telephone: text({ max: 12, pattern: /^\+84\d{9}$/, message: "use the international format with no spaces, such as +84386749799" }),
 });
 
 /** Every content schema. Fields that name a service only accept the slugs of the service entries. */

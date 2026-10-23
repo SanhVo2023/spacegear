@@ -4,7 +4,8 @@
 // Tests that change entries by name or position use the frozen sample project
 // (tests/fixtures/sample-project/content/, a copy of content/ as it was when the CMS landed, and its
 // content/vi/ mirror as it was when the Vietnamese copy landed, so a temporary project builds both
-// languages), not the live content/: editors add, delete, rename and reorder live entries, and that
+// languages; both site.json files gained the owner's address and telephone when Site identity
+// required them), not the live content/: editors add, delete, rename and reorder live entries, and that
 // must never break npm test. The sample is never refreshed; change it only together with the tests
 // that use it.
 import fs from "node:fs";

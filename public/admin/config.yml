@@ -113,6 +113,16 @@ collections:
             required: false
             max: 8
             field: { name: url, label: Profile address, widget: string, maxlength: 200, i18n: duplicate, pattern: ['^https:\/\/\S+$', "Use a full https:// profile address"], use_emoji_autocomplete: false }
+          - name: address
+            label: Address
+            hint: "Exactly as on the Google Business Profile (docs/operations/google-business-profile.md). The honesty check allows the address and the phone number only here."
+            widget: object
+            i18n: true
+            fields:
+              - { name: full, label: Full address (shown on the site), widget: string, maxlength: 120, i18n: true, use_emoji_autocomplete: false }
+              - { name: street, label: Street line (structured data), widget: string, maxlength: 80, i18n: true, hint: "The start of the full address, up to the ward.", use_emoji_autocomplete: false }
+              - { name: locality, label: City (structured data), widget: string, maxlength: 40, i18n: true, use_emoji_autocomplete: false }
+          - { name: telephone, label: Telephone, widget: string, maxlength: 12, i18n: duplicate, hint: "International format with no spaces: +84386749799. The site shows 0386 749 799 in Vietnamese and +84 386 749 799 in English.", pattern: ['^\+84\d{9}$', "Use the international format with no spaces, such as +84386749799"], use_emoji_autocomplete: false }
 
       - name: home
         label: "Home: hero"

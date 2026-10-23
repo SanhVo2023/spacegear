@@ -161,3 +161,11 @@ export function contentRuleProblems(content, routes, { locale = "en" } = {}) {
   ];
   return locale === "en" ? problems : problems.map((problem) => problem.replace(/^content\//, "content/vi/").replace(/^link in export /, "link in Vietnamese export "));
 }
+
+/** The full address begins with the street line, so the page and the structured data never disagree. */
+export function addressProblems(site, file) {
+  const { full, street } = site.address ?? {};
+  return typeof full === "string" && typeof street === "string" && !full.startsWith(street)
+    ? [`${file}: address.full must begin with address.street (${quote(street)}), the street line that the structured data and Google Business Profile use`]
+    : [];
+}
