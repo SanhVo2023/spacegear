@@ -5,6 +5,9 @@
 @source not "../../public/admin";
 @source not "../../scripts/sveltia-cms.schema.json";
 @source not "../../content";
+@source not "../../docs/brand/guidelines.html";
+@source not "../../docs/brand/guidelines.pdf";
+@source not "../../docs/brand/build-guidelines-pdf.mjs";
 /* <<< CMS */
 
 @theme inline {
