@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useMotionValue, useSpring } from "motion/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createIdleLoop } from "./idle-loop";
+import { trailStep, type Trail } from "./math";
 
 type CursorState = "hidden" | "idle" | "hover" | "label" | "text";
 
@@ -11,19 +12,30 @@ const INTERACTIVE = 'a[href], button, summary, label, [role="button"], [role="sw
 /** Over form fields the custom cursor steps aside for the native caret. */
 const TEXT_ENTRY = 'input, textarea, select, [contenteditable=""], [contenteditable="true"]';
 const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta"]);
-const RING = { stiffness: 480, damping: 38, mass: 0.6 };
+/** A pointer this far (px) from the ring, re-entering the window say, puts the ring on it at once. */
+const RING_SNAP = 300;
+
+function place(el: HTMLElement, x: number, y: number) {
+  el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+}
+
+/** The newest point an input event carries: the last coalesced one when the browser merged several. */
+function latest(event: PointerEvent) {
+  const merged = event.getCoalescedEvents?.();
+  return merged?.length ? merged[merged.length - 1] : event;
+}
 
 /**
- * Dot + ring cursor for fine-pointer desktops (FxLayer mounts it only there), inverted against the page.
- * The ring grows over interactive elements and shows the label of the nearest [data-cursor] ("View",
- * "Drag", "Open"). Over form fields and during keyboard use it steps aside and the native cursor returns,
- * so it never covers a focus ring. It is click-through and hidden from assistive technology.
+ * Dot + ring cursor for fine-pointer desktops (FxLayer mounts it only there). The dot is written straight
+ * from the input event (pointerrawupdate where the browser has it), so it is painted in the next frame. The
+ * ring trails it on a critically damped follower (trailStep) whose frame loop stops once it rests. The ring
+ * grows over interactive elements and shows the label of the nearest [data-cursor] ("View", "Drag", "Open").
+ * Over form fields and during keyboard use it steps aside and the native cursor returns, so it never covers
+ * a focus ring. It is click-through and hidden from assistive technology.
  */
 export default function Cursor() {
-  const x = useMotionValue(-100);
-  const y = useMotionValue(-100);
-  const ringX = useSpring(x, RING);
-  const ringY = useSpring(y, RING);
+  const dotRef = useRef<HTMLSpanElement>(null);
+  const ringRef = useRef<HTMLSpanElement>(null);
   const [state, setState] = useState<CursorState>("hidden");
   const [label, setLabel] = useState("");
   const pathname = usePathname();
@@ -31,7 +43,19 @@ export default function Cursor() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const dot = dotRef.current;
+    const ring = ringRef.current;
+    if (!dot || !ring) return;
     let visible = false;
+    let px = -100;
+    let py = -100;
+    let trail: Trail = { x: px, y: py, vx: 0, vy: 0 };
+    const loop = createIdleLoop((_, dt) => {
+      const step = trailStep(trail, px, py, dt / 1000);
+      trail = step.trail;
+      place(ring, trail.x, trail.y);
+      return step.moving;
+    });
     const classify = (target: EventTarget | null) => {
       const el = target instanceof Element ? target : null;
       if (!el) {
@@ -55,20 +79,31 @@ export default function Cursor() {
       root.removeAttribute("data-fx-cursor");
       setState("hidden");
     };
-    const onMove = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") {
+    const onMove = (event: Event) => {
+      const pointer = event as PointerEvent;
+      if (pointer.pointerType !== "mouse") {
         if (visible) hide();
         return;
       }
-      x.set(event.clientX);
-      y.set(event.clientY);
+      const point = latest(pointer);
+      px = point.clientX;
+      py = point.clientY;
+      place(dot, px, py);
+      if (!visible || Math.hypot(px - trail.x, py - trail.y) > RING_SNAP) {
+        loop.stop();
+        trail = { x: px, y: py, vx: 0, vy: 0 };
+        place(ring, px, py);
+      } else {
+        loop.start();
+      }
       if (!visible) {
         visible = true;
-        ringX.jump(event.clientX);
-        ringY.jump(event.clientY);
         root.setAttribute("data-fx-cursor", "");
-        classify(event.target);
+        classify(pointer.target);
       }
+    };
+    const onDown = (event: PointerEvent) => {
+      if (visible && event.pointerType !== "mouse") hide();
     };
     const onOver = (event: PointerEvent) => {
       if (visible && event.pointerType === "mouse") classify(event.target);
@@ -81,15 +116,20 @@ export default function Cursor() {
     };
     // A click navigation swaps the page under a still pointer, and not every browser sends pointerover then.
     recheck.current = () => {
-      if (visible) classify(document.elementFromPoint(x.get(), y.get()));
+      if (visible) classify(document.elementFromPoint(px, py));
     };
-    window.addEventListener("pointermove", onMove, { passive: true });
+    // pointerrawupdate (Chromium, secure contexts) fires as soon as the input arrives, not aligned to a frame.
+    const move = "onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove";
+    window.addEventListener(move, onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
     document.addEventListener("pointerover", onOver, { passive: true });
     document.addEventListener("pointerout", onOut, { passive: true });
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("blur", hide);
     return () => {
-      window.removeEventListener("pointermove", onMove);
+      loop.stop();
+      window.removeEventListener(move, onMove);
+      window.removeEventListener("pointerdown", onDown);
       document.removeEventListener("pointerover", onOver);
       document.removeEventListener("pointerout", onOut);
       window.removeEventListener("keydown", onKey, true);
@@ -97,24 +137,25 @@ export default function Cursor() {
       root.removeAttribute("data-fx-cursor");
       recheck.current = () => {};
     };
-  }, [x, y, ringX, ringY]);
+  }, []);
 
   // After a route change, read again what is under the pointer (a stale "View" would otherwise stay).
   useEffect(() => {
     recheck.current();
   }, [pathname]);
 
+  // The two moving spans carry no React style: their transforms are written directly, outside rendering.
   return (
     <div aria-hidden data-fx-cursor-root="" data-state={state} className="fx-cursor">
       {/* The outer span carries the position, the inner one scales: CSS `scale` applies outside `transform`,
           so scaling the positioned span itself would pull the dot toward the viewport origin. */}
-      <motion.span className="fx-cursor-dot-pos" style={{ x, y }}>
+      <span ref={dotRef} className="fx-cursor-dot-pos">
         <span className="fx-cursor-dot" />
-      </motion.span>
-      <motion.span className="fx-cursor-ring" style={{ x: ringX, y: ringY }}>
+      </span>
+      <span ref={ringRef} className="fx-cursor-ring">
         <span className="fx-cursor-disc" />
         <span className="fx-cursor-label">{label}</span>
-      </motion.span>
+      </span>
     </div>
   );
 }
