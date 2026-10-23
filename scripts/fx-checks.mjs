@@ -120,6 +120,109 @@ export function matrixOf(locator) {
   });
 }
 
+/** Starts recording, in the page, every pointer point (coalesced ones included) and, once per frame, where the
+ *  cursor's dot and ring sit in that frame. A ResizeObserver callback reads them: it runs after every animation-frame
+ *  callback, once style and layout are done, just before paint, so it reads what the frame paints. */
+export function probeCursor(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const dot = root.querySelector(".fx-cursor-dot-pos");
+    const ring = root.querySelector(".fx-cursor-ring");
+    const at = (el) => {
+      const transform = getComputedStyle(el).transform;
+      const m = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
+      return [m.m41, m.m42];
+    };
+    const log = { points: [], frames: [] };
+    const onMove = (event) => {
+      const merged = event.getCoalescedEvents?.() ?? [];
+      for (const p of merged.length ? merged : [event]) log.points.push({ t: p.timeStamp, x: p.clientX, y: p.clientY });
+    };
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;visibility:hidden;pointer-events:none";
+    document.body.append(probe);
+    let frameTime = 0;
+    let running = true;
+    const observer = new ResizeObserver(() => {
+      if (frameTime) log.frames.push({ t: frameTime, ready: performance.now(), dot: at(dot), ring: at(ring) });
+    });
+    observer.observe(probe);
+    const tick = (time) => {
+      if (!running) return;
+      frameTime = time;
+      probe.style.height = probe.style.height === "2px" ? "1px" : "2px"; // a resize every frame wakes the observer
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    window.addEventListener("pointermove", onMove, { capture: true, passive: true });
+    window.__cursorProbe = () => {
+      running = false;
+      observer.disconnect();
+      probe.remove();
+      window.removeEventListener("pointermove", onMove, { capture: true });
+      return log;
+    };
+  });
+}
+
+/** Stops probeCursor and returns its log. */
+export function stopProbe(page) {
+  return page.evaluate(() => window.__cursorProbe());
+}
+
+/** Moves the mouse from `from` to `to` in `steps` integer moves, one every `every` ms (a 125 Hz mouse): x rises
+ *  at every step (so each position names one move), and y rides a gentle wave. */
+export async function glide(page, from, to, { steps = 200, every = 8, wave = 60 } = {}) {
+  let next = performance.now();
+  for (let i = 1; i <= steps; i++) {
+    const f = i / steps;
+    next += every;
+    while (performance.now() < next) await new Promise((resolve) => setImmediate(resolve));
+    await page.mouse.move(Math.round(from.x + (to.x - from.x) * f), Math.round(from.y + (to.y - from.y) * f + wave * Math.sin(f * Math.PI * 2)));
+  }
+}
+
+const percentile = (values, p) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1)] : NaN;
+};
+
+/** Reads a probeCursor log taken over a glide.
+ *  - For each move: `late` counts the frames that started after the move and still did not show it (0 means
+ *    painted in the first frame after the event); `ms` is the time until the frame that shows it was ready.
+ *  - `long`: frames longer than 25 ms while the pointer moved.
+ *  - `ringSettle`: the ms after the last move until the ring rests on the pointer (within 0.5 px) for good. */
+export function cursorTiming({ points, frames }) {
+  const byX = new Map(points.map((p, i) => [p.x, i]));
+  const shown = frames.map((f) => {
+    const i = byX.get(f.dot[0]);
+    return i !== undefined && Math.abs(points[i].y - f.dot[1]) < 0.01 ? i : -1;
+  });
+  const late = [];
+  const ms = [];
+  let cover = 0;
+  for (let i = 0; i < points.length; i++) {
+    while (cover < frames.length && shown[cover] < i) cover++;
+    if (cover === frames.length) break;
+    late.push(frames.slice(0, cover).filter((f) => f.t > points[i].t).length);
+    ms.push(frames[cover].ready - points[i].t);
+  }
+  const end = points.at(-1);
+  const steps = frames.slice(1).map((f, i) => ({ t: f.t, step: f.t - frames[i].t })).filter((f) => f.t >= points[0].t && f.t <= end.t + 50);
+  const off = frames.findLastIndex((f) => Math.hypot(f.ring[0] - end.x, f.ring[1] - end.y) > 0.5 || f.dot[0] !== end.x || f.dot[1] !== end.y);
+  const r1 = (v) => Math.round(v * 10) / 10;
+  return {
+    moves: points.length,
+    painted: late.length,
+    lateFrames: { p50: percentile(late, 0.5), p95: percentile(late, 0.95), max: Math.max(...late) },
+    ms: { p50: r1(percentile(ms, 0.5)), p95: r1(percentile(ms, 0.95)), max: r1(Math.max(...ms)) },
+    frames: steps.length,
+    long: steps.filter((f) => f.step > 25).length,
+    longest: r1(Math.max(0, ...steps.map((f) => f.step))),
+    ringSettle: off + 1 < frames.length ? r1(frames[off + 1].ready - end.t) : Infinity,
+  };
+}
+
 async function fxState(page) {
   return page.evaluate(() => {
     const root = document.documentElement;
@@ -415,6 +518,64 @@ desktop("the cursor never takes a pointer event, and the live globe labels it Dr
     };
   }, spot);
   assert.deepEqual(over, { state: "label", label: "Drag", clickThrough: true, hitsGlobe: true, hidden: "true" }, "desktop: over the live globe the cursor reads Drag, passes every pointer event to the globe and stays hidden from assistive technology");
+});
+
+/** Blend modes other than normal anywhere in the cursor. */
+function cursorBlends(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    return [root, ...root.querySelectorAll("*")].map((el) => getComputedStyle(el).mixBlendMode).filter((mode) => mode !== "normal");
+  });
+}
+
+desktop("the cursor dot is painted in the first frame after each move, over the globe, and never blends", async (page) => {
+  await page.waitForSelector('#home .hero-scene[data-cursor="Drag"]', { timeout: 45000 }); // the live globe renders under the path
+  await page.mouse.move(700, 480);
+  await page.mouse.move(710, 480, { steps: 2 });
+  await page.waitForTimeout(400);
+  await probeCursor(page);
+  await glide(page, { x: 720, y: 480 }, { x: 1320, y: 480 }, { steps: 200 });
+  await page.waitForTimeout(400);
+  const timing = cursorTiming(await stopProbe(page));
+  const facts = JSON.stringify(timing);
+  assert.ok(timing.painted >= 190, `desktop: the probe saw the dot reach the glide's moves (${facts})`);
+  assert.ok(timing.lateFrames.p95 === 0 && timing.lateFrames.max <= 1, `desktop: the dot is painted in the first frame after each move, at worst one frame later (${facts})`);
+  assert.deepEqual(await cursorBlends(page), [], "desktop: over the globe (Drag) the cursor does not blend");
+  const look = await page.evaluate(() => {
+    const root = document.querySelector("[data-fx-cursor-root]");
+    const style = (selector) => getComputedStyle(root.querySelector(selector));
+    return {
+      dotOutline: style(".fx-cursor-dot").boxShadow !== "none",
+      ringOutline: style(".fx-cursor-disc").boxShadow !== "none",
+      promoted: [style(".fx-cursor-dot-pos").willChange, style(".fx-cursor-ring").willChange, getComputedStyle(root).willChange],
+    };
+  });
+  assert.deepEqual(look, { dotOutline: true, ringOutline: true, promoted: ["transform", "transform", "auto"] }, "desktop: the white dot and ring carry a dark outline, and only the moving layers are promoted");
+  const link = await page.locator('header a[href="/about/"]').first().boundingBox();
+  await page.mouse.move(link.x + link.width / 2, link.y + link.height / 2, { steps: 4 });
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => document.querySelector("[data-fx-cursor-root]").dataset.state), "hover", "desktop: over a nav link the cursor morphs (precondition)");
+  assert.deepEqual(await cursorBlends(page), [], "desktop: over a link the cursor does not blend");
+});
+
+desktop("the cursor ring settles on the pointer within 150 ms of a stop, snaps across long jumps, then requests no frames", async (page) => {
+  await jumpTo(page, await sectionTop(page, "pricing"));
+  await page.mouse.move(6, 420);
+  await page.waitForTimeout(800);
+  await probeCursor(page);
+  await glide(page, { x: 20, y: 420 }, { x: 620, y: 420 }, { steps: 100, wave: 40 }); // 6 px every 8 ms: 750 px/s
+  await page.waitForTimeout(500);
+  const timing = cursorTiming(await stopProbe(page));
+  assert.ok(timing.ringSettle <= 150, `desktop: the ring rests on the pointer within 150 ms of a stop (${JSON.stringify(timing)})`);
+  await probeCursor(page);
+  await page.mouse.move(1100, 700); // one 530 px jump
+  await page.waitForTimeout(300);
+  const jump = await stopProbe(page);
+  const landed = jump.frames.find((f) => f.dot[0] === 1100 && f.dot[1] === 700);
+  assert.deepEqual(landed?.ring, [1100, 700], "desktop: after a jump of more than 300 px the ring is on the pointer in the same frame as the dot");
+  await page.waitForTimeout(600);
+  const frames = await idleFrames(page);
+  assert.ok(frames <= 2, `desktop: a resting cursor requests no frames (${frames} in 300 ms)`);
 });
 
 desktop("magnetic CTAs lean toward the pointer and nudge their arrow", async (page) => {
