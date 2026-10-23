@@ -1,0 +1,32 @@
+{
+  "order": 4,
+  "slug": "automation-integration",
+  "name": "Tự động hóa & tích hợp hệ thống",
+  "shortName": "Tự động hóa & tích hợp",
+  "category": "Kết nối",
+  "image": "/images/suite/scale-matrix.webp",
+  "summary": "Chúng tôi kết nối các công cụ bạn đang dùng, giảm việc thủ công lặp lại, nhưng vẫn để các ngoại lệ và quyền kiểm soát luôn rõ ràng.",
+  "buyerProblem": "Việc sao chép thông tin giữa các công cụ rời rạc vừa tốn sự tập trung vừa gây ra những lỗi lẽ ra có thể tránh được. Chúng tôi thiết kế lại quy trình làm việc, kết nối các hệ thống và giúp các bước chuyển giao dễ hiểu, dễ quản lý hơn.",
+  "deliverables": [
+    "Quy trình làm việc được thiết kế lại và sơ đồ tích hợp",
+    "Kết nối API và các bước chuyển giao tự động",
+    "Cơ chế xử lý ngoại lệ và các bước phê duyệt của con người",
+    "Khả năng theo dõi vận hành và tài liệu bảo trì"
+  ],
+  "process": [
+    "Chúng tôi lập sơ đồ các công việc lặp lại và những trường hợp ngoại lệ đi kèm.",
+    "Chúng tôi kết nối các hệ thống với quy tắc và trách nhiệm rõ ràng.",
+    "Chúng tôi kiểm thử toàn bộ quy trình và chuẩn bị bàn giao."
+  ],
+  "faqs": [
+    {
+      "question": "spacegear.tech có làm việc được với các công cụ tôi đang dùng không?",
+      "answer": "Trước hết, chúng tôi đánh giá API, cơ chế phân quyền truy cập và các phương án tích hợp của những công cụ đó. Hệ thống hiện có là một phần của điểm xuất phát, không phải lý do mặc nhiên để thay thế."
+    },
+    {
+      "question": "Nếu một bước tự động gặp lỗi thì sao?",
+      "answer": "Thiết kế đã bao gồm phần xử lý lỗi, cơ chế thử lại an toàn và một bước để con người xem xét các trường hợp ngoại lệ. Những tình huống này được kiểm thử song song với các lượt chạy thành công."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

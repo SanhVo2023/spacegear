@@ -1,0 +1,47 @@
+{
+  "featured": {
+    "label": "Dịch vụ nổi bật",
+    "name": "AI ứng dụng",
+    "slug": "applied-ai"
+  },
+  "lineup": {
+    "label": "Danh mục dịch vụ",
+    "count": "5/5",
+    "title": "Chúng tôi đảm nhận cả chiến lược lẫn triển khai",
+    "text": "Chuyển đổi số, chiến lược AI, AI ứng dụng, tự động hóa và phát triển sản phẩm được kết nối với nhau, từ quyết định đầu tiên đến khi đi vào sử dụng hằng ngày.",
+    "footer": "Từ định hướng đến sử dụng hằng ngày"
+  },
+  "tiles": [
+    {
+      "slug": "digital-transformation",
+      "name": "Chuyển đổi số",
+      "desc": "Chúng tôi tìm ra điểm nghẽn, xác định ưu tiên và vạch ra một hướng đi thiết thực."
+    },
+    {
+      "slug": "automation-integration",
+      "name": "Tự động hóa & tích hợp",
+      "desc": "Chúng tôi kết nối các công cụ của bạn và loại bỏ những thao tác thủ công lặp đi lặp lại."
+    },
+    {
+      "slug": "ai-strategy",
+      "name": "Chiến lược AI",
+      "desc": "Chúng tôi giúp bạn xác định AI có thể hỗ trợ ở đâu, cần những gì và nên bắt đầu thế nào."
+    },
+    {
+      "slug": "product-delivery",
+      "name": "Phát triển sản phẩm",
+      "desc": "Chúng tôi đưa ý tưởng đi từ khâu khảo sát đến phần mềm được đưa vào sử dụng."
+    }
+  ],
+  "assessment": {
+    "title": "Đánh giá cơ hội",
+    "badge": "01/03",
+    "note": "Chúng tôi đề xuất bắt đầu từ bước này.",
+    "chip": "Giai đoạn hợp tác",
+    "value": "01",
+    "unit": "/03",
+    "progress": 33.3,
+    "cta": "Bắt đầu với bước đánh giá",
+    "href": "/contact/"
+  }
+}

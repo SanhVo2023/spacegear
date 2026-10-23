@@ -1,0 +1,32 @@
+{
+  "order": 3,
+  "slug": "applied-ai",
+  "name": "AI ứng dụng & học sâu",
+  "shortName": "AI ứng dụng",
+  "category": "Triển khai",
+  "image": "/images/suite/neural-net.webp",
+  "summary": "Chúng tôi biến dữ liệu và thông tin phi cấu trúc thành phần mềm hữu ích, có tích hợp sẵn khâu đánh giá và sự giám sát của con người.",
+  "buyerProblem": "Tài liệu, hình ảnh và dữ liệu vận hành có thể chứa nhiều thông tin hữu ích nhưng khó khai thác một cách nhất quán. Chúng tôi xây dựng và đánh giá hệ thống AI xoay quanh một quy trình làm việc cụ thể, kể cả những tình huống cần con người tiếp quản.",
+  "deliverables": [
+    "Mốc cơ sở và bộ dữ liệu đánh giá",
+    "Nguyên mẫu cho xử lý tài liệu thông minh, truy xuất thông tin, dự báo hoặc thị giác máy tính",
+    "Giải pháp đã tích hợp, có bước con người kiểm duyệt",
+    "Giám sát, mô tả giới hạn và tài liệu vận hành"
+  ],
+  "process": [
+    "Chúng tôi xác định nhiệm vụ, các ràng buộc và ngưỡng chất lượng.",
+    "Chúng tôi so sánh các cách tiếp cận với một mốc cơ sở đo lường được.",
+    "Chúng tôi tích hợp, đánh giá và chuẩn bị để hệ thống đi vào vận hành."
+  ],
+  "faqs": [
+    {
+      "question": "Khi nào thì nên dùng học sâu?",
+      "answer": "Học sâu có thể hữu ích với những mẫu hình phức tạp trong văn bản, hình ảnh hoặc các loại dữ liệu khác, khi có đủ dữ liệu phù hợp và đủ năng lực để đánh giá. Chúng tôi so sánh nó với các phương pháp đơn giản hơn trước khi chọn cách tiếp cận."
+    },
+    {
+      "question": "spacegear.tech xử lý thế nào khi hệ thống cho kết quả sai?",
+      "answer": "Khi thiết kế từng tình huống ứng dụng, chúng tôi đưa vào khâu đánh giá, kiểm tra chất lượng ở những chỗ cần thiết, bước con người kiểm duyệt và một hướng xử lý rõ ràng cho các trường hợp ngoại lệ. Không mô hình nào được coi là không bao giờ sai."
+    }
+  ],
+  "relatedInsightSlugs": []
+}

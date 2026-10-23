@@ -114,12 +114,12 @@ collections:
             fields:
               - { name: lead, label: Lead, widget: string, maxlength: 30, use_emoji_autocomplete: false }
               - name: verbs
-                label: Verbs (three short words)
+                label: Verbs (three short words or phrases)
                 widget: list
                 min: 3
                 max: 3
-                field: { name: verb, label: Verb, widget: string, maxlength: 6, use_emoji_autocomplete: false }
-              - { name: tail, label: Tail, widget: string, maxlength: 24, use_emoji_autocomplete: false }
+                field: { name: verb, label: Verb, widget: string, maxlength: 12, use_emoji_autocomplete: false }
+              - { name: tail, label: Tail, widget: string, maxlength: 32, use_emoji_autocomplete: false }
           - name: pitch
             label: Pitch
             widget: object

@@ -84,7 +84,7 @@ export function contentSchemas(serviceSlugs: readonly string[]) {
     singletons: {
       home: object({
         eyebrow: object({ muted: text({ max: 40 }), strong: text({ max: 40 }) }),
-        headline: object({ lead: text({ max: 30 }), verbs: list(text({ max: 6 }), { min: 3, max: 3 }), tail: text({ max: 24 }) }),
+        headline: object({ lead: text({ max: 30 }), verbs: list(text({ max: 12 }), { min: 3, max: 3 }), tail: text({ max: 32 }) }),
         pitch: object({ title: text({ max: 40 }), text: text({ max: 48 }) }),
         cta: link(),
         stats: list(object({ value: text({ max: 4 }), unit: text({ min: 0, max: 4 }), label: text({ max: 24 }), sub: text({ max: 40 }) }), { min: 2, max: 2 }),
@@ -202,14 +202,14 @@ export function contentSchemas(serviceSlugs: readonly string[]) {
 type Loaded<T> = { file: string; entry: T };
 
 /** Validates every entry of a folder collection and sorts them by `order` (unique per collection). */
-function loadCollection<T extends { order: number }>(files: readonly CollectionFile[], name: CollectionName, entrySchema: Schema<T>, issues: string[]): Loaded<T>[] {
-  const loaded = files.map(({ file, data }) => ({ file, entry: check(entrySchema, data, `content/${name}/${file}`, issues) }));
+function loadCollection<T extends { order: number }>(files: readonly CollectionFile[], name: CollectionName, entrySchema: Schema<T>, issues: string[], dir: string): Loaded<T>[] {
+  const loaded = files.map(({ file, data }) => ({ file, entry: check(entrySchema, data, `${dir}/${name}/${file}`, issues) }));
   const taken = new Map<number, string>();
   for (const { file, entry } of loaded) {
     // A missing or invalid order is already reported by the schema; it is not a shared number.
     if (!Number.isInteger(entry.order) || entry.order < 1) continue;
     const other = taken.get(entry.order);
-    if (other !== undefined) issues.push(`content/${name}/${file}: order ${entry.order} is already used by ${other}; give every entry its own number`);
+    if (other !== undefined) issues.push(`${dir}/${name}/${file}: order ${entry.order} is already used by ${other}; give every entry its own number`);
     else taken.set(entry.order, file);
   }
   return [...loaded].sort((a, b) => a.entry.order - b.entry.order || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
@@ -229,7 +229,7 @@ function withoutOrder<T extends { order: number }>(entry: T): Omit<T, "order"> {
  * company, so two entries whose fields differ but join to the same key are refused too. Missing
  * and empty values are left to the schema.
  */
-function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, fields: K | readonly K[], issues: string[]) {
+function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[], name: CollectionName, fields: K | readonly K[], issues: string[], dir: string) {
   const keys: readonly K[] = typeof fields === "string" ? [fields] : fields;
   const seen = new Map<string, string>();
   for (const { file, entry } of loaded) {
@@ -238,8 +238,8 @@ function uniqueField<T, K extends keyof T & string>(loaded: readonly Loaded<T>[]
     const id = values.join("|");
     const other = seen.get(id);
     if (other === undefined) seen.set(id, file);
-    else if (keys.length === 1) issues.push(`content/${name}/${file}: ${keys[0]} ${JSON.stringify(id)} is already used by ${other}; give every entry its own ${keys[0]}`);
-    else issues.push(`content/${name}/${file}: ${keys.join(" and ")} make the key ${JSON.stringify(id)}, which ${other} already uses; give every entry its own combination of ${keys.join(" and ")}`);
+    else if (keys.length === 1) issues.push(`${dir}/${name}/${file}: ${keys[0]} ${JSON.stringify(id)} is already used by ${other}; give every entry its own ${keys[0]}`);
+    else issues.push(`${dir}/${name}/${file}: ${keys.join(" and ")} make the key ${JSON.stringify(id)}, which ${other} already uses; give every entry its own combination of ${keys.join(" and ")}`);
   }
 }
 
@@ -265,56 +265,58 @@ function uniqueItems(items: unknown, file: string, field: string, issues: string
  * an entry's file has no true/false `featured` (the schema reports it), "none featured" is not
  * also reported.
  */
-function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], files: readonly CollectionFile[], issues: string[]) {
+function oneFeatured(engagements: readonly Loaded<{ featured: boolean }>[], files: readonly CollectionFile[], issues: string[], dir: string) {
   const featured = engagements.filter(({ entry }) => entry.featured === true);
   const unreadable = files.some(({ data }) => !isRecord(data) || typeof data.featured !== "boolean");
-  if (featured.length === 0 && !unreadable) issues.push("content/engagements: no engagement is featured; set featured on exactly one");
-  for (const { file } of featured.slice(1)) issues.push(`content/engagements/${file}: featured is already set on ${featured[0].file}; set featured on exactly one engagement`);
+  if (featured.length === 0 && !unreadable) issues.push(`${dir}/engagements: no engagement is featured; set featured on exactly one`);
+  for (const { file } of featured.slice(1)) issues.push(`${dir}/engagements/${file}: featured is already set on ${featured[0].file}; set featured on exactly one engagement`);
 }
 
-/** Validates all content and derives the exported values. Throws one ContentError listing every problem. */
-export function buildContent(input: ContentInput) {
+/** Validates all content and derives the exported values. Throws one ContentError listing every problem, each
+ *  named by its file under `dir` ("content" for English, "content/vi" for Vietnamese). */
+export function buildContent(input: ContentInput, dir = "content") {
   const issues: string[] = [];
-  const services = loadCollection(input.collections.services, "services", contentSchemas([]).collections.services, issues);
+  const fileOf = (name: SingletonName) => SINGLETON_FILES[name].replace(/^content\//, `${dir}/`);
+  const services = loadCollection(input.collections.services, "services", contentSchemas([]).collections.services, issues, dir);
   // Only a well-formed slug names a service: a malformed one is reported by the schema alone,
   // with no advice to rename the file after it, and tiles and pillars cannot point at it.
   const serviceSlugs: string[] = [];
   for (const { file, entry } of services) {
-    uniqueItems(entry.deliverables, `content/services/${file}`, "deliverables", issues);
+    uniqueItems(entry.deliverables, `${dir}/services/${file}`, "deliverables", issues);
     const value: unknown = entry.slug;
     if (typeof value !== "string" || !SLUG.test(value)) continue;
     serviceSlugs.push(value);
-    if (file !== `${value}.json`) issues.push(`content/services/${file}: rename the file to ${value}.json (it must match the slug)`);
+    if (file !== `${value}.json`) issues.push(`${dir}/services/${file}: rename the file to ${value}.json (it must match the slug)`);
   }
   const schemas = contentSchemas(serviceSlugs);
   const one = schemas.singletons;
-  const home = check(one.home, input.home, SINGLETON_FILES.home, issues);
-  const sections = check(one.sections, input.sections, SINGLETON_FILES.sections, issues);
-  const work = check(one.work, input.work, SINGLETON_FILES.work, issues);
-  const servicesPanel = check(one.servicesPanel, input.servicesPanel, SINGLETON_FILES.servicesPanel, issues);
-  const processBlock = check(one.process, input.process, SINGLETON_FILES.process, issues);
-  const approach = check(one.approach, input.approach, SINGLETON_FILES.approach, issues);
-  const measure = check(one.measure, input.measure, SINGLETON_FILES.measure, issues);
-  const engagementsPanel = check(one.engagementsPanel, input.engagementsPanel, SINGLETON_FILES.engagementsPanel, issues);
-  const faqCard = check(one.faqCard, input.faqCard, SINGLETON_FILES.faqCard, issues);
-  const team = check(one.team, input.team, SINGLETON_FILES.team, issues);
-  const footer = check(one.footer, input.footer, SINGLETON_FILES.footer, issues);
+  const home = check(one.home, input.home, fileOf("home"), issues);
+  const sections = check(one.sections, input.sections, fileOf("sections"), issues);
+  const work = check(one.work, input.work, fileOf("work"), issues);
+  const servicesPanel = check(one.servicesPanel, input.servicesPanel, fileOf("servicesPanel"), issues);
+  const processBlock = check(one.process, input.process, fileOf("process"), issues);
+  const approach = check(one.approach, input.approach, fileOf("approach"), issues);
+  const measure = check(one.measure, input.measure, fileOf("measure"), issues);
+  const engagementsPanel = check(one.engagementsPanel, input.engagementsPanel, fileOf("engagementsPanel"), issues);
+  const faqCard = check(one.faqCard, input.faqCard, fileOf("faqCard"), issues);
+  const team = check(one.team, input.team, fileOf("team"), issues);
+  const footer = check(one.footer, input.footer, fileOf("footer"), issues);
   const many = schemas.collections;
-  const engagements = loadCollection(input.collections.engagements, "engagements", many.engagements, issues);
-  const faqs = loadCollection(input.collections.faqs, "faqs", many.faqs, issues);
-  const roles = loadCollection(input.collections["team-roles"], "team-roles", many["team-roles"], issues);
-  const testimonials = loadCollection(input.collections.testimonials, "testimonials", many.testimonials, issues);
-  const articles = loadCollection(input.collections.articles, "articles", many.articles, issues);
+  const engagements = loadCollection(input.collections.engagements, "engagements", many.engagements, issues, dir);
+  const faqs = loadCollection(input.collections.faqs, "faqs", many.faqs, issues, dir);
+  const roles = loadCollection(input.collections["team-roles"], "team-roles", many["team-roles"], issues, dir);
+  const testimonials = loadCollection(input.collections.testimonials, "testimonials", many.testimonials, issues, dir);
+  const articles = loadCollection(input.collections.articles, "articles", many.articles, issues, dir);
   for (const { file, entry } of engagements) {
-    uniqueItems(entry.deliverables, `content/engagements/${file}`, "deliverables", issues);
-    uniqueItems(entry.outcomes, `content/engagements/${file}`, "outcomes", issues);
+    uniqueItems(entry.deliverables, `${dir}/engagements/${file}`, "deliverables", issues);
+    uniqueItems(entry.outcomes, `${dir}/engagements/${file}`, "outcomes", issues);
   }
-  uniqueField(engagements, "engagements", "name", issues);
-  oneFeatured(engagements, input.collections.engagements, issues);
-  uniqueField(faqs, "faqs", "question", issues);
-  uniqueField(testimonials, "testimonials", ["name", "company"], issues);
-  uniqueField(articles, "articles", "slug", issues);
-  uniqueItems(work.tiles, SINGLETON_FILES.work, "tiles", issues, "slug");
+  uniqueField(engagements, "engagements", "name", issues, dir);
+  oneFeatured(engagements, input.collections.engagements, issues, dir);
+  uniqueField(faqs, "faqs", "question", issues, dir);
+  uniqueField(testimonials, "testimonials", ["name", "company"], issues, dir);
+  uniqueField(articles, "articles", "slug", issues, dir);
+  uniqueItems(work.tiles, fileOf("work"), "tiles", issues, "slug");
   if (issues.length) throw new ContentError(issues);
 
   const SERVICES: Service[] = services.map(({ entry }) => withoutOrder(entry));
