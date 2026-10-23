@@ -170,8 +170,9 @@ export function stopProbe(page) {
   return page.evaluate(() => window.__cursorProbe());
 }
 
-/** Moves the mouse from `from` to `to` in `steps` integer moves, one every `every` ms (a 125 Hz mouse): x rises
- *  at every step (so each position names one move), and y rides a gentle wave. */
+/** Moves the mouse from `from` to `to` in `steps` integer moves, at most one every `every` ms: x rises at every
+ *  step (so each position names one move), and y rides a gentle wave. Each move waits until the page has taken
+ *  it, which in Chromium is about one frame, so a glide advances about one step per frame. */
 export async function glide(page, from, to, { steps = 200, every = 8, wave = 60 } = {}) {
   let next = performance.now();
   for (let i = 1; i <= steps; i++) {
@@ -540,21 +541,24 @@ desktop("the cursor dot is painted in the first frame after each move, over the 
   const facts = JSON.stringify(timing);
   assert.ok(timing.painted >= 190, `desktop: the probe saw the dot reach the glide's moves (${facts})`);
   assert.ok(timing.lateFrames.p95 === 0 && timing.lateFrames.max <= 1, `desktop: the dot is painted in the first frame after each move, at worst one frame later (${facts})`);
-  assert.deepEqual(await cursorBlends(page), [], "desktop: over the globe (Drag) the cursor does not blend");
-  const look = await page.evaluate(() => {
+  /** The cursor's state, whether its dot and ring carry an outline, and which layers are promoted. */
+  const look = () => page.evaluate(() => {
     const root = document.querySelector("[data-fx-cursor-root]");
     const style = (selector) => getComputedStyle(root.querySelector(selector));
     return {
+      state: root.dataset.state,
       dotOutline: style(".fx-cursor-dot").boxShadow !== "none",
       ringOutline: style(".fx-cursor-disc").boxShadow !== "none",
       promoted: [style(".fx-cursor-dot-pos").willChange, style(".fx-cursor-ring").willChange, getComputedStyle(root).willChange],
     };
   });
-  assert.deepEqual(look, { dotOutline: true, ringOutline: true, promoted: ["transform", "transform", "auto"] }, "desktop: the white dot and ring carry a dark outline, and only the moving layers are promoted");
+  const promoted = ["transform", "transform", "auto"];
+  assert.deepEqual(await cursorBlends(page), [], "desktop: over the globe (Drag) the cursor does not blend");
+  assert.deepEqual(await look(), { state: "label", dotOutline: true, ringOutline: false, promoted }, "desktop: over the globe the orange label disc keeps its plain look, and only the moving layers are promoted");
   const link = await page.locator('header a[href="/about/"]').first().boundingBox();
   await page.mouse.move(link.x + link.width / 2, link.y + link.height / 2, { steps: 4 });
   await page.waitForTimeout(300);
-  assert.equal(await page.evaluate(() => document.querySelector("[data-fx-cursor-root]").dataset.state), "hover", "desktop: over a nav link the cursor morphs (precondition)");
+  assert.deepEqual(await look(), { state: "hover", dotOutline: true, ringOutline: true, promoted }, "desktop: over a nav link the white dot and ring carry a dark outline");
   assert.deepEqual(await cursorBlends(page), [], "desktop: over a link the cursor does not blend");
 });
 
@@ -563,7 +567,7 @@ desktop("the cursor ring settles on the pointer within 150 ms of a stop, snaps a
   await page.mouse.move(6, 420);
   await page.waitForTimeout(800);
   await probeCursor(page);
-  await glide(page, { x: 20, y: 420 }, { x: 620, y: 420 }, { steps: 100, wave: 40 }); // 6 px every 8 ms: 750 px/s
+  await glide(page, { x: 20, y: 420 }, { x: 620, y: 420 }, { steps: 100, wave: 40 }); // about 6 px a frame: 360 px/s
   await page.waitForTimeout(500);
   const timing = cursorTiming(await stopProbe(page));
   assert.ok(timing.ringSettle <= 150, `desktop: the ring rests on the pointer within 150 ms of a stop (${JSON.stringify(timing)})`);
