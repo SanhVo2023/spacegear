@@ -16,6 +16,11 @@ async function importTs(path) {
 const base = process.argv[2] || "http://127.0.0.1:8787";
 const production = process.argv.includes("--production");
 const canonicalOrigin = process.env.NEXT_PUBLIC_SITE_URL || "https://spacegear.tech";
+// The Worker sends a visitor from Vietnam, or one whose browser asks for Vietnamese, from an English page to its /vi/
+// twin (worker/locale.ts). The crawl must read every page as the sitemap lists it from any region, so it chooses
+// English the way the language switch does: the sg_lang cookie. /vi/ pages never run the Worker, so it changes nothing there.
+const LANG_COOKIE = { name: "sg_lang", value: "en" };
+const fetch = (url, init = {}) => globalThis.fetch(url, { ...init, headers: { cookie: `${LANG_COOKIE.name}=${LANG_COOKIE.value}`, ...init.headers } });
 const sitemapResponse = await fetch(`${base}/sitemap.xml`);
 assert.equal(sitemapResponse.status, 200);
 const sitemap = await sitemapResponse.text();
@@ -30,7 +35,9 @@ const published = labsRoutes().map(route => route.path);
 assert.deepEqual(routes.filter(route => LABS.test(route)).sort(), [...published].sort(), "the sitemap lists exactly the published Labs pages");
 assert.equal(new Set(routes).size, routes.length);
 const browser = await launchBrowser();
-const page = await browser.newPage({ javaScriptEnabled: false });
+const context = await browser.newContext({ javaScriptEnabled: false });
+await context.addCookies([{ ...LANG_COOKIE, url: base }]);
+const page = await context.newPage();
 const titles = new Set(), descriptions = new Set(), links = new Set(), assets = new Set(), report = [];
 // Both languages: every English page has a Vietnamese twin under /vi/, and each names the other (hreflang).
 const LOCALE_OF = route => route === "/vi/" || route.startsWith("/vi/") ? "vi" : "en";
