@@ -17,22 +17,26 @@
 //   - Text is folded first: NFKC (a fullwidth ＄４９９ becomes $499), then every format character
 //     (\p{Cf}: zero-width, bidi, soft hyphen) and the combining grapheme joiner are removed.
 // Scopes (`where` is a content file or an export name, `field` the path inside it):
-//   - the sample dashboard (content/measure.json, MEASURE) may show percentages and k/M figures,
-//     in its figure fields only (FIGURE_FIELD); its ticker, labels and calls to action may not;
-//   - the legal pages may state periods ("for 2 years", "within 90 days") and name their
-//     processors (AWS); founding years, decades, delivery promises and partner tiers stay refused.
+//   - the sample dashboard (content/measure.json and content/vi/measure.json, MEASURE) may show
+//     percentages and k/M figures, in its figure fields only (FIGURE_FIELD); its ticker, labels and
+//     calls to action may not;
+//   - the legal pages (content/legal/ and content/vi/legal/) may state periods ("for 2 years",
+//     "within 90 days") and name their processors (AWS); founding years, decades, delivery promises
+//     and partner tiers stay refused.
 // Every pattern is linear: no unbounded quantifier can restart inside a run it already scanned
 // (tests/content.test.mjs times them on long pathological input).
-// Known gaps: Vietnamese phrasing (the site is English-only), look-alike letters (Cyrillic "Ѕ")
-// and non-ASCII digits (Arabic-Indic "٤٩٩"), HTML entities such as &#36; (React prints them as
+// Known gaps: Vietnamese claim phrasing until the Vietnamese patterns land (bilingual plan, Task 7),
+// look-alike letters (Cyrillic "Ѕ") and non-ASCII digits (Arabic-Indic "٤٩٩"), HTML entities such as &#36; (React prints them as
 // text), and a literal backslash-u sequence written as text.
 import fs from "node:fs";
 import path from "node:path";
 
-const LEGAL = (where) => where.startsWith("content/legal/");
-// The figure fields of the illustrative dashboard (content/measure.json), and the figure groups built from them.
+// content/vi/ mirrors content/ file for file, so a Vietnamese file has the scopes of its English twin.
+const englishTwin = (where) => where.replace(/^content\/vi\//, "content/");
+const LEGAL = (where) => englishTwin(where).startsWith("content/legal/");
+// The figure fields of the illustrative dashboard (content/measure.json and its Vietnamese twin), and the figure groups built from them.
 const FIGURE_FIELD = /^(?:workflow\.center|workflow\.segments\[\d+\](?:\.value)?|stages\[\d+\]\.detail|accuracy(?:\.value|\.unit)?|throughput\.legend\[\d+\](?:\.value)?|readiness(?:\.score|\.bars\[\d+\](?:\.v)?)?|coverage(?:\.value|\.progress)?)$/;
-const MEASURE_FIGURE = (where, field) => (where === "content/measure.json" || where === "MEASURE") && FIGURE_FIELD.test(field);
+const MEASURE_FIGURE = (where, field) => (englishTwin(where) === "content/measure.json" || where === "MEASURE") && FIGURE_FIELD.test(field);
 const SPELLED = "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand";
 const MODEL = "Llama|Mistral|Mixtral|Qwen|Gemma|Falcon|Phi|DeepSeek|Yi";
 const AUDIENCE = String.raw`\s?(?:clients?|customers?|users?|people|downloads|installs|companies|businesses|teams|organi[sz]ations|revenue|sales|ARR|MRR)\b`;
@@ -42,8 +46,10 @@ const VENDORS = "Google|Microsoft|Amazon|AWS|Salesforce|HubSpot|SAP|Oracle|OpenA
 export const FORBIDDEN = [
   // Prices.
   [/\$\s?\d/, "a price"],
-  // \b only knows ASCII letters, so "đồng" is bounded with Unicode lookarounds.
-  [/[€£¥₫₹₩₽₺₦₱฿]|\b(?:USD|EUR|GBP|VND|SGD|AUD|CHF|JPY|CNY|INR)\b|\b(?:dollars?|euros?|pounds?|bucks)\b|(?<![\p{L}\p{N}])đồng(?![\p{L}\p{N}])/iu, "a price"],
+  [/[€£¥₫₹₩₽₺₦₱฿]|\b(?:USD|EUR|GBP|VND|SGD|AUD|CHF|JPY|CNY|INR)\b|\b(?:dollars?|euros?|pounds?|bucks)\b/i, "a price"],
+  // "đồng" (and "đ", "VNĐ") is the currency only after a number ("5.000.000 đồng", "200.000đ"): hợp đồng,
+  // đồng ý and đồng thời are words. \b only knows ASCII letters, hence the Unicode lookarounds.
+  [/(?<![\p{L}\p{N}_.,])\d[\d.,]{0,15}\s{0,3}(?:đồng|đ|vnđ)(?![\p{L}\p{N}_])/iu, "a price"],
   // A number with a rate ("499 per month", "49 a month", "49/mo"); "one team per project" is not a price.
   [/(?<![\w.,])\d[\d,.]{0,12}\s{0,3}(?:(?:per|a|an)\s{1,3}|\/\s{0,3})(?:month|year|yr|mo|hour|hr|day|week|project|user|seat|sprint)s?\b/i, "a price"],
   [/\b(?:hourly|daily|day) rates?\b|\b(?:price[sd]?|pricing|fees?|costs?|rates?)\s{0,3}(?:from|of|start(?:s|ing)?\s(?:at|from)|:)\s{0,3}\d|\bstarting (?:at|from)\s{0,3}\d/i, "a price"],
@@ -51,7 +57,8 @@ export const FORBIDDEN = [
   // name and an optional version ("Llama 3 70B", "Qwen 2.5 72B"), never followed by an audience or
   // revenue noun; B sizes before "parameters" or "models" ("7B and 13B parameter models"); a k
   // context window ("a 128k context window"); a K screen ("4K display").
-  [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM]\b(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB]\b(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`), "a price or scale figure", { skip: MEASURE_FIGURE }],
+  // The unit letter ends at a Unicode edge: "100 ký tự" (characters) and "82 Mức" are words, not k or M.
+  [new RegExp(String.raw`(?<![\w.,])(?!(?<=\b(?:${MODEL})\b[ -]?(?:\d{1,2}(?:\.\d)?[ -])?)\d{1,4}(?:\.\d)?[bBmM](?![\p{L}\p{N}_])(?!${AUDIENCE}))\d{1,6}(?:[.,]\d{1,3})?\s?[kKmMbB](?![\p{L}\p{N}_])(?!(?:\s?(?:and|or|,)\s?\d{1,4}[bB]\b){0,3}(?:(?<=[bB])\s?(?:parameters?|params|models?)\b|(?<=[kK])\s{1,3}context\s{1,3}window\b|(?<=[kK])\s?(?:displays?|screens?|monitors?|video|resolution|TV|UHD|HDR)\b))`, "u"), "a price or scale figure", { skip: MEASURE_FIGURE }],
   // The original site and the old identity.
   [/97\.8|31\.2|84\.7/, "an original platform metric"],
   // "space—gear" is the retired dash wordmark: the drawn logo replaced it (docs/brand/).
@@ -70,7 +77,8 @@ export const FORBIDDEN = [
   [/(?<![\w.,])\d[\d.,]{0,8}[^.!?\n]{0,30}?\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b|\b(?:clients?|customers?|users?)\s{1,3}(?:satisfaction|retention|served|helped|onboarded|reached|saved)\b[^.!?\n]{0,30}?\d|\b(?:client|customer|user)\s{1,3}satisfaction\s{1,3}(?:of|rate|score)\b/i, "a client result claim"],
   // "You own 100% of the code" states ownership and "100% remotely" a way of working, not a result.
   [/(?<![\w.,])(?!100\s?%\s{1,3}(?:of\s{1,3}(?:the|your)\s{1,3}(?:code|source code|IP|intellectual property|work|deliverables|rights)|remote(?:ly)?|online)\b)\d[\d.,]{0,6}\s?%|\bper ?cent\b/i, "a result figure", { skip: MEASURE_FIGURE }],
-  [/(?<![\w.,])\d{1,6}(?:\.\d{1,3})?\s?(?:x\b|×)|\b(?:two|three|four|five|ten)(?:fold| times)\b|\b(?:doubled|tripled|quadrupled)\b/i, "a multiplier claim"],
+  // "62 Xử lý" is a word, not a multiplier: the x ends at a Unicode edge.
+  [/(?<![\w.,])\d{1,6}(?:\.\d{1,3})?\s?(?:x(?![\p{L}\p{N}_])|×)|\b(?:two|three|four|five|ten)(?:fold| times)\b|\b(?:doubled|tripled|quadrupled)\b/iu, "a multiplier claim"],
   // Press, partners, ratings, awards and certifications.
   [/TechCrunch/, "an unverified press or partnership claim"],
   [/\bAWS\b/, "an unverified press or partnership claim", { skip: LEGAL }],
