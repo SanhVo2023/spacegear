@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
 import Nav from "@/components/Nav";
 import CurtainShell from "@/components/CurtainShell";
 import MotionProvider from "@/components/MotionProvider";
@@ -11,9 +10,9 @@ import Footer from "@/components/sections/Footer";
 import StructuredData from "@/components/StructuredData";
 import { SITE } from "@/lib/site";
 import "./globals.css";
+// The type families (Inter and JetBrains Mono, latin and Vietnamese subsets): src/app/fonts/fonts.ts.
+import "./fonts/fonts";
 
-const inter = localFont({ src: "./fonts/inter-latin.woff2", variable: "--font-inter", display: "swap" });
-const mono = localFont({ src: "./fonts/jetbrains-mono-latin.woff2", variable: "--font-code", display: "swap", preload: false });
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.origin), title: `${SITE.name} | Digital Transformation & AI Consulting`, description: SITE.description,
   robots: { index: SITE.publicationMode === "production", follow: SITE.publicationMode === "production" },
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#161719" };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // suppressHydrationWarning: the inline intro gate may add data-intro to <html> before hydration.
-  return <html lang="en" className={`${inter.variable} ${mono.variable} antialiased`} suppressHydrationWarning><body id="top">
+  return <html lang="en" className="antialiased" suppressHydrationWarning><body id="top">
     <IntroGate />
     <NoScriptStyles />
     <a className="skip-link" href="#main">Skip to content</a>
