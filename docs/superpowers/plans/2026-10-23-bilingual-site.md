@@ -86,7 +86,7 @@
   - Other agents may be working in this worktree at the same time, so commit only the files your task lists. Run `git status` first, never `git add -A`, and never stash.
   - If git reports `index.lock`, wait 5 s and retry. Never delete another agent's lock.
 - **Parallel tasks share one working tree**, so a build can see another task's half-done edits. Tasks marked ∥ run **fast gates only**: `npm run lint`, `npm run typecheck`, the named `node --import tsx --test …` files, and `npm test` once at the end. They never run `next build`. Each wave ends with an integration task that builds and runs the heavy checks once everything in the wave has committed.
-- **Heavy jobs** go through `C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/wt.sh`, with the Bash tool timeout set to 600000 ms:
+- **Heavy jobs** go through `C:/Users/thach/AppData/Local/Temp/claude/E--Personal-clone-website/81ce8a4b-3639-4a15-9c74-49abc7d95e2b/scratchpad/tasks/wt.sh` (written `<wt.sh>` in both plans), with the Bash tool timeout set to 600000 ms. "(wt.sh)" after a command means run it as `bash "<wt.sh>" "E:/Personal/clone website/spacegear-hero" 8792 run <command>`:
   - `bash "<wt.sh>" "E:/Personal/clone website/spacegear-hero" 8792 rebuild`
   - `bash "<wt.sh>" "E:/Personal/clone website/spacegear-hero" 8792 run <command…>`
 - **Gates:**
@@ -150,7 +150,9 @@ export type PublishedRoute = { path: string; kind: "home" | "index" | "service" 
 export function getPublishedRoutes(): PublishedRoute[];      // Task 18: both languages (24 in Part 2)
 
 // src/lib/seo.ts (Tasks 17 and 19)
-export function buildMetadata(input: { title: string; description: string; path: string; locale: Locale; languages?: Partial<Record<Locale, string>>; type?: "website" | "article"; image?: { url: string; width: number; height: number; alt: string }; publishedTime?: string; modifiedTime?: string }): Metadata;
+export function buildMetadata(input: { title: string; description: string; path: string; locale: Locale; languages?: Partial<Record<Locale, string>>; type?: "website" | "article"; image?: { url: string; alt: string; width?: number; height?: number }; publishedTime?: string; modifiedTime?: string }): Metadata;
+export function canonicalUrl(path: string): string;
+export function siteMetadata(locale: Locale): Metadata;   // root layouts
 export function breadcrumbData(items: { name: string; path: string }[], locale: Locale): object;
 export function organizationData(locale: Locale): object;
 export function websiteData(locale: Locale): object;
@@ -2342,10 +2344,30 @@ In the `home` file's `headline`:
 - `{ name: tail, label: Tail, widget: string, maxlength: 24, use_emoji_autocomplete: false }`: change `maxlength: 24` to `maxlength: 32`.
 - In the `verbs` list label, write `Verbs (three short words or phrases)`.
 
-- [ ] **Step 12: Run the tests**
+- [ ] **Step 12: Run the tests, and refresh the export names in the fixture**
 
 Run: `node --import tsx --test tests/content-locale.test.mjs tests/content-index.test.mjs tests/content-loader.test.mjs tests/content-rules.test.mjs tests/cms-config.test.mjs tests/legal.test.mjs tests/content.test.mjs`
 Expected: PASS.
+
+Then run `node --import tsx --test tests/content-exports.test.mjs`. Expected: FAIL on "content.ts exports exactly the names it exported before the CMS": `CONTENT_DIRS`, `getContent` and `serviceFor` are new. That is a deliberate change of export names. Follow README "The migration check":
+
+`node scripts/check-migration.mjs --refresh-structure`
+
+Then review `git diff tests/fixtures`. Expected:
+- `content-v1.json` `exports` gains exactly those three names;
+- `content-files-v1.json` gains the `content/vi/` files;
+- nothing else changes.
+
+Commit it on its own, before Step 14:
+
+```bash
+git add tests/fixtures/content-v1.json tests/fixtures/content-files-v1.json tests/fixtures/legal-v1.json
+git commit -m "test(fixtures): take the per-locale content API (getContent, serviceFor, CONTENT_DIRS) and content/vi into the migration fixture
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+`src/lib/content-contract.ts` needs no line for them: it pins the English exports' types, which do not change.
 
 - [ ] **Step 13: Fast gates and the content check**
 
@@ -4519,7 +4541,20 @@ and change the final message's `12 core pages` to `${ROUTES.length} core pages`.
 - [ ] **Step 9: Tests and fast gates**
 
 Run: `node --import tsx --test tests/routes.test.mjs tests/fonts.test.mjs tests/views.test.mjs && npm run lint && npm run typecheck && npm test`
-Expected: PASS.
+Expected: PASS, except `tests/content-exports.test.mjs` "the published routes are unchanged". The routes are now 24, each with `locale` and `alternates`, which is a deliberate change. Refresh the structure (README "The migration check"):
+
+`node scripts/check-migration.mjs --refresh-structure`
+
+Review `git diff tests/fixtures`. Only `site.routes` should change: 24 entries, English first, each with `locale` and `alternates`. Commit it on its own:
+
+```bash
+git add tests/fixtures/content-v1.json
+git commit -m "test(fixtures): the published routes now list both languages
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Run `npm test` again. Expected: PASS.
 
 - [ ] **Step 10: Build and look**
 
@@ -4612,7 +4647,8 @@ type MetadataInput = {
   title: string; description: string;
   /** The page's English path ("/about/"); with `languages`, the paths of the versions that exist (a Labs article may have one). */
   path: string; locale: Locale; languages?: Partial<Record<Locale, string>>;
-  type?: "website" | "article"; image?: { url: string; width: number; height: number; alt: string };
+  /** og:type; an article (Part 3) also gets its dates, and its cover as `image`. */
+  type?: "website" | "article"; image?: { url: string; alt: string; width?: number; height?: number };
   publishedTime?: string; modifiedTime?: string;
 };
 
