@@ -1,5 +1,9 @@
 import { spawnSync } from "node:child_process";
-const env={...process.env,SITE_MODE:"production"};
+import { RELEASE_ENV_FILE, loadReleaseEnv, withReleaseDefaults } from "./lib/release-env.mjs";
+// The public production values come from release.env; a variable set (not empty) in the environment wins.
+const release=withReleaseDefaults(process.env,loadReleaseEnv());
+const env={...release.env,SITE_MODE:"production"};
+console.log(`Build variables: ${Object.entries(release.sources).map(([key,source])=>`${key} from ${source==="environment"?"the environment":RELEASE_ENV_FILE}`).join(", ")}.`);
 // >>> CMS (showcase Part 3): index the content entries and write the upload variants first, as npm run build does.
 for(const script of ["scripts/build-content-index.mjs","scripts/build-upload-variants.mjs"]){const step=spawnSync(process.execPath,[script],{env,stdio:"inherit"});if(step.status!==0)process.exit(step.status||1);}
 // <<< CMS

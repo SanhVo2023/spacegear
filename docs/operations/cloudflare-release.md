@@ -26,12 +26,12 @@ Checked-in configuration is inert: no custom-domain route, public workers.dev UR
 | OWNER_EMAIL, SENDER_EMAIL | Fixed verified destinations, never chosen by user input |
 | TURNSTILE_SECRET_KEY | Worker secret |
 
-Production build variables: SITE_MODE=production, NEXT_PUBLIC_SITE_URL=https://spacegear.tech, confirmed NEXT_PUBLIC_CONTACT_EMAIL, real NEXT_PUBLIC_TURNSTILE_SITE_KEY, POLICIES_APPROVED=true. Set them explicitly in Workers Builds. Validation rejects missing facts and known dummy Turnstile keys; it does not independently verify email/domain ownership.
+Production build variables: `npm run build:production` sets SITE_MODE=production and reads the public values from [release.env](../../release.env): NEXT_PUBLIC_SITE_URL=https://spacegear.tech, NEXT_PUBLIC_CONTACT_EMAIL=admin@spacegear.tech, the production NEXT_PUBLIC_TURNSTILE_SITE_KEY and POLICIES_APPROVED=true. Workers Builds therefore needs no build variables. A variable that is set, and not empty, in the build environment wins over its line in release.env (for example to build a copy for another origin); the build log names where each value came from. release.env accepts only these four public keys, so a secret cannot be committed through it; secrets stay Worker secrets. It is not named `.env.production` because Next.js would load that file into preview builds (`npm run build:cf`) too. Validation rejects missing facts and known dummy Turnstile keys; it does not independently verify email/domain ownership.
 
 ## Release sequence
 
 1. Reconcile this preserved branch with the supplied GitHub repository when connectivity works. Review the source manifest and exact commit. Do not force-push over owner work.
-2. Run npm ci, npm run lint, npm run typecheck, npm test, then npm run build:production with confirmed variables. Deploy **dist/**, never out/. Use a fresh checkout without dist for a production build to prevent stale output.
+2. Run npm ci, npm run lint, npm run typecheck, npm test, then npm run build:production (its variables come from release.env). Deploy **dist/**, never out/. Use a fresh checkout without dist for a production build to prevent stale output.
 3. Run `wrangler deploy --dry-run --env production`; inspect bindings/size. Run `wrangler d1 migrations apply DB --remote --env production` against the verified database.
 4. Add the production custom domain: routes with pattern spacegear.tech and custom_domain true. If www is actually used, configure a one-hop Cloudflare Redirect Rule to apex preserving path/query.
 5. Connect Cloudflare Workers Builds to the reviewed repository/branch, using the same gates and build command.
